@@ -1,0 +1,52 @@
+{
+  "_comment": [
+    "รายการแหล่งข่าวของ Step 1 (get_historical_news ใน trend_final.py)",
+    "แก้ไฟล์นี้เพื่อเพิ่ม/ลบแหล่งได้เลย ไม่ต้องแตะโค้ด pipeline",
+    "ตรวจสุขภาพแหล่งได้ด้วย: python check_feeds.py",
+    "ปรับปรุงล่าสุด 2026-08-18 (ตรวจแล้วใช้ได้ทุกแหล่ง ณ วันนั้น)"
+  ],
+
+  "rss_groups": {
+    "Scientific_Papers": [
+      "https://www.sciencedaily.com/rss/health_medicine/cosmetics.xml"
+    ],
+    "B2B_Industry": [
+      "https://www.globalcosmeticsnews.com/feed/",
+      "https://www.glossy.co/beauty/feed/",
+      "https://theindustry.beauty/feed/",
+      "https://www.trendhunter.com/rss/category/Cosmetics-and-Beauty-Trends",
+      "https://britishbeautycouncil.com/feed/",
+      "https://cosmeticsbusiness.com/rss",
+      "https://www.premiumbeautynews.com/spip.php?page=backend&lang=en"
+    ],
+    "B2C_Review": [
+      "https://makeupandbeautyblog.com/feed/",
+      "https://phyrra.net/feed",
+      "https://thedermreview.com/feed/"
+    ],
+    "Market": [
+      "https://www.mintel.com/insights/beauty-and-personal-care/feed/",
+      "https://baramizilab.co.th/trend-reports/feed/",
+      "https://brandinside.asia/feed/"
+    ]
+  },
+
+  "google_news_domains": [
+    "vogue.co.th",
+    "ellethailand.com",
+    "wongnai.com",
+    "lemon8-app.com",
+    "thestandard.co",
+    "tiktok.com",
+    "brandinside.asia",
+    "mdpi.com"
+  ],
+
+  "_removed": {
+    "https://www.cosmeticsdesign-asia.com/arc/outboundfeeds/rss/": "HTTP 410 Gone ทั้งโดเมน - เว็บปิดถาวร (ตรวจ 2026-08-18)",
+    "https://www.cosmeticsdesign.com/arc/outboundfeeds/rss/": "HTTP 410 Gone ทั้งโดเมน - เว็บปิดถาวร",
+    "https://www.cosmeticsdesign-europe.com/arc/outboundfeeds/rss/": "HTTP 410 Gone ทั้งโดเมน - เว็บปิดถาวร",
+    "https://connect.in-cosmetics.com/feed": "HTTP 404 - ไม่พบ feed ทดแทนที่ใช้ได้",
+    "https://www.mdpi.com/rss/journal/cosmetics": "HTTP 403 บอท - ย้ายไปเข้าทาง google_news_domains (site:mdpi.com) แทน"
+  }
+}

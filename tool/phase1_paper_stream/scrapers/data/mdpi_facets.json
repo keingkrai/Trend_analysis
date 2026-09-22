@@ -1,0 +1,459 @@
+{
+  "generated_at": "2026-09-16T01:25:01+00:00",
+  "source": {
+    "site": "https://www.mdpi.com",
+    "method": "search keywords + scrape every result page + article pages",
+    "search_url": "https://www.mdpi.com/search?q=<keyword>",
+    "note": "MDPI robots.txt carries Disallow: /search*; article pages are allowed. Fetched with a headed browser - the site returns 403 to plain HTTP clients and to headless Chromium."
+  },
+  "window": {
+    "since": "2023-09-17",
+    "until": "2026-11-15",
+    "momentum_split": "2025-04"
+  },
+  "settings": {
+    "sort": "pubdate",
+    "match": "any",
+    "max_pages": 1,
+    "max_per_keyword": 0,
+    "deep_scraped": false
+  },
+  "keywords": [
+    "surfactant skin barrier disruption",
+    "cosmetic formulation microbiome modulation",
+    "ceramide lipid barrier restoration"
+  ],
+  "papers": 107,
+  "facets": {
+    "keywords": [],
+    "authors": [
+      {
+        "value": "Ewa Kilian-Pięta",
+        "papers": 2
+      },
+      {
+        "value": "Mateusz Szczygiełda",
+        "papers": 2
+      },
+      {
+        "value": "Agnieszka Duczmal",
+        "papers": 2
+      },
+      {
+        "value": "Elżbieta Sikora",
+        "papers": 2
+      },
+      {
+        "value": "Giovanni Deusebio",
+        "papers": 2
+      },
+      {
+        "value": "Annalisa Visciglia",
+        "papers": 2
+      },
+      {
+        "value": "Angela Amoruso",
+        "papers": 2
+      },
+      {
+        "value": "Marco Pane",
+        "papers": 2
+      },
+      {
+        "value": "Giovanni Tafuro",
+        "papers": 2
+      },
+      {
+        "value": "Alessia Costantini",
+        "papers": 2
+      },
+      {
+        "value": "Alessandra Semenzato",
+        "papers": 2
+      },
+      {
+        "value": "Agnieszka Feliczak-Guzik",
+        "papers": 2
+      },
+      {
+        "value": "Agata Wawrzyńczak",
+        "papers": 2
+      },
+      {
+        "value": "Paula Juliana Eraso-Calvachi",
+        "papers": 1
+      },
+      {
+        "value": "Isabella Rivera-Montoya",
+        "papers": 1
+      },
+      {
+        "value": "Daniela Bustamante-López",
+        "papers": 1
+      },
+      {
+        "value": "Juan Camilo Mejía-Giraldo",
+        "papers": 1
+      },
+      {
+        "value": "Justyna Werner",
+        "papers": 1
+      },
+      {
+        "value": "Kornelia Rzepczyk",
+        "papers": 1
+      },
+      {
+        "value": "Daria Mysiak",
+        "papers": 1
+      },
+      {
+        "value": "Damian Krystian Kaczmarek",
+        "papers": 1
+      },
+      {
+        "value": "Nikolaos Fylaktou",
+        "papers": 1
+      },
+      {
+        "value": "Alexandra Danielidi",
+        "papers": 1
+      },
+      {
+        "value": "Katerina Grafanaki",
+        "papers": 1
+      },
+      {
+        "value": "Athanasios Vlachodimitropoulos",
+        "papers": 1
+      },
+      {
+        "value": "Gerasimos Danielides",
+        "papers": 1
+      },
+      {
+        "value": "Foteini Tsapardoni",
+        "papers": 1
+      },
+      {
+        "value": "Spyridon Lygeros",
+        "papers": 1
+      },
+      {
+        "value": "Jian Jin",
+        "papers": 1
+      },
+      {
+        "value": "Chao Xu",
+        "papers": 1
+      },
+      {
+        "value": "Wenbin Bao",
+        "papers": 1
+      },
+      {
+        "value": "Joyce Marinho de Souza",
+        "papers": 1
+      },
+      {
+        "value": "Guilherme Bartolomeu-Gonçalves",
+        "papers": 1
+      },
+      {
+        "value": "Rafaela Moraes Leal",
+        "papers": 1
+      },
+      {
+        "value": "Isabela Madeira de Castro",
+        "papers": 1
+      },
+      {
+        "value": "Gislaine da Silva-Rodrigues",
+        "papers": 1
+      },
+      {
+        "value": "Paulo Henrique Guilherme Borges",
+        "papers": 1
+      },
+      {
+        "value": "Isabella Ramos Trevizani Thihara",
+        "papers": 1
+      },
+      {
+        "value": "Gabrielle Modesto Maroni",
+        "papers": 1
+      },
+      {
+        "value": "Vitória Lumi Ogatta",
+        "papers": 1
+      },
+      {
+        "value": "Artur Norio Mizuno",
+        "papers": 1
+      },
+      {
+        "value": "Eliandro Reis Tavares",
+        "papers": 1
+      },
+      {
+        "value": "Lucy Megumi Yamauchi",
+        "papers": 1
+      },
+      {
+        "value": "Marcus Vinícius Pimenta Rodrigues",
+        "papers": 1
+      },
+      {
+        "value": "Sueli Fumie Yamada-Ogatta",
+        "papers": 1
+      },
+      {
+        "value": "Cristina Eguren",
+        "papers": 1
+      },
+      {
+        "value": "Melina Lois",
+        "papers": 1
+      },
+      {
+        "value": "Stefania Briganti",
+        "papers": 1
+      },
+      {
+        "value": "Sarah Mosca",
+        "papers": 1
+      },
+      {
+        "value": "Monica Ottaviani",
+        "papers": 1
+      }
+    ],
+    "matched_keywords": [
+      {
+        "value": "surfactant skin barrier disruption",
+        "papers": 45
+      },
+      {
+        "value": "cosmetic formulation rheology",
+        "papers": 21
+      },
+      {
+        "value": "skin microbiome cosmetic",
+        "papers": 20
+      },
+      {
+        "value": "niacinamide skin barrier",
+        "papers": 19
+      },
+      {
+        "value": "skin microbiome",
+        "papers": 15
+      },
+      {
+        "value": "topical retinoid delivery systems",
+        "papers": 15
+      },
+      {
+        "value": "cosmetic emulsion stability",
+        "papers": 14
+      },
+      {
+        "value": "ceramide lipid barrier repair",
+        "papers": 10
+      },
+      {
+        "value": "ceramide lipid barrier restoration",
+        "papers": 9
+      },
+      {
+        "value": "surfactant skin microbiome disruption",
+        "papers": 8
+      },
+      {
+        "value": "cosmetic formulation microbiome stability",
+        "papers": 8
+      },
+      {
+        "value": "cosmetic formulation microbiome modulation",
+        "papers": 7
+      },
+      {
+        "value": "surfactant skin barrier irritation",
+        "papers": 5
+      },
+      {
+        "value": "topical retinoid delivery",
+        "papers": 4
+      },
+      {
+        "value": "nanocarrier delivery epidermal penetration",
+        "papers": 4
+      },
+      {
+        "value": "nanoliposome delivery system cosmetics",
+        "papers": 4
+      },
+      {
+        "value": "ceramide lipid matrix delivery",
+        "papers": 1
+      }
+    ],
+    "journals": [
+      {
+        "value": "Cosmetics",
+        "papers": 32
+      },
+      {
+        "value": "Int. J. Mol. Sci.",
+        "papers": 11
+      },
+      {
+        "value": "Appl. Sci.",
+        "papers": 5
+      },
+      {
+        "value": "Molecules",
+        "papers": 5
+      },
+      {
+        "value": "Dermato",
+        "papers": 4
+      },
+      {
+        "value": "Cells",
+        "papers": 4
+      },
+      {
+        "value": "Microorganisms",
+        "papers": 4
+      },
+      {
+        "value": "Pharmaceuticals",
+        "papers": 4
+      },
+      {
+        "value": "Pharmaceutics",
+        "papers": 4
+      },
+      {
+        "value": "Processes",
+        "papers": 3
+      },
+      {
+        "value": "J. Clin. Med.",
+        "papers": 3
+      },
+      {
+        "value": "Biomedicines",
+        "papers": 3
+      },
+      {
+        "value": "Biomolecules",
+        "papers": 2
+      },
+      {
+        "value": "Nutrients",
+        "papers": 2
+      },
+      {
+        "value": "Life",
+        "papers": 2
+      },
+      {
+        "value": "Antioxidants",
+        "papers": 2
+      },
+      {
+        "value": "Allergies",
+        "papers": 1
+      },
+      {
+        "value": "Animals",
+        "papers": 1
+      },
+      {
+        "value": "Int. J. Environ. Med.",
+        "papers": 1
+      },
+      {
+        "value": "Foods",
+        "papers": 1
+      },
+      {
+        "value": "Sustainability",
+        "papers": 1
+      },
+      {
+        "value": "Metabolites",
+        "papers": 1
+      },
+      {
+        "value": "Water",
+        "papers": 1
+      },
+      {
+        "value": "Standards",
+        "papers": 1
+      },
+      {
+        "value": "Antibiotics",
+        "papers": 1
+      },
+      {
+        "value": "Eng",
+        "papers": 1
+      },
+      {
+        "value": "Appl. Microbiol.",
+        "papers": 1
+      },
+      {
+        "value": "Mar. Drugs",
+        "papers": 1
+      },
+      {
+        "value": "J. Aesthetic Med.",
+        "papers": 1
+      },
+      {
+        "value": "Materials",
+        "papers": 1
+      },
+      {
+        "value": "Gels",
+        "papers": 1
+      },
+      {
+        "value": "Nanomaterials",
+        "papers": 1
+      },
+      {
+        "value": "Fermentation",
+        "papers": 1
+      }
+    ],
+    "article_types": [
+      {
+        "value": "Review",
+        "papers": 56
+      },
+      {
+        "value": "Article",
+        "papers": 48
+      },
+      {
+        "value": "Correction",
+        "papers": 1
+      },
+      {
+        "value": "Commentary",
+        "papers": 1
+      },
+      {
+        "value": "Communication",
+        "papers": 1
+      }
+    ],
+    "years": []
+  }
+}

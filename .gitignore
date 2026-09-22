@@ -1,0 +1,15 @@
+# คีย์ API จริง - ห้าม commit เด็ดขาด
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# ผลรันทุกรอบ + cache (มีไฟล์ใหญ่เกินที่ GitHub รับ เช่น embedding 175MB) - เก็บไว้แค่ README อธิบายโครงโฟลเดอร์
+/output/*
+!/output/README.md
+
+# แคช scrape + log ของ LLM - โค้ดสร้าง memory/ ในโฟลเดอร์ที่สั่งรัน จึงกันทุกระดับ (ไม่มี / นำหน้า)
+memory/

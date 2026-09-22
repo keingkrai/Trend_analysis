@@ -1,0 +1,341 @@
+# -*- coding: utf-8 -*-
+"""
+Phase 3 — ทดสอบกลไก matching สเกลใหญ่ (10,622 SKU จริงจาก watsons_product.csv) ผ่าน NVIDIA NIM's
+llama-nemotron-embed-vl-1b-v2 แทน Gemini
+
+ทำไมเปลี่ยนจาก Gemini: Gemini free-tier quota (100/นาที) ทำให้รอบก่อน (validate_at_scale.py, ไฟล์เก่า
+1,774 SKU) ล้มไป 2 รอบติดจาก 429 - ทดสอบ NVIDIA embedding แล้วผ่าน cross-lingual check (Eucerin/Aigis/
+Veet, query ไทย vs passage อังกฤษ) และ burst test 40 ครั้งติดไม่มี error เลย (0.54s/ครั้ง - เร็วกว่า
+Gemini pacing ~85/นาทีเดิมมาก)
+
+**เป็น "asymmetric" model - ต้องระบุ input_type ทุกครั้ง** ("query" สำหรับเทรนด์, "passage" สำหรับ
+สินค้า) ผ่าน extra_body - ไม่ใช่แค่เปลี่ยนชื่อโมเดลเฉยๆ
+
+มิติ 2048 (Gemini เดิม 3072, watsons10k-Gemini checkpoint ก็คนละพื้นที่) - checkpoint/result ไฟล์ชื่อ
+ใหม่แยกจากทุกไฟล์ก่อนหน้า กันสับสน/ใช้ผิด embedding space โดยไม่ตั้งใจ
+
+**ไม่ต้องรอเครดิต OpenRouter เลย** - NVIDIA_API key เดิมที่มีอยู่แล้ว
+"""
+import hashlib
+import json
+import os
+import pickle
+import re
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from dotenv import load_dotenv
+
+for _p in Path(__file__).resolve().parents:
+    if (_p / "common" / "bootstrap.py").exists():
+        sys.path.insert(0, str(_p))
+        break
+from common.bootstrap import PROJECT_ROOT, TOOL_DIR, OUTPUTS, CHECKPOINTS, tf, use_bedrock
+from match_supply import build_trend_matchable_text, cosine_similarity
+from validate_at_scale import build_product_text
+
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
+from openai import OpenAI
+
+client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=os.getenv("NVIDIA_API"))
+MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
+
+# 🆕 (2026-09-11) เดิม hardcode "workspace"/"outputs" ตรงๆ (ชื่อก่อนเปลี่ยนเป็น tool/+output/) พังไปตอน
+# เปลี่ยนชื่อโฟลเดอร์ เพราะไม่ได้ผ่าน OUTPUTS export - เปลี่ยนมาใช้ OUTPUTS ตรงๆ แทน (ที่ๆ ผลลัพธ์จริง
+# มีอยู่แล้วในนี้พอดี)
+CHECKPOINT_PATH = CHECKPOINTS / "phase3_product_embeddings_checkpoint_nvidia.pkl"
+RESULT_PATH = OUTPUTS / "phase3_scale_validation_nvidia_result.json"
+CHECKPOINT_EVERY = 200
+TOP_K = 15
+# 🆕 (2026-09-14) เหตุผลข้อความต้องยิง LLM จริง (เสีย credit) ต่างจาก similarity ที่คำนวณเองแบบ
+# deterministic - จำกัดไว้แค่ top 5 ที่ report ใช้จริง (ดู run_stepic_report.py's
+# load_supply_layer_results()'s `r["top_matches"][:5]`) ไม่ใช่ทั้ง TOP_K=15 ที่เก็บไว้เผื่อดูย้อนหลัง
+MATCH_REASON_TOP_K = 5
+
+
+def get_embedding(text, input_type, max_retries=5):
+    """input_type: 'query' (เทรนด์) หรือ 'passage' (สินค้า) - จำเป็นเสมอสำหรับ asymmetric model นี้"""
+    # 🆕 (2026-09-16) กันข้อความว่างตั้งแต่ต้นทาง - NVIDIA ตอบ 400 ("Input list must be non-empty and all
+    # elements must be non-empty") ซึ่งไม่ใช่ error ชั่วคราว retry อีก 5 ครั้งก็ 400 เหมือนเดิมแล้วพังทั้ง
+    # ไปป์ไลน์ (เจอจริง 2026-09-16 กับเทรนด์ที่ ⑪ ตอบ "ข้อมูลไม่พอ" ครบทุกฟิลด์ที่ใช้จับคู่)
+    if not (text or "").strip():
+        raise ValueError("get_embedding: ข้อความว่าง - ผู้เรียกต้องกรองทิ้งก่อนเรียก (ดูจุดข้ามเทรนด์ใน __main__)")
+    for attempt in range(max_retries):
+        try:
+            resp = client.embeddings.create(model=MODEL, input=[text], extra_body={"input_type": input_type})
+            return np.array(resp.data[0].embedding)
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "rate" in msg.lower():
+                wait = min(10 * (1.5 ** attempt), 120.0)
+                print(f"    ⏳ rate limit - รอ {wait:.0f}s แล้วลองใหม่ (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            print(f"    ⚠️ embedding error (ไม่ใช่ rate limit): {str(e)[:150]}")
+            time.sleep(3)
+    raise RuntimeError(f"get_embedding ล้มเหลวหลัง {max_retries} ครั้ง")
+
+
+def _product_hash(row):
+    """🆕 (2026-09-12, audit m3) hash เนื้อหาที่ใช้ embed จริง (build_product_text) - ไม่ใช่ df.index
+    เดิม checkpoint ผูกกับเลขแถวของ DataFrame ตรงๆ ถ้า watsons_product.csv ถูกอัปเดต/เรียงแถวใหม่วันไหน
+    embedding จะจับคู่ผิดสินค้าโดยเงียบๆ ไม่มี error เลย - เนื้อหาเดียวกันได้ hash เดียวกันเสมอไม่ว่าจะ
+    อยู่แถวไหนของไฟล์ กันปัญหานี้ที่ต้นเหตุ"""
+    return hashlib.sha256(build_product_text(row).encode("utf-8")).hexdigest()
+
+
+def load_checkpoint(df=None):
+    """โหลด cache จากดิสก์ - เก็บเป็น {content_hash: vector} (ทนการเรียงแถวใหม่/แถวเพิ่ม-หายได้จริง)
+    ถ้าส่ง df มา จะ remap เป็น {df.index: vector} ให้ตรงกับแถวปัจจุบันของ df นั้น เพื่อความเข้ากันได้กับ
+    โค้ดที่ยังอ้างอิงด้วย index (เช่น run_brand_coverage.py ที่เรียกฟังก์ชันนี้ตรงๆ ไม่ผ่าน
+    embed_all_products)"""
+    raw = {}
+    if CHECKPOINT_PATH.exists():
+        with open(CHECKPOINT_PATH, "rb") as f:
+            raw = pickle.load(f)
+        print(f"📂 พบ checkpoint เดิม: embed ไปแล้ว {len(raw)} ชิ้น - รันต่อจากจุดนั้น")
+    if df is None:
+        return raw
+    return {idx: raw.get(_product_hash(df.loc[idx])) for idx in df.index}
+
+
+def save_checkpoint(embeddings_by_hash):
+    CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CHECKPOINT_PATH, "wb") as f:
+        pickle.dump(embeddings_by_hash, f)
+
+
+def embed_all_products(df):
+    embeddings_by_hash = load_checkpoint()
+    row_hash = {idx: _product_hash(df.loc[idx]) for idx in df.index}
+    remaining_idx = [i for i in df.index if embeddings_by_hash.get(row_hash[i]) is None]
+    if not remaining_idx:
+        print("✅ embed ครบทุกชิ้นแล้วจากรอบก่อน - ใช้ cache ทั้งหมด")
+        return {idx: embeddings_by_hash[row_hash[idx]] for idx in df.index}
+
+    total = len(df)
+    print(f"กำลัง embed สินค้าจริง {len(remaining_idx)}/{total} ชิ้นที่เหลือ...")
+    t_start = time.time()
+
+    for n, idx in enumerate(remaining_idx):
+        text = build_product_text(df.loc[idx])
+        vec = get_embedding(text, "passage")
+        embeddings_by_hash[row_hash[idx]] = vec
+
+        done = total - len(remaining_idx) + n + 1
+        if done % CHECKPOINT_EVERY < 1 or n == len(remaining_idx) - 1:
+            save_checkpoint(embeddings_by_hash)
+            elapsed = time.time() - t_start
+            rate = (n + 1) / elapsed if elapsed > 0 else 0
+            eta = (len(remaining_idx) - n - 1) / rate if rate > 0 else float("inf")
+            print(f"  [{done}/{total}] checkpoint บันทึกแล้ว ({elapsed:.0f}s ผ่านไป, "
+                  f"~{rate:.1f} ชิ้น/s, ETA ~{eta / 60:.1f} นาที)")
+
+    save_checkpoint(embeddings_by_hash)
+    return {idx: embeddings_by_hash[row_hash[idx]] for idx in df.index}
+
+
+def load_real_trend_profiles():
+    """🆕 (2026-09-11) 15 profile จริงจาก extract_trend_highlights.py (Typhoon, ⑪) - แทนที่
+    match_supply.py's TREND_PROFILES (5 ตัว, manual ล้วน) ที่ใช้ทดสอบกลไกมาตลอด"""
+    path = OUTPUTS / "phase3_trend_highlights_result.json"
+    if not path.exists():
+        raise SystemExit(f"❌ ไม่มี {path.name} - รัน extract_trend_highlights.py (⑪) ก่อน")
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    profiles = data.get("profiles") or []
+    if not profiles:
+        raise SystemExit(f"❌ {path.name} ไม่มี profile เลย")
+    return profiles
+
+
+def generate_match_reason(profile, product_row):
+    """🆕 (2026-09-14, แก้ตามที่เจ้าของงานสั่ง "ใช้แค่ similarity ส่วน LLM อยากแค่ให้เหตุผลพอแล้ว") ให้
+    LLM เขียนคำอธิบายสั้นๆ ว่าสินค้าจริงชิ้นนี้เกี่ยวกับ Job-to-be-Done ของเทรนด์ยังไง - **ไม่ให้ตัดสิน
+    verdict (Match/Partial/No-match) แล้ว** เพราะเจ้าของงานตัดสินใจว่าตัวตัดสินจริงว่า "ใช่ไหม" ยังคงเป็น
+    similarity (embedding) เท่านั้น - LLM มีหน้าที่แค่อธิบายให้คนอ่านรายงานเข้าใจ ไม่ใช่ให้คำตัดสินที่แข่ง
+    กับ similarity หรือแอบมาแทนที่งาน calibration ของ M6 (ดู Detail/.../แผนแก้ Data Science Audit.md)
+    ที่ยังต้องรอ label จากคนจริงอยู่
+
+    รุ่นก่อนหน้านี้ (เวอร์ชันแรกของฟังก์ชันนี้) เคยให้ตัดสิน verdict ด้วย - ถอดออกตามคำสั่งนี้ ไม่ใช่ลืม
+
+    กราวด์คำอธิบายกับข้อความจริง 2 ฝั่งเท่านั้น (JTBD ของเทรนด์ + คำอธิบายสินค้าจริงจาก Watsons) ไม่ส่ง
+    similarity score เข้าไปในพรอมต์เลย (กันโมเดลอ้างอิงเลขนั้นแทนที่จะอ่านข้อความจริง) ป้องกันไม่ให้โมเดล
+    เดาจากชื่อแบรนด์/ความรู้ภายนอก
+
+    คืน reason (str) - "" ถ้า LLM ตอบผิดรูปแบบ/เรียกไม่สำเร็จ (ไม่ raise - ให้ caller ใส่ "" แล้วรันต่อขั้น
+    อื่นได้ ไม่ทำทั้งรอบพังเพราะคู่เดียว)"""
+    system_prompt = """You explain, in one short sentence, how a real product relates to a trend's
+stated job-to-be-done. Ground your answer ONLY in the two texts given below - never use outside
+brand/product knowledge, and you are not given a similarity score, so never invent or reference one.
+
+Do NOT judge or classify whether this is a "good match" - just state plainly, in concrete terms,
+what the product actually does and how that does or doesn't line up with the trend's job-to-be-done
+and functional consequence. Note real gaps as well as real overlaps if both are present.
+
+Return ONLY this JSON, under 25 words, no invented claims, no leading "+" on numbers:
+{"reason": "..."}"""
+
+    user_prompt = f"""TREND
+Functional Consequence: {profile.get('functional_consequence', '')}
+Job To Be Done: {profile.get('job_to_be_done', '')}
+Point of Difference: {profile.get('point_of_difference', '')}
+
+REAL PRODUCT
+Name: {product_row.get('product_name', '')}
+Benefits (as listed by retailer): {product_row.get('Key_Benefits', '')}
+Description: {str(product_row.get('Product_Insights', ''))[:400]}"""
+
+    try:
+        # 🆕 (2026-09-15) เปลี่ยนจาก Typhoon -> Amazon Nova Lite (Bedrock) - จุดนี้เรียกบ่อยที่สุดในระบบ
+        # (top-5 matches x ทุกเทรนด์ x ทุกครั้งที่ค้นแบรนด์ผ่าน ⑬) output สั้นแค่ประโยคเดียว (<=25 คำ) ใช้
+        # โมเดลใหญ่ไม่คุ้ม - Nova Lite อยู่ cloud เดียวกับ Bedrock เอง latency ต่ำ ราคาถูก เหมาะกับงานปริมาณ
+        # มากแบบนี้ที่สุด (ดู Detail/.../แผนเปลี่ยนโมเดล LLM — Bedrock + Typhoon.md)
+        with use_bedrock(model_id="amazon.nova-lite-v1:0"):
+            resp = tf.client.chat.completions.create(
+                model=tf.MODEL_NAME_META,
+                messages=[{"role": "system", "content": system_prompt},
+                          {"role": "user", "content": user_prompt}],
+                temperature=0.1, max_tokens=150,
+                response_format={"type": "json_object"},
+            )
+        raw = resp.choices[0].message.content or ""
+        clean = re.sub(r'([:\[,]\s*)\+(\d)', r'\1\2', raw)  # กัน "+1" ที่ไม่ใช่ JSON ถูกต้อง (เจอจริงกับ
+                                                             # Typhoon ใน summarize_trend_clusters() มาแล้ว)
+        data = json.loads(clean)
+        return (data.get("reason") or "").strip()[:300]
+    except Exception as e:
+        print(f"      ⚠️ match reason ล้มเหลว ({product_row.get('product_name', '?')[:40]}): {str(e)[:100]}")
+        return ""
+
+
+if __name__ == "__main__":
+    print("=" * 70)
+    print("Phase 3 ⑫ — ชั้นอุปทาน (NVIDIA embedding): Top N เทรนด์จาก ⑪ vs สินค้าจริงทั้งตลาด")
+    print("=" * 70)
+
+    trend_profiles = load_real_trend_profiles()
+    print(f"โหลด {len(trend_profiles)} trend profile จาก ⑪ (Top N ตาม Rank Score ของ ⑥)")
+
+    df = pd.read_csv(TOOL_DIR / "product" / "watsons_product.csv", low_memory=False)
+    print(f"โหลดสินค้าจริงแล้ว: {len(df)} รายการ, {df['brand'].nunique()} แบรนด์\n")
+
+    print(f"กำลัง embed {len(trend_profiles)} trend profile (input_type=query)...")
+    # 🆕 (2026-09-12, audit M4) เดิม key ด้วยชื่อเทรนด์เปล่าๆ - ถ้าชื่อชนกันข้ามสาย (เช่น "Barrier Repair
+    # Skincare" เจอทั้ง Paper กับ News) ตัวหลังทับตัวแรกเงียบๆ ใน dict (15 profile เหลือ 14 ผลลัพธ์จริง
+    # ตามที่เจอ) - เปลี่ยนเป็น key ผสม "stream::trend" กันชนกัน (เก็บชื่อเทรนด์ล้วนไว้แสดงผลแยกต่างหาก)
+    trend_vectors = {}
+    trend_names = {}
+    trend_streams = {}
+    trend_profile_by_key = {}
+    skipped_trends = []
+    for profile in trend_profiles:
+        stream = profile.get("stream", "?")
+        key = f"{stream}::{profile['trend']}"
+        text = build_trend_matchable_text(profile)
+        # 🆕 (2026-09-16) ⑪ ตอบ "ข้อมูลไม่พอ" ได้จริงทั้ง 4 ฟิลด์ที่ใช้จับคู่ (เจอกับเทรนด์เชิงช่องทางขาย เช่น
+        # "Livestream Social Commerce" ที่ไม่มีคุณสมบัติสินค้าให้จับเลย) - build_trend_matchable_text() กรอง
+        # คำนั้นทิ้งจึงได้ข้อความว่าง แล้วไปตายที่ embedding API (400 x5 -> ทั้งไปป์ไลน์หยุด) ข้ามเทรนด์นั้น
+        # แล้วรันต่อดีกว่า เพราะเทรนด์ที่เหลือจับคู่ได้ปกติ - บันทึกไว้ในผลลัพธ์ว่าข้ามอะไรไปเพราะอะไร
+        if not text.strip():
+            print(f"    ⏭️ ข้าม '{profile['trend']}' [{stream}] - ⑪ ตอบ 'ข้อมูลไม่พอ' ทุกฟิลด์ที่ใช้จับคู่ "
+                  f"(ไม่มีข้อความให้ embed)")
+            skipped_trends.append({"trend": profile["trend"], "stream": stream,
+                                   "reason": "ไม่มีข้อความจับคู่ - ⑪ ตอบ 'ข้อมูลไม่พอ' ครบทั้ง 4 ฟิลด์"})
+            continue
+        trend_vectors[key] = get_embedding(text, "query")
+        trend_names[key] = profile["trend"]
+        trend_streams[key] = stream
+        trend_profile_by_key[key] = profile
+    if not trend_vectors:
+        raise SystemExit("❌ ไม่มีเทรนด์ไหนมีข้อความให้จับคู่เลย - หยุดก่อน embed สินค้า (ตรวจผล ⑪ ก่อน)")
+    print(f"เสร็จแล้ว ({len(trend_vectors)} เทรนด์"
+          + (f", ข้าม {len(skipped_trends)})" if skipped_trends else ")") + "\n")
+
+    product_embeddings = embed_all_products(df)
+
+    print("\nกำลังคำนวณ cosine similarity ทุกคู่ (เทรนด์ x สินค้า) แบบ deterministic (ไม่ยิง API เพิ่ม)...")
+    all_results = {}
+    for key, tvec in trend_vectors.items():
+        scored = []
+        for idx, pvec in product_embeddings.items():
+            if pvec is None:
+                continue
+            sim = cosine_similarity(tvec, pvec)
+            row = df.loc[idx]
+            # 🆕 (2026-09-12, audit M6) เดิมไม่ได้เก็บราคา/ยอดขายเลย - ปลายทาง (run_stepic_report.py)
+            # เลย hardcode ค่าว่างเสมอ ทั้งที่มีข้อมูลจริงอยู่แล้ว (sale_price_thb เต็ม 100%, sold_count
+            # มีจริงแค่ ~25% ของแถว - เก็บเป็น None ไม่ใช่ 0 เวลาไม่มีข้อมูล กัน "0 ยอดขาย" ปลอมๆ) -
+            # sale_price_thb เป็น string มี comma คั่นหลักพัน (เช่น "1,790.00") ต้องตัดออกก่อนแปลงเลข
+            price, sold = row.get("sale_price_thb"), row.get("sold_count")
+            try:
+                price_val = None if pd.isna(price) else float(str(price).replace(",", ""))
+            except (ValueError, TypeError):
+                price_val = None
+            scored.append({
+                "product_name": row["product_name"], "brand": row["brand"],
+                "category": row.get("Category", ""), "similarity": round(sim, 4),
+                "sale_price_thb": price_val,
+                "sold_count": None if pd.isna(sold) else float(sold),
+                "_idx": idx,  # ใช้เฉพาะภายใน (หา df.loc[idx] เพื่อ generate_match_reason) - ตัดออกก่อนเซฟ
+            })
+        scored.sort(key=lambda x: x["similarity"], reverse=True)
+        all_results[key] = {
+            "trend_name": trend_names[key],
+            "stream": trend_streams.get(key, "?"),
+            "top_matches": scored[:TOP_K],
+            "n_products_compared": len(scored),
+            "similarity_stats": {
+                "max": round(max(s["similarity"] for s in scored), 4),
+                "min": round(min(s["similarity"] for s in scored), 4),
+                "mean": round(float(np.mean([s["similarity"] for s in scored])), 4),
+            },
+        }
+
+    # 🆕 (2026-09-14) เหตุผลข้อความ (Match/Partial/No-match + ทำไม) ต่อ top MATCH_REASON_TOP_K ของแต่ละ
+    # เทรนด์ - เดิมมีแต่ similarity ตัวเลข ไม่มีใครอธิบายว่า "ทำไมสินค้านี้เข้ากับเทรนด์" เลย (ดู audit M6)
+    n_total_calls = sum(min(MATCH_REASON_TOP_K, len(r["top_matches"])) for r in all_results.values())
+    print(f"\nกำลังให้เหตุผล (ไม่ตัดสิน verdict - similarity ยังเป็นตัวจัดอันดับ/ตัดสินหลัก) ต่อสินค้า "
+          f"(Typhoon, {n_total_calls} คู่ = {len(all_results)} เทรนด์ x top {MATCH_REASON_TOP_K})...")
+    n_done = 0
+    for key, r in all_results.items():
+        profile = trend_profile_by_key.get(key, {})
+        for m in r["top_matches"][:MATCH_REASON_TOP_K]:
+            product_row = df.loc[m["_idx"]]
+            m["match_reason"] = generate_match_reason(profile, product_row)
+            n_done += 1
+            print(f"  [{n_done}/{n_total_calls}] {m['brand']} {m['product_name'][:40]} -> {m['match_reason']}")
+        for m in r["top_matches"][MATCH_REASON_TOP_K:]:
+            m["match_reason"] = None  # ไม่ได้ถาม (เกิน top K) - ยังคง key ไว้ให้ schema สม่ำเสมอ
+
+    for r in all_results.values():
+        for m in r["top_matches"]:
+            m.pop("_idx", None)
+
+    RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(RESULT_PATH, "w", encoding="utf-8") as f:
+        json.dump({
+            "_note": "⑫ ชั้นอุปทาน - Top N เทรนด์จาก ⑪ (คัดด้วย Rank Score ของ ⑥) vs 10,622 SKU จริงผ่าน NVIDIA NIM "
+                    "embedding - ครั้งแรกที่รันจบด้วยข้อมูลจริงทั้งสองฝั่ง (2026-09-11)",
+            "n_products_total": len(df), "top_k": TOP_K, "results": all_results,
+            # 🆕 (2026-09-16) เทรนด์ที่ไม่มีข้อความให้จับคู่ (⑪ ตอบ "ข้อมูลไม่พอ") - เก็บไว้ให้เห็นว่ารอบนี้
+            # จับคู่กี่เทรนด์จากทั้งหมดกี่เทรนด์ ไม่ใช่หายเงียบๆ
+            "n_trends_total": len(trend_profiles), "n_trends_matched": len(all_results),
+            "skipped_trends": skipped_trends,
+        }, f, ensure_ascii=False, indent=2)
+
+    print("\n" + "=" * 70)
+    for key, r in all_results.items():
+        print(f"\n🎯 เทรนด์ [{r['stream']}]: {r['trend_name']}")
+        print(f"   similarity: max={r['similarity_stats']['max']} mean={r['similarity_stats']['mean']} "
+              f"min={r['similarity_stats']['min']}")
+        print(f"   Top 5 จาก {r['n_products_compared']} สินค้าจริง:")
+        for m in r["top_matches"][:5]:
+            print(f"     [{m['similarity']:.4f}] {m['brand']} - {m['product_name'][:65]} ({m['category']})")
+            if m.get("match_reason"):
+                print(f"       -> {m['match_reason']}")
+
+    print(f"\nบันทึกผลเต็มลง {RESULT_PATH}")

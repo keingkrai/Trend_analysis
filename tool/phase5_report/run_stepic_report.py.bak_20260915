@@ -1,0 +1,289 @@
+# -*- coding: utf-8 -*-
+"""
+Phase 4 — ⑭ STEPIC → ⑮ Report (2026-09-11)
+ดู Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md ส่วน "⑭ STEPIC → ⑮ Report"
+("วิเคราะห์แรงขับ 6 ด้าน... แล้วประกอบเป็นรายงานฉบับสมบูรณ์ — เหมือนเดิมทุกประการ")
+
+**⑬ (จับคู่สินค้า EXFAC) ข้ามไปก่อนตามที่เจ้าของงานสั่ง** ("เอา 13 ออกเดะเราคุยกันอีกที") - ส่วน
+"Market Evidence" ในรายงานจึงใช้ผลจับคู่ ⑫ (Watsons 10,622 SKU จริง) แทนที่ catalog EXFAC โดยตรง
+
+ใช้ฟังก์ชันเดิมจาก trend_final_v2.py **ตรงๆ ไม่แก้โค้ดในไฟล์นั้นเลย** (ตามหลักการ "จัดระเบียบใหม่ ใช้
+ของเดิมที่พิสูจน์แล้ว"): analyze_trend() (STEPIC 6 มิติ) + integrate_stepic() (สังเคราะห์รวม) +
+generate_master_markdown_report() (ประกอบรายงาน) — แค่ป้อน input ที่มาจากสถาปัตยกรรม 3 สาย v2 แทน
+input เดิมที่มาจาก pipeline สายเดียวแบบเก่า:
+
+| Input เดิมของ trend_final_v2.py | แทนที่ด้วย (v2, ข้อมูลจริงจากรอบนี้) |
+|---|---|
+| `trend_report` (รายงานสายเดียว) | รายงาน 3 สาย (Paper+Social+News) ต่อกัน |
+| `master_report` (forecast คลัสเตอร์เดียว) | `phase2_paper_social_z_delta_result.json` (14 คลัสเตอร์จริง, Z_Delta จริง) |
+| `strategix_context` (Strategic Pillar mapping) | สรุปคลัสเตอร์จริง 15 ตัว (ingredients/benefits/Z_Delta/Longevity/market coverage) - ไม่ผ่านระบบ Pillar เดิม (คนละ abstraction กับ v2) |
+| `product_context`/`product_results` (Exfac pillar match) | ผล ⑫ (`phase3_scale_validation_nvidia_result.json`) - Watsons จริง 10,622 SKU |
+| `llm_forecast_analysis` (Step 6-7 narrator) | **None** - พังด้วย OpenRouter 402 ตอนรัน ⑦ (ดู Backlog) - ส่วน "Quantitative Cluster Forecasts"
+  จะว่างเปล่า ไม่ crash (ฟังก์ชันเดิม handle None อยู่แล้ว) |
+
+**Typhoon patch ในสคริปต์นี้เอง (ไม่แก้ bootstrap.py):** `analyze_trend()`/`integrate_stepic()` อ่าน
+`client`/`MODEL_NAME` เป็น **module-level global ของ `trend_final_v2.py` เอง** (คนละตัวแปรกับที่
+`common.bootstrap.use_typhoon()` แพตช์ - ตัวนั้นแพตช์ `trend_final.py` (v1) ที่ `tf` ใน bootstrap ชี้ไป)
+เลยต้องมี context manager แยกต่างหากที่แพตช์ `trend_final_v2.client`/`.MODEL_NAME` โดยเฉพาะ - เขียนไว้
+ในสคริปต์นี้เท่านั้น (ขอบเขตแคบ ไม่กระทบโค้ดอื่น)
+"""
+import json
+import os
+import sys
+from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+
+for _p in Path(__file__).resolve().parents:
+    if (_p / "common" / "bootstrap.py").exists():
+        sys.path.insert(0, str(_p))
+        break
+from common.bootstrap import OUTPUTS, PROJECT_ROOT, prompt_run_config, record_model_used  # noqa: E402
+
+sys.path.insert(0, str(PROJECT_ROOT))
+import trend_final_v2 as tf2  # noqa: E402
+
+from openai import OpenAI  # noqa: E402
+
+# 🆕 (2026-09-12, audit m1) เดิม hardcode ค่านี้ตรงๆ ไม่เคยอ่าน TREND_TOPIC เลย - ถ้าผู้ใช้ตั้งหัวข้ออื่นตอน
+# เริ่ม main.py (เช่น "Global Body Wash Trends") รายงาน STEPIC/Master Report (⑭-⑮) จะยังโชว์หัวข้อเดิมนี้
+# ทั้งที่ข้อมูลทั้งหมดที่วิเคราะห์จริงเป็นหัวข้อที่ผู้ใช้เลือก - ใช้ prompt_run_config() แบบเดียวกับสาย
+# Paper/Social/News (ดู TOPIC ใน paper_stream.py) เพื่ออ่าน TREND_TOPIC ก่อน ตกมาที่ default นี้ถ้าไม่มี
+DEFAULT_USER_QUERY = "Global beauty and personal care trends"
+REPORT_CHAR_LIMIT = 8000  # ต่อสาย - เหตุผลเดียวกับ CONTENT_CHAR_LIMIT ที่ใช้ทุกจุดในโปรเจกต์นี้
+STREAM_FILES = {
+    "Paper": "phase1_paper_stream_result.json",
+    "Social": "phase2_social_stream_result.json",
+    "News": "phase2_news_stream_result.json",
+}
+
+
+@contextmanager
+def use_typhoon_v2():
+    """เหมือน common.bootstrap.use_typhoon() ทุกประการ แต่แพตช์ trend_final_v2 (tf2) แทน trend_final
+    (v1) - จำเป็นเพราะ analyze_trend()/integrate_stepic() อยู่ใน v2 อ่าน client/MODEL_NAME ของตัวเอง
+    ไม่ใช่ตัวที่ bootstrap.use_typhoon() แพตช์"""
+    base_url = "https://api.opentyphoon.ai/v1"
+    model = "typhoon-v2.5-30b-a3b-instruct"
+    api_key = os.getenv("TYPHOON_API_KEY")
+    if not api_key:
+        raise RuntimeError("ไม่มี TYPHOON_API_KEY ใน .env")
+    orig_client, orig_model = tf2.client, tf2.MODEL_NAME
+    print(f"  🌀 [v2] สลับไปใช้ Typhoon ชั่วคราว (model={model})")
+    record_model_used(model)  # 🆕 (2026-09-12, audit C5) - manifest ของขั้นนี้ต้องรู้ว่าเผลอใช้ fallback
+    tf2.client = OpenAI(base_url=base_url, api_key=api_key)
+    tf2.MODEL_NAME = model
+    try:
+        yield
+    finally:
+        tf2.client, tf2.MODEL_NAME = orig_client, orig_model
+        print("  🌀 [v2] สลับกลับเป็น OpenRouter แล้ว")
+
+
+def load_streams():
+    streams = {}
+    for stream, fname in STREAM_FILES.items():
+        fp = OUTPUTS / fname
+        if fp.exists():
+            with open(fp, encoding="utf-8") as f:
+                streams[stream] = json.load(f)
+    return streams
+
+
+def build_merged_trend_report(streams):
+    """แทนที่ `trend_report` สายเดียวเดิม - ต่อรายงาน 3 สาย (ตัดคนละ REPORT_CHAR_LIMIT ตัวอักษร กัน
+    prompt ระเบิดเหมือนที่ paper_stream.py ทำกับเนื้อหาเปเปอร์ยาวๆ)"""
+    parts = []
+    for stream, data in streams.items():
+        text = data.get("report") or data.get("paper_report") or ""
+        if not text:
+            continue
+        parts.append(f"=== {stream.upper()} STREAM REPORT ===\n{text[:REPORT_CHAR_LIMIT]}")
+    return "\n\n".join(parts)
+
+
+def load_cross_source_longevity():
+    """🆕 (2026-09-12, audit M1) rank_trends.py คำนวณ Longevity ที่แก้ D2 (cross-source confirmation)
+    แล้วเซฟไว้ที่ phase2_longevity_cross_source_result.json - ไฟล์ stream ดิบ
+    (phase1_paper_stream_result.json ฯลฯ) ที่ load_streams() อ่านไม่มีการแก้นี้ (rank_trends.py คำนวณ
+    DataFrame ในหน่วยความจำ ไม่เขียนทับไฟล์ stream เดิม) ต้องโหลดมา override เอง มิฉะนั้น D2/Longevity
+    Score ที่แก้แล้วจะไม่ไหลไปถึงรายงานสุดท้ายเลย ทั้งที่คำนวณถูกแล้วตั้งแต่ขั้น ⑥
+
+    Returns:
+        dict {(stream, trend_name): {"Longevity Score":..., "Longevity Band":...}} หรือ {} ถ้ายังไม่มี
+        ไฟล์ (เช่น ยังไม่ได้รัน rank_trends.py รอบนี้ - ไม่ error แค่ใช้ค่าจากไฟล์ stream ดิบแทน)
+    """
+    path = OUTPUTS / "phase2_longevity_cross_source_result.json"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    lookup = {}
+    for stream, rows in data.items():
+        for row in rows:
+            name = row.get("Trend Name")
+            if name:
+                lookup[(stream, name)] = row
+    return lookup
+
+
+def build_strategix_context(streams, coverage_by_name):
+    """แทนที่ Strategic Pillar mapping เดิม (คนละ abstraction กับ v2 - ไม่มี "Pillar" ในสถาปัตยกรรมนี้)
+    - สรุปคลัสเตอร์จริงทั้งหมดพร้อมสัญญาณ 3 ชนิด (Z_Delta/Longevity/market coverage) ที่มีจริงตอนนี้"""
+    longevity_override = load_cross_source_longevity()
+    lines = ["# Real Trend Clusters (Paper + Social + News, 2026-09-11 run)\n"]
+    for stream, data in streams.items():
+        for t in data.get("trends", []):
+            name = t.get("Trend Name", "")
+            # 🆕 (2026-09-12, audit M4) coverage_by_name เก็บ key แบบ "stream::trend" แล้ว (กันชื่อ
+            # เทรนด์ชนกันข้ามสาย) - ต้องประกอบ key แบบเดียวกันตอน lookup ไม่งั้นจะได้ None (coverage
+            # n/a) ทุกแถวเงียบๆ
+            # 🆕 (2026-09-12, audit M6) coverage_by_name เก็บ dict {rank, n_trends, max_similarity}
+            # แล้ว (เดิมเป็น percentile เทียบกันเองใน n เทรนด์ตรงๆ ซึ่งมีอคติเชิงโครงสร้าง - ดู
+            # load_supply_layer_results() สำหรับเหตุผลเต็ม)
+            cov = coverage_by_name.get(f"{stream}::{name}")
+            cov_str = (f"max similarity {cov['max_similarity']:.3f} (rank {cov['rank']}/{cov['n_trends']} "
+                       f"เทียบกับเทรนด์อื่นในรอบนี้, Watsons TH)") if cov is not None else "coverage n/a"
+            # 🆕 (2026-09-12, audit M1) ใช้ Longevity ที่แก้ D2 แล้วถ้ามี ไม่งั้น fallback ไปค่าดิบเดิม
+            lv = longevity_override.get((stream, name), t)
+            lines.append(f"## {name}  [{stream}]")
+            lines.append(f"- Key Ingredients: {t.get('Key Ingredients', '')}")
+            lines.append(f"- Key Benefits: {t.get('Key Benefits', '')}")
+            lines.append(f"- Target: {t.get('Target', '')}")
+            lines.append(f"- Longevity: {lv.get('Longevity Score')} ({lv.get('Longevity Band')})")
+            lines.append(f"- Market signal: {cov_str}\n")
+    return "\n".join(lines)
+
+
+def load_master_report_json():
+    """แทนที่ master_report สายเดียวเดิม - ใช้ Z_Delta จริงจาก ⑦ (14 คลัสเตอร์จริง)"""
+    fp = OUTPUTS / "phase2_paper_social_z_delta_result.json"
+    if not fp.exists():
+        return "[]"
+    with open(fp, encoding="utf-8") as f:
+        data = json.load(f)
+    return json.dumps(data.get("master_report") or [], ensure_ascii=False)
+
+
+def load_supply_layer_results():
+    """ผล ⑫ (Watsons 10,622 SKU จริง) - ใช้แทน product_context/product_results ที่เดิมมาจาก Exfac
+    pillar match (⑬ ข้ามไปก่อนตามที่สั่ง) คืน (product_context_str, product_results_list, coverage_by_name)"""
+    fp = OUTPUTS / "phase3_scale_validation_nvidia_result.json"
+    if not fp.exists():
+        return "No supply-layer data available.", [], {}
+
+    with open(fp, encoding="utf-8") as f:
+        data = json.load(f)
+    results = data.get("results") or {}
+
+    # 🆕 (2026-09-12, audit M6) เดิม "percentile" เทียบ max similarity ของเทรนด์กันเองใน n เทรนด์ (ตอนนี้
+    # คือ 14) แล้วตัดเป็น SATURATED/GAP/MODERATE - บั๊ก: percentile แบบนี้เป็น RELATIVE RANK ล้วนๆ บังคับ
+    # ให้ ~1/3 ได้ SATURATED และ ~1/3 ได้ GAP เสมอไม่ว่าค่าจริงจะเป็นเท่าไหร่ (ค่า max similarity จริงที่
+    # เจอมีแค่ 0.20-0.49 - ไม่มีเทรนด์ไหน "อิ่มตัว" จริงในความหมายที่คำนั้นควรสื่อเลย) - ยังไม่มีเกณฑ์
+    # absolute ที่ calibrate ด้วย label จากคนจริง (รอ M6 ส่วน calibration) จึงตัดคำ SATURATED/GAP/MODERATE
+    # ที่ให้ความมั่นใจเกินจริงออกไปก่อน เหลือแค่ rank สัมพัทธ์ + ค่า similarity จริงให้คนอ่านตัดสินเอง
+    # 🆕 (2026-09-12, audit M4) key ของ `results` เป็น "stream::trend" แล้ว (กันชื่อเทรนด์ชนกันข้ามสาย
+    # เงียบๆ) - ใช้ key นี้เป็น key ภายในของ coverage_by_name เหมือนเดิม แต่แสดงผล/ส่งต่อด้วยชื่อเทรนด์
+    # ล้วนจาก r["trend_name"] แทน key ผสม
+    ranked = sorted(results.items(), key=lambda kv: kv[1]["similarity_stats"]["max"], reverse=True)
+    n = len(ranked)
+    coverage_by_name = {
+        key: {"rank": i + 1, "n_trends": n, "max_similarity": r["similarity_stats"]["max"]}
+        for i, (key, r) in enumerate(ranked)
+    }
+
+    context_lines, product_rows = [], []
+    for key, r in results.items():
+        name = r.get("trend_name", key)
+        cov = coverage_by_name[key]
+        top1 = r["top_matches"][0]
+        # 🆕 (2026-09-14, แก้ตามที่เจ้าของงานสั่ง) top1 อาจมี match_reason - LLM ให้แค่คำอธิบาย ไม่ตัดสิน
+        # verdict แล้ว (similarity ยังเป็นตัวจัดอันดับ/ตัดสินหลักอยู่เหมือนเดิม - ดู
+        # validate_at_scale_nvidia.py's generate_match_reason()) - ใส่ต่อท้ายถ้ามี ไม่มีก็ไม่พังเพราะ
+        # ไฟล์ผลลัพธ์ที่รันก่อนแก้ฟีเจอร์นี้ (2026-09-11) จะไม่มี key นี้เลย (.get คืน None พอดี)
+        reason_suffix = f" — {top1['match_reason']}" if top1.get("match_reason") else ""
+        context_lines.append(
+            f"- Trend '{name}' [{r['stream']}]: max similarity {cov['max_similarity']:.3f} "
+            f"(rank {cov['rank']}/{cov['n_trends']} เทียบกับเทรนด์อื่นในรอบนี้ - ยังไม่มีเกณฑ์ absolute "
+            f"ที่ calibrate แล้วว่าค่านี้ถือว่า 'มีของเข้าเทรนด์จริง' หรือไม่), "
+            f"top real match: {top1['brand']} - {top1['product_name']} "
+            f"(similarity={top1['similarity']}){reason_suffix}"
+        )
+        for m in r["top_matches"][:5]:
+            # 🆕 (2026-09-12, audit M6) เดิม hardcode "" เสมอ ทั้งที่มีข้อมูลจริงจาก ⑫ แล้ว
+            # (validate_at_scale_nvidia.py เก็บ sale_price_thb/sold_count ไว้ให้แล้ว)
+            price = m.get("sale_price_thb")
+            sold = m.get("sold_count")
+            product_rows.append({
+                "Pillar": name,  # ใช้ชื่อเทรนด์แทน Pillar (v2 ไม่มีระบบ Pillar)
+                "Key_Trends": name,
+                "Brand": m["brand"], "Product Name": m["product_name"],
+                "Sale Price (฿)": price if price is not None else "",
+                "Sold": sold if sold is not None else "",
+                # 🆕 (2026-09-14) คำอธิบายว่าสินค้านี้เกี่ยวกับเทรนด์ยังไง (ไม่มี verdict ตัดสิน - similarity
+                # ยังเป็นตัวจัดอันดับหลักเหมือนเดิม) - "-" ถ้าไม่มี (เกิน top 5 ที่ถาม LLM จริง หรือรันด้วย
+                # ผลลัพธ์เก่าก่อนมีฟีเจอร์นี้)
+                "Why It Fits": m.get("match_reason") or "-",
+            })
+    return "\n".join(context_lines), product_rows, coverage_by_name
+
+
+if __name__ == "__main__":
+    print("=" * 70)
+    print("Phase 4 ⑭-⑮ — STEPIC Analysis -> Master Report (⑬ ข้ามไปก่อน)")
+    print("=" * 70)
+
+    USER_QUERY, _ = prompt_run_config(default_topic=DEFAULT_USER_QUERY, ask_years=False)
+
+    streams = load_streams()
+    if not streams:
+        print("❌ ไม่มีผลลัพธ์สายไหนเลย")
+        sys.exit(1)
+    print(f"โหลด {len(streams)} สาย: {list(streams.keys())}")
+
+    product_context_str, product_results, coverage_by_name = load_supply_layer_results()
+    print(f"⑫ supply-layer: {len(product_results)} product rows (จาก {len(coverage_by_name)} เทรนด์)")
+
+    final_trend_report = build_merged_trend_report(streams)
+    strategix_context = build_strategix_context(streams, coverage_by_name)
+    master_report_str = load_master_report_json()
+
+    print(f"\n🧠 [Step 9a] STEPIC 6 มิติ (Society/Technology/Environment/Policy/Industry/Creativity)...")
+    with use_typhoon_v2():
+        stepic_raw_analysis = tf2.analyze_trend(final_trend_report, master_report_str, USER_QUERY,
+                                                product_context_str)
+
+    print(f"\n🧠 [Step 9b] สังเคราะห์รวม (integrate_stepic)...")
+    with use_typhoon_v2():
+        final_stepic_insight = tf2.integrate_stepic(stepic_raw_analysis, USER_QUERY)
+
+    print(f"\n📄 [Step 10] ประกอบ Master Report...")
+    master_markdown = tf2.generate_master_markdown_report(
+        user_query=USER_QUERY,
+        final_trend_report=final_trend_report,
+        strategix_context=strategix_context,
+        llm_forecast_analysis=None,  # Step 6-7 narrator เดิมพังด้วย OpenRouter 402 (ดู Backlog)
+        product_results=product_results,
+        final_stepic_insight=final_stepic_insight,
+        stepic_raw_analysis=stepic_raw_analysis,
+        master_report_dict=None,
+    )
+
+    out_dir = OUTPUTS
+    with open(out_dir / "phase4_stepic_raw_analysis.json", "w", encoding="utf-8") as f:
+        json.dump(stepic_raw_analysis, f, ensure_ascii=False, indent=2)
+    with open(out_dir / "phase4_stepic_final_insight.json", "w", encoding="utf-8") as f:
+        json.dump(final_stepic_insight, f, ensure_ascii=False, indent=2)
+    report_path = out_dir / "phase4_master_trend_report.md"
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(master_markdown)
+
+    print("\n" + "=" * 70)
+    print("STEPIC สรุป (final_stepic_insight):")
+    print("=" * 70)
+    for k, v in (final_stepic_insight or {}).items():
+        print(f"  {k}: {str(v)[:150]}")
+
+    print(f"\n✅ Saved -> {report_path}")
+    print(f"✅ Saved -> {out_dir / 'phase4_stepic_raw_analysis.json'}")
+    print(f"✅ Saved -> {out_dir / 'phase4_stepic_final_insight.json'}")

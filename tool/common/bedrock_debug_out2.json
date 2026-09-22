@@ -1,0 +1,33 @@
+{
+  "ResponseMetadata": {
+    "RequestId": "1d33011d-366b-48ac-9e23-0009fafb2bdb",
+    "HTTPStatusCode": 200,
+    "HTTPHeaders": {
+      "date": "Tue, 15 Sep 2026 13:13:05 GMT",
+      "content-type": "application/json",
+      "content-length": "582",
+      "connection": "keep-alive",
+      "x-amzn-requestid": "1d33011d-366b-48ac-9e23-0009fafb2bdb"
+    },
+    "RetryAttempts": 0
+  },
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "text": "ฉันคือ DeepSeek AI อัจฉริยะ สร้างขึ้นโดยบริษัท DeepSeek! 😊\n\nฉันเป็นโมเดลภาษาขนาดใหญ่ (LLM) ที่พัฒนามาเพื่อช่วยเหลือผู้ใช้ในหลากหลายด้าน ทั้งการสนทนา"
+        }
+      ]
+    }
+  },
+  "stopReason": "max_tokens",
+  "usage": {
+    "inputTokens": 17,
+    "outputTokens": 60,
+    "totalTokens": 77
+  },
+  "metrics": {
+    "latencyMs": 1930
+  }
+}

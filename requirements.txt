@@ -1,0 +1,47 @@
+# Trend Forecasting Pipeline — dependencies (2026-09-12, audit m4)
+# ครอบคลุมทั้ง main/tool/ (v2), trend_final.py + trend_final_v2.py (v1/v2 core), main.py
+# ตัวเลขเวอร์ชันคือที่ทดสอบผ่านจริงในเครื่องนี้ ณ วันที่เขียนไฟล์นี้ - ยึดจาก `pip show` ตรงๆ ไม่ได้เดา
+
+# --- ข้อมูล/คำนวณหลัก ---
+pandas==2.3.3
+numpy==2.5.0
+scikit-learn==1.9.0
+xgboost==3.3.0
+statsmodels==0.14.6
+networkx==3.6.1              # ⑤ Louvain clustering + consensus clustering (M2 audit fix)
+
+# --- LLM clients / SDK ---
+openai==2.45.0                # ใช้เรียก OpenRouter/NVIDIA NIM/Typhoon/Gemini ผ่าน OpenAI-compatible endpoint
+pydantic==2.13.4              # validate โครงสร้าง JSON ที่ LLM ตอบกลับ (เช่น ForecastAnalysis)
+langchain_core==1.5.3         # import ไว้ใน trend_final.py (ChatNVIDIA) - โค้ดตาย ไม่ได้ใช้จริง แต่ยัง import อยู่
+langchain_nvidia_ai_endpoints==1.4.3  # เหตุผลเดียวกับด้านบน
+boto3==1.43.94                 # 🆕 (2026-09-15) AWS Bedrock (Claude Sonnet 5) - ใช้กับ use_bedrock() ใน common/bootstrap.py
+
+# --- ดึงข้อมูล/scrape ---
+requests==2.34.2
+beautifulsoup4==4.15.0
+feedparser==6.0.12            # RSS feed (v1 trend_final.py)
+googlenewsdecoder==0.1.7      # ถอดรหัส Google News redirect URL
+apify_client==3.0.6           # scraper บทความเต็ม (Paper/Social/News stream)
+playwright==1.61.0            # MDPI scraper (headed, กัน Akamai bot detection)
+cloakbrowser==0.5.5           # Watsons/Sephora/Shopee scraper - stealth Playwright wrapper
+python-dotenv==1.2.2          # โหลด .env
+
+# --- Google Trends (⑦) ---
+google-search-results==2.4.2  # SerpAPI (ทางหลัก - เสีย quota จริง)
+pytrends==4.9.2                # fallback ฟรีเมื่อ SerpAPI quota หมด
+trendspyg==1.6.0               # ทางเลือกเดิมก่อนเปลี่ยนมาใช้ SerpAPI (เจอปัญหาโดนบล็อก IP)
+
+# --- Social/Video (สาย Social) ---
+youtube-transcript-api==1.2.4
+yt-dlp==2026.8.19
+faster_whisper==1.2.1          # transcribe เสียง YouTube เมื่อไม่มี caption
+imageio_ffmpeg==0.6.0          # ffmpeg binary ให้ faster_whisper ใช้
+
+# --- อื่นๆ ---
+matplotlib==3.11.0             # กราฟใน trend.ipynb / v1 report
+tavily-python==0.7.27          # web search fallback (Tavily)
+tqdm==4.68.3                   # progress bar
+
+# --- เทส (audit m4) ---
+pytest==8.4.2

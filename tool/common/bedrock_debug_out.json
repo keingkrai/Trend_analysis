@@ -1,0 +1,33 @@
+{
+  "ResponseMetadata": {
+    "RequestId": "ee66f1da-1be7-4406-bbbb-7f9d4f2e080e",
+    "HTTPStatusCode": 200,
+    "HTTPHeaders": {
+      "date": "Tue, 15 Sep 2026 13:12:42 GMT",
+      "content-type": "application/json",
+      "content-length": "550",
+      "connection": "keep-alive",
+      "x-amzn-requestid": "ee66f1da-1be7-4406-bbbb-7f9d4f2e080e"
+    },
+    "RetryAttempts": 0
+  },
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "text": "ฉันคือ DeepSeek AI ซึ่งพัฒนาโดยบริษัท深度求索 (DeepSeek) เป็นโมเดลภาษาขนาดใหญ่แบบโอเพนซอร์ส สามารถช่วยคุณตอบคำถามและสนทนาได้หลายประเด็น! 😊"
+        }
+      ]
+    }
+  },
+  "stopReason": "end_turn",
+  "usage": {
+    "inputTokens": 17,
+    "outputTokens": 55,
+    "totalTokens": 72
+  },
+  "metrics": {
+    "latencyMs": 1692
+  }
+}
