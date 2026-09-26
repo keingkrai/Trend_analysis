@@ -665,3 +665,50 @@ def test_external_portfolio_matches_brand_data_shape():
     p = rbc.external_portfolio(df)
     assert p == {"n_skus": 3, "top_subcategories": [{"name": "Face Serum", "n": 2}],
                  "price_min": 100.0, "price_median": 550.0, "price_max": 1000.0}
+
+
+# ---------------------------------------------------------------------------
+# STEPIC: LLM ตอบคนละโครงแต่ละรอบ (common/stepic_shape.py) - 🆕 (2026-09-26)
+# ---------------------------------------------------------------------------
+
+# โครงจริงของ 2 รอบ (ตัดข้อความให้สั้น)
+STEPIC_082438 = {
+    "technology": {"dimension": "TECHNOLOGY", "analysis": {"core_technology": "Bio delivery", "innovation_driver": "Stability",
+                                                           "adoption_stage": "Early"}},
+    "industry": {"concept": "Bio-Convergent", "information": "info", "strategic_positioning": {"winning_strategy": "Clinical"},
+                 "market_structure": {"transformation": "t", "channel_shift": "c"}},
+    "creativity": {"creativity_analysis": {"brand_expression": "Bio-Vector", "product_innovation": "NADES"}},
+}
+STEPIC_111455 = {
+    "technology": {"trend_analysis": {"focus_trend": "bpc", "dimension": "TECHNOLOGY",
+                                      "analysis": {"core_technology": "Transdermal", "innovation_driver": "Barrier",
+                                                   "adoption_stage": "Growth"}}},
+    "industry": {"market_structure": {"concept": "Convergence", "information": "channels"},
+                 "strategic_positioning": {"concept": "Science-Backed", "information": "safety"},
+                 "investment_signal": {"concept": "Capital", "information": "delivery tech"}},
+    "creativity": {"concept": "c", "brand_expression": "Visible science", "product_innovation": "Sensory"},
+}
+
+
+@pytest.mark.parametrize("raw, core", [(STEPIC_082438, "Bio delivery"), (STEPIC_111455, "Transdermal")])
+def test_stepic_technology_is_found_however_it_is_wrapped(raw, core):
+    from common.stepic_shape import normalize_stepic, stepic_for_report
+    assert normalize_stepic(raw)["technology"]["core_technology"] == core
+    report = stepic_for_report(raw)
+    assert report["technology"]["core_technology"] == core and report["technology"]["adoption_stage"]
+    assert "society" not in report  # มิติที่ไม่มีไม่ใส่ (ตัวเขียนรายงานข้ามมิติที่ว่างอยู่แล้ว)
+
+
+def test_stepic_report_fields_are_text_not_dicts():
+    from common.stepic_shape import stepic_for_report
+    industry = stepic_for_report(STEPIC_111455)["industry"]
+    assert industry["market_structure"] == "Convergence: channels"
+    assert industry["strategic_positioning"] == "Science-Backed: safety"
+    assert stepic_for_report(STEPIC_082438)["industry"]["market_structure"] == "transformation: t; channel shift: c"
+    assert stepic_for_report(STEPIC_082438)["creativity"]["brand_expression"] == "Bio-Vector"
+
+
+def test_stepic_shape_ignores_missing_or_bad_input():
+    from common.stepic_shape import as_text, normalize_stepic
+    assert normalize_stepic(None)["technology"] == {} and normalize_stepic({"policy": "text"})["policy"] == {}
+    assert as_text(None) == "" and as_text(["a", "", {"concept": "b"}]) == "a; b"

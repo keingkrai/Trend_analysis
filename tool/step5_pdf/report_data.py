@@ -11,10 +11,14 @@
 """
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tool/ -> common.stepic_shape (ไม่ใช่ bootstrap)
+from common.stepic_shape import as_text, normalize_stepic  # noqa: E402
 
 HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
 RANK_FILE = "phase2_rank_score_final_mode_result.json"
@@ -224,16 +228,21 @@ def _stepic_tiles(raw):
     จึงต้องระบุช่องที่ใช้ต่อมิติ ช่องไหนหายก็ตกไปใช้ช่องถัดไปที่มีข้อความ"""
     if not raw:
         return []
-    tech = (raw.get("technology") or {}).get("analysis") or {}
-    creat = (raw.get("creativity") or {}).get("creativity_analysis") or {}
-    soc, env, pol, ind = (raw.get(k) or {} for k in ("society", "environment", "policy", "industry"))
+    # 🆕 (2026-09-26) จัดรูปก่อน (ห่อ "analysis"/"trend_analysis"/"creativity_analysis" ต่างกันแต่ละรอบ) แล้วแปลงช่องเป็นข้อความ -
+    # เดิมอ่านตามโครงของรอบ 082438 ตายตัว รอบ 111455 เลยได้ STEPIC แค่ 3 จาก 6 ช่อง (ดู common/stepic_shape.py)
+    dims = normalize_stepic(raw)
+    soc, tech, env, pol, ind, creat = (
+        {k: as_text(v) for k, v in dims[d].items()}
+        for d in ("society", "technology", "environment", "policy", "industry", "creativity"))
+    positioning = dims["industry"].get("strategic_positioning")
+    winning = as_text(positioning.get("winning_strategy")) if isinstance(positioning, dict) else ""
     spec = [
         ("Society", soc.get("concept"), [soc.get("behavioral_shift"), soc.get("projected_impact")]),
         ("Technology", tech.get("core_technology"), [tech.get("innovation_driver"), tech.get("commercialization_signal")]),
         ("Environment", env.get("environmental_factor"), [env.get("sustainability_opportunity"), env.get("ESG_driver")]),
         ("Policy", pol.get("regulatory_trend"), [pol.get("business_impact"), pol.get("legal_barrier_or_support")]),
-        ("Industry", ind.get("concept"),
-         [(ind.get("strategic_positioning") or {}).get("winning_strategy"), ind.get("information")]),
+        ("Industry", ind.get("concept") or ind.get("market_structure"),
+         [winning, ind.get("information"), ind.get("strategic_positioning"), ind.get("competitive_landscape")]),
         ("Creativity", creat.get("brand_expression"), [creat.get("product_innovation"), creat.get("differentiation_strategy")]),
     ]
     tiles = []

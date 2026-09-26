@@ -533,3 +533,20 @@ def test_translate_items_th_caches():
     calls.clear()
     tr2, _, counts2 = translate_items_th(groups, cache, llm_call=None, log=lambda *_: None)
     assert tr2 == tr and calls == [] and counts2 == {"llm (cached)": 1}
+
+
+def test_stepic_tiles_read_every_dimension_whatever_its_wrapping():
+    """รอบ 111455: technology ห่อใน trend_analysis, industry เป็น dict, creativity ชั้นเดียว - เดิมได้แค่ 3 จาก 6 ช่อง"""
+    from report_data import _stepic_tiles
+    raw = {
+        "society": {"concept": "Skin-First", "behavioral_shift": "Fortify the barrier."},
+        "technology": {"trend_analysis": {"analysis": {"core_technology": "Transdermal Delivery",
+                                                       "innovation_driver": "Beat the stratum corneum."}}},
+        "industry": {"market_structure": {"concept": "Convergence", "information": "Channels split."},
+                     "strategic_positioning": {"concept": "Science-Backed", "information": "Safety first."}},
+        "creativity": {"brand_expression": "Visible science", "product_innovation": "Sensory actives."},
+    }
+    tiles = {t["dimension"]: t for t in _stepic_tiles(raw)}
+    assert list(tiles) == ["Society", "Technology", "Industry", "Creativity"]
+    assert tiles["Technology"]["headline"] == "Transdermal Delivery"
+    assert tiles["Industry"]["headline"].startswith("Convergence") and "{" not in tiles["Industry"]["body"]
