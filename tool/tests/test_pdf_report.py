@@ -473,6 +473,21 @@ def test_brand_context_rows_leader_and_missing(run_dir):
     assert b["portfolio"]["n_skus"] == 1 and b["portfolio"]["price_min"] == 199.0
 
 
+def test_brand_context_for_brand_not_on_watsons_uses_its_own_portfolio_and_images(run_dir):
+    """⑬ --products: แบรนด์ไม่มีในแคตตาล็อก Watsons - ภาพรวมสินค้า/รูป/ชื่อแพลตฟอร์มมาจากผล ⑬ เอง ไม่ใช่ 0 SKU"""
+    ctx, coverage, catalog = _brand_fixture(run_dir)
+    coverage = {**coverage, "brand": "Nova", "product_source": "external", "platforms": ["Lazada", "Shopee"],
+                "portfolio": {"n_skus": 40, "top_subcategories": [], "price_min": 99.0, "price_median": 250.0,
+                              "price_max": 890.0}}
+    match = coverage["coverage"]["Social::Barrier Care"]["brand_top_matches"][0]
+    match.update(product_name="Nova Balm", image_url="https://img.example/nova.jpg")
+    b = build_brand_context(ctx, coverage, catalog, DEFAULT_CONFIG)
+    assert b["portfolio"]["n_skus"] == 40 and b["product_source"] == "external"
+    assert b["rows"][0]["products"][0]["image_url"] == "https://img.example/nova.jpg"
+    html = render_brand_html(ctx, b, {**BRAND, "company_name": "S&J"}, {}, "Nova × Topic", datetime(2026, 9, 26))
+    assert "Nova on Lazada, Shopee" in html and "Nova on Watsons Thailand" not in html
+
+
 def test_find_coverage_file(run_dir):
     assert find_coverage_file(run_dir, "zenith").name == "phase3_brand_coverage_Zenith.json"   # ไม่สนตัวพิมพ์
     assert find_coverage_file(run_dir, "Zenit").name == "phase3_brand_coverage_Zenith.json"    # พิมพ์ตกไป 1 ตัว

@@ -20,9 +20,24 @@ query/passage) - ใช้ไฟล์เดียวกัน (`match_products.
 🆕 (2026-09-16) ออกผล 2 ไฟล์ต่อแบรนด์ตามที่เจ้าของงานขอ: JSON เดิม + **Excel**
 (`phase3_brand_coverage_<แบรนด์>.xlsx` ชีต "สรุป" + "รายเทรนด์") - ข้อมูลชุดเดียวกันเป๊ะ ไม่ได้คำนวณเพิ่ม
 ดู `save_coverage_excel()`
+
+🆕 (2026-09-26) แบรนด์ที่ไม่มีบน Watsons: `--products <csv> --brand <ชื่อ>` ใช้สินค้าจากไฟล์แทน (เช่นสินค้าที่
+Health Check ของ GI_CH scrape จาก Shopee/Lazada/Konvy) - embed ด้วยข้อความสูตรเดียวกับ ⑫ (`build_product_text`)
+cache แยกไฟล์ (`EXTERNAL_CHECKPOINT_PATH`) แล้วจัดอันดับเทียบตลาด Watsons ชุดเดิม: อันดับ = อันดับที่สินค้าชิ้นนั้นจะได้
+ถ้าแทรกเข้าไปในตลาด 10,622 SKU (`rank_if_inserted`) ความหมายเดียวกับโหมด Watsons - การคำนวณต่อเทรนด์อยู่ใน
+`compute_coverage()` ใช้ร่วมกันทั้ง 2 โหมด
+
+Usage:
+    TREND_RUN_ID=<รอบ> TREND_TOPIC=Mizumi python tool/step3_products/brand_coverage.py      # แบบเดิม (main.py)
+    TREND_RUN_ID=<รอบ> python tool/step3_products/brand_coverage.py --brand Mizumi
+    TREND_RUN_ID=<รอบ> python tool/step3_products/brand_coverage.py --brand "My Brand" --products products.csv
 """
+import argparse
 import difflib
+import hashlib
 import json
+import pickle
+import statistics
 import sys
 from pathlib import Path
 
@@ -33,12 +48,20 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-from common.bootstrap import OUTPUTS, TOOL_DIR, prompt_run_config  # noqa: E402
+from common.bootstrap import CHECKPOINTS, OUTPUTS, TOOL_DIR, prompt_run_config  # noqa: E402
 
 from match_products import (  # noqa: E402
     generate_match_reason, get_embedding, load_checkpoint, load_real_trend_profiles,
 )
 from match_supply import build_trend_matchable_text, cosine_similarity  # noqa: E402
+from validate_at_scale import build_product_text  # noqa: E402
+
+# 🆕 (2026-09-26) เวกเตอร์ของสินค้านอกแคตตาล็อก Watsons (--products) - คนละไฟล์กับ cache ของ ⑫ ที่ ⑫ เขียนทับทั้งไฟล์
+# ระหว่างรัน (ถ้าใช้ไฟล์เดียวกัน 2 โปรเซสจะเขียนทับกันหาย)
+EXTERNAL_CHECKPOINT_PATH = CHECKPOINTS / "external_product_embeddings_nvidia.pkl"
+# คอลัมน์ของไฟล์ --products: บังคับแค่ product_name ที่เหลือใส่เท่าที่มี (ข้อความ embed ใช้สูตรเดียวกับ ⑫)
+EXTERNAL_COLUMNS = ("product_name", "brand", "Key_Benefits", "Primary_Use_Case", "Product_Insights", "ingredients",
+                    "Category", "Sub_category", "sale_price_thb", "sold_count", "image_url", "product_url", "platform")
 
 TOP_MATCH_TIER = 67  # percentile >= นี้ = แบรนด์มีของเข้าเทรนด์จริง (เทียบชั้นเดียวกับ match_supply.py)
 GAP_TIER = 33        # percentile <= นี้ = ยังไม่มีของเข้าเทรนด์นี้เลย (เทียบกับตลาดทั้งหมด)
@@ -252,38 +275,9 @@ def append_brand_section_to_report(report_path, brand, n_skus, n_market, coverag
     return True
 
 
-if __name__ == "__main__":
-    print("=" * 70)
-    print("Phase 3 ⑬ (โหมด 1) — Brand Coverage: แบรนด์บน Watsons vs Top N เทรนด์ของรอบนี้ (จาก ⑪)")
-    print("=" * 70)
-
-    df = pd.read_csv(TOOL_DIR / "product" / "watsons_product.csv", low_memory=False)
-    print(f"โหลดสินค้าจริงแล้ว: {len(df)} รายการ, {df['brand'].nunique()} แบรนด์")
-
-    # 🆕 (2026-09-12, audit m3) load_checkpoint(df) รับ df เพื่อ remap cache (เก็บด้วย content hash
-    # กันเรียงแถวใหม่/อัปเดตแล้วจับคู่ผิด) กลับเป็น {df.index: vector} ตาม df ปัจจุบัน - ค่า None แปลว่า
-    # สินค้าแถวนั้นยังไม่เคย embed (เนื้อหาไม่ตรงกับ hash ไหนใน cache เลย)
-    product_embeddings = load_checkpoint(df)
-    n_ready = sum(1 for v in product_embeddings.values() if v is not None)
-    if n_ready < len(df):
-        print(f"❌ embedding cache ไม่ครบ ({n_ready}/{len(df)}) - รัน "
-              f"match_products.py (⑫) ให้จบก่อน")
-        sys.exit(1)
-
-    brand_wanted, _ = prompt_run_config(default_topic="Watsons", default_years=3, ask_years=False)
-    # prompt_run_config ถามแบบ "หัวข้อ" ทั่วไป - ใช้ค่าที่ได้เป็นชื่อแบรนด์ตรงๆ (ไม่เกี่ยวกับปี)
-    brand = resolve_brand(df, brand_wanted)
-    if brand is None:
-        print(f"❌ ไม่เจอแบรนด์ '{brand_wanted}' บน Watsons เลย (ดูรายชื่อใกล้เคียงด้านบน) - ลองใหม่")
-        sys.exit(1)
-
-    brand_idx = df.index[df["brand"] == brand].tolist()
-    print(f"✅ พบแบรนด์ '{brand}': {len(brand_idx)} SKU")
-
-    trend_profiles = load_real_trend_profiles()
-    print(f"\nกำลัง embed {len(trend_profiles)} trend profile (input_type=query)...")
-    # 🆕 (2026-09-12, audit M4) key ผสม "stream::trend" กันชื่อเทรนด์ชนกันข้ามสายทับกันเงียบๆ
-    # (แก้เหมือนกับที่แก้ใน match_products.py)
+def embed_trend_profiles(trend_profiles):
+    """profile ของ ⑪ -> เวกเตอร์เทรนด์ (input_type=query) คืน (vectors, names, streams, profile_by_key) ใช้ key
+    "stream::trend" กันชื่อเทรนด์ชนกันข้ามสาย"""
     trend_vectors, trend_names, trend_streams, trend_profile_by_key = {}, {}, {}, {}
     for profile in trend_profiles:
         stream = profile.get("stream", "?")
@@ -298,61 +292,76 @@ if __name__ == "__main__":
         trend_names[key] = profile["trend"]
         trend_streams[key] = stream
         trend_profile_by_key[key] = profile  # 🆕 (2026-09-15) เก็บไว้ป้อน generate_match_reason()
-    print("เสร็จแล้ว")
+    return trend_vectors, trend_names, trend_streams, trend_profile_by_key
 
-    rank_lookup = load_trend_overall_rank()  # 🆕 (2026-09-15) อันดับรวมเทรนด์จาก ⑥ ถ้ามี
-    top_rank_lookup = load_trend_top_rank()  # 🆕 (2026-09-16) อันดับภายใน Top N (1..N) จาก ⑪ - ใช้แสดงผล
 
-    print(f"\nกำลังคำนวณ cosine similarity เต็มตลาด ({len(df)} SKU) ต่อเทรนด์ (deterministic, ไม่ยิง API)... "
-          f"แล้วให้เหตุผลรายชิ้น (LLM) กับสินค้า {brand} สูงสุด {BRAND_TOP_K} อันดับแรกของแต่ละเทรนด์ "
-          f"(~{len(trend_vectors) * min(BRAND_TOP_K, max(len(brand_idx), 1))} เรียก)...")
-    all_idx = list(product_embeddings.keys())
-    pos_of_idx = {idx: pos for pos, idx in enumerate(all_idx)}  # df index -> ตำแหน่งใน all_vecs/sims
-    all_vecs = np.stack([product_embeddings[i] for i in all_idx])  # (10622, 2048)
+def rank_if_inserted(market_sims_ascending, score):
+    """อันดับของสินค้านอกแคตตาล็อกถ้าแทรกเข้าไปในตลาด (1 = ใกล้เทรนด์ที่สุด) = จำนวนสินค้าในตลาดที่คะแนนสูงกว่า + 1"""
+    n = len(market_sims_ascending)
+    return int(n - np.searchsorted(market_sims_ascending, score, side="right")) + 1
 
+
+def _price_value(price):
+    """sale_price_thb เป็น string มี comma คั่นหลักพัน (เช่น "1,790.00") - เหมือน ⑫"""
+    try:
+        return None if price is None or pd.isna(price) else float(str(price).replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def compute_coverage(market_df, market_idx, market_vecs, brand_items, trends, rank_lookup, top_rank_lookup,
+                     reason_fn=generate_match_reason):
+    """⑬ ต่อเทรนด์: คะแนนและอันดับของสินค้าแบรนด์เทียบทั้งตลาด (ย้ายมาจาก __main__ เดิม - ผลของโหมด Watsons เหมือนเดิม)
+
+    market_df/market_idx/market_vecs: ตลาด Watsons (แถว market_idx[i] มีเวกเตอร์ market_vecs[i])
+    brand_items: [{"row": แถวสินค้า, "pos": ตำแหน่งในตลาด หรือ None, "vec": เวกเตอร์ (เมื่อ pos เป็น None),
+                   "extra": ฟิลด์ที่ต่อท้ายผลของสินค้าชิ้นนั้น (เช่นลิงก์/รูปของสินค้านอกแคตตาล็อก)}] เรียงตามลำดับเดิม
+    trends: ผลของ embed_trend_profiles() / reason_fn(profile, row) -> เหตุผลจาก LLM (เทสส่งตัวปลอมได้)"""
+    trend_vectors, trend_names, trend_streams, trend_profile_by_key = trends
+    n_total = len(market_idx)
     coverage_report = {}
     for n_done, (key, tvec) in enumerate(trend_vectors.items(), start=1):
-        sims = all_vecs @ tvec / (np.linalg.norm(all_vecs, axis=1) * np.linalg.norm(tvec) + 1e-12)
+        sims = market_vecs @ tvec / (np.linalg.norm(market_vecs, axis=1) * np.linalg.norm(tvec) + 1e-12)
         order = np.argsort(-sims)  # มากไปน้อย
-        n_total = len(all_idx)
         rank_of_pos = np.empty(n_total, dtype=int)
         rank_of_pos[order] = np.arange(n_total)  # rank_of_pos[pos] = 0 คือดีที่สุดในตลาด
+        sims_ascending = None
 
-        brand_scores = [(idx, float(sims[pos_of_idx[idx]])) for idx in brand_idx if idx in pos_of_idx]
-        brand_scores.sort(key=lambda x: x[1], reverse=True)
+        scored = []  # (item, similarity, อันดับในตลาด 1 = ดีที่สุด)
+        for item in brand_items:
+            if item.get("pos") is not None:
+                scored.append((item, float(sims[item["pos"]]), int(rank_of_pos[item["pos"]]) + 1))
+            else:
+                vec = item["vec"]
+                score = float(vec @ tvec / (np.linalg.norm(vec) * np.linalg.norm(tvec) + 1e-12))
+                if sims_ascending is None:
+                    sims_ascending = np.sort(sims)
+                scored.append((item, score, rank_if_inserted(sims_ascending, score)))
+        scored.sort(key=lambda x: x[1], reverse=True)
 
-        if brand_scores:
-            best_idx, best_score = brand_scores[0]
-            best_rank = int(rank_of_pos[pos_of_idx[best_idx]]) + 1  # 1 = ดีที่สุดในตลาดทั้งหมด
+        if scored:
+            best_item, best_score, best_rank = scored[0]  # best_rank: 1 = ดีที่สุดในตลาดทั้งหมด
             best_percentile = round((n_total - (best_rank - 1)) / n_total * 100)
             # 🆕 percentile หยาบเกินไปตอนอยู่ใน top 1% ของตลาดที่มี 10,622 ชิ้น (rank 1 กับ rank 100
             # ปัดเป็น "100th percentile" เหมือนกันหมด - เข้าใจผิดว่า "ดีที่สุด" ทั้งที่อาจจะแค่ "ติดกลุ่มบนๆ")
             # ให้ rank ตัวเลขจริงคู่กันเสมอ ไม่ใช้ percentile อย่างเดียวตัดสิน
         else:
-            best_idx, best_score, best_percentile, best_rank = None, None, None, None
+            best_item, best_score, best_percentile, best_rank = None, None, None, None
 
         market_best_score = float(sims[order[0]])
-        market_best_row = df.loc[all_idx[order[0]]]
+        market_best_row = market_df.loc[market_idx[order[0]]]
 
         tier = ("ตามทัน/มีของเข้าเทรนด์" if best_percentile is not None and best_percentile >= TOP_MATCH_TIER
                else "Gap - ยังไม่มีของเข้าเทรนด์นี้" if best_percentile is None or best_percentile <= GAP_TIER
                else "กลางๆ - มีของบ้างแต่ไม่โดดเด่น")
 
-        # 🆕 (2026-09-15) เจ้าของงานขอเพิ่มเหตุผล LLM แบบเดียวกับ ⑫'s generate_match_reason() (Typhoon,
-        # ไม่ตัดสิน verdict - แค่อธิบาย) เข้า ⑬ ด้วย - เรียกแค่ต่อเทรนด์ (สินค้าที่ดีที่สุดของแบรนด์ 1
-        # ชิ้น) ไม่ใช่ top-5 แบบ ⑫ เพราะ ⑬ สนใจแค่ตัวที่ดีที่สุดของแบรนด์นี้ต่อเทรนด์อยู่แล้ว
+        # 🆕 (2026-09-15) เหตุผล LLM แบบเดียวกับ ⑫'s generate_match_reason() (ไม่ตัดสิน verdict - แค่อธิบาย)
         # 🆕 (2026-09-16) เก็บ top 5 สินค้าของแบรนด์ต่อเทรนด์ พร้อมเหตุผล**รายชิ้น** ตามที่เจ้าของงานขอ
         # (เดิมเก็บแค่ชิ้นที่ดีที่สุด 1 ชิ้น + เหตุผล 1 อัน) - similarity ยังเป็นตัวจัดอันดับเหมือนเดิม
-        # LLM แค่อธิบายรายชิ้น ไม่ได้ตัดสิน (หลักการเดียวกับ ⑫'s generate_match_reason)
         brand_top = []
-        for rank_in_brand, (idx, score) in enumerate(brand_scores[:BRAND_TOP_K], start=1):
-            row = df.loc[idx]
-            rank_vs_market = int(rank_of_pos[pos_of_idx[idx]]) + 1
-            price, sold = row.get("sale_price_thb"), row.get("sold_count")
-            try:  # sale_price_thb เป็น string มี comma คั่นหลักพัน (เช่น "1,790.00") - เหมือน ⑫
-                price_val = None if pd.isna(price) else float(str(price).replace(",", ""))
-            except (ValueError, TypeError):
-                price_val = None
+        for rank_in_brand, (item, score, rank_vs_market) in enumerate(scored[:BRAND_TOP_K], start=1):
+            row = item["row"]
+            sold = row.get("sold_count")
             category = next((str(c) for c in (row.get("Category"), row.get("category"))
                              if c is not None and not pd.isna(c) and str(c).strip()), "")
             brand_top.append({
@@ -362,9 +371,10 @@ if __name__ == "__main__":
                 "similarity": round(float(score), 4),
                 "rank_vs_market": rank_vs_market,
                 "percentile_vs_market": round((n_total - (rank_vs_market - 1)) / n_total * 100),
-                "sale_price_thb": price_val,
-                "sold_count": None if pd.isna(sold) else float(sold),
-                "match_reason": generate_match_reason(trend_profile_by_key[key], row),
+                "sale_price_thb": _price_value(row.get("sale_price_thb")),
+                "sold_count": None if sold is None or pd.isna(sold) else float(sold),
+                "match_reason": reason_fn(trend_profile_by_key[key], row),
+                **(item.get("extra") or {}),
             })
         # เหตุผลระดับเทรนด์ = ของสินค้าอันดับ 1 (ไม่ต้องยิง LLM ซ้ำ) - คีย์เดิมที่ Master Report ใช้อยู่
         match_reason = brand_top[0]["match_reason"] if brand_top else ""
@@ -378,41 +388,188 @@ if __name__ == "__main__":
             "trend_overall_rank": rank_lookup.get((trend_streams[key], trend_names[key])),
             # 🆕 (2026-09-16) อันดับภายในชุด Top N (1..N) ที่ใช้แสดงผล - None ถ้าผล ⑪ เป็นรอบเก่า ดู load_trend_top_rank()
             "trend_top_rank": top_rank_lookup.get((trend_streams[key], trend_names[key])),
-            # 🆕 (2026-09-16) top 5 สินค้าของแบรนด์ในเทรนด์นี้ พร้อมเหตุผลรายชิ้น (ชีต "Top 5 ต่อเทรนด์"
-            # ใน Excel ใช้ตรงนี้) - คีย์ brand_best_* ด้านล่างคือชิ้นอันดับ 1 ของลิสต์นี้ เก็บไว้เหมือนเดิม
-            # เพราะ Master Report/ผลรอบเก่าอ้างถึงอยู่
+            # 🆕 (2026-09-16) top 5 สินค้าของแบรนด์ในเทรนด์นี้ พร้อมเหตุผลรายชิ้น - คีย์ brand_best_* ด้านล่างคือ
+            # ชิ้นอันดับ 1 ของลิสต์นี้ เก็บไว้เหมือนเดิมเพราะ Master Report/ผลรอบเก่าอ้างถึงอยู่
             "brand_top_matches": brand_top,
-            "brand_best_product": (df.loc[best_idx, "product_name"] if best_idx is not None else None),
+            "brand_best_product": best_item["row"]["product_name"] if best_item is not None else None,
             "brand_best_score": round(best_score, 4) if best_score is not None else None,
             "match_reason": match_reason,
             "brand_best_rank_vs_market": best_rank,  # 1 = อันดับ 1 ของทั้งตลาด (ตัวเลขจริง แม่นกว่า percentile)
             "brand_best_percentile_vs_market": best_percentile,
-            "brand_n_skus_considered": len(brand_scores),
+            "brand_n_skus_considered": len(scored),
             "tier": tier,
             "market_best_product": f"{market_best_row['brand']} - {market_best_row['product_name']}",
             "market_best_score": round(market_best_score, 4),
         }
+    return coverage_report
+
+
+def load_external_products(csv_path):
+    """ไฟล์ --products -> DataFrame: ต้องมี product_name ตัดแถวชื่อว่าง และตัดชื่อซ้ำ (สินค้าเดียวกันขายหลายแพลตฟอร์ม)
+    โดยเก็บแถวที่มีข้อความให้ embed มากที่สุด"""
+    df = pd.read_csv(csv_path, encoding="utf-8-sig", low_memory=False)
+    if "product_name" not in df.columns:
+        raise SystemExit(f"❌ {csv_path} ไม่มีคอลัมน์ product_name")
+    df = df[df["product_name"].notna() & (df["product_name"].astype(str).str.strip() != "")].copy()
+    df["_text_len"] = [len(build_product_text(row)) for _, row in df.iterrows()]
+    df = (df.sort_values("_text_len", ascending=False, kind="stable")
+            .drop_duplicates(subset=["product_name"], keep="first")
+            .sort_index()
+            .drop(columns="_text_len"))
+    return df.reset_index(drop=True)
+
+
+def _save_external_cache(cache):
+    EXTERNAL_CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = EXTERNAL_CHECKPOINT_PATH.with_suffix(".tmp")
+    with open(tmp, "wb") as f:
+        pickle.dump(cache, f)
+    tmp.replace(EXTERNAL_CHECKPOINT_PATH)
+
+
+def embed_external_products(df, embed=None):
+    """สินค้าจากไฟล์ -> {แถว: เวกเตอร์} (input_type=passage) cache ด้วย hash ของข้อความที่ embed จริง แถวที่ไม่มีข้อความ
+    ให้ embed ได้ None - embed(text) ใช้แทน get_embedding ได้ (เทส)"""
+    embed = embed or (lambda text: get_embedding(text, "passage"))
+    cache = {}
+    if EXTERNAL_CHECKPOINT_PATH.exists():
+        with open(EXTERNAL_CHECKPOINT_PATH, "rb") as f:
+            cache = pickle.load(f)
+    vectors, new = {}, 0
+    for idx, row in df.iterrows():
+        text = build_product_text(row)
+        if not text.strip():
+            vectors[idx] = None
+            continue
+        key = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if key not in cache:
+            cache[key] = embed(text)
+            new += 1
+            if new % 100 == 0:
+                _save_external_cache(cache)
+        vectors[idx] = cache[key]
+    if new:
+        _save_external_cache(cache)
+    n_ready = sum(v is not None for v in vectors.values())
+    print(f"  embed สินค้าจากไฟล์: ใหม่ {new} ชิ้น, จาก cache {n_ready - new} ชิ้น, ไม่มีข้อความ {len(vectors) - n_ready} ชิ้น")
+    return vectors
+
+
+def external_portfolio(df):
+    """ภาพรวมสินค้าจากไฟล์ รูปเดียวกับ step5_pdf/brand_data.portfolio_stats() (ใช้แทนเมื่อแบรนด์ไม่มีบน Watsons)"""
+    prices = [p for p in (_price_value(v) for v in df["sale_price_thb"]) if p] if "sale_price_thb" in df.columns else []
+    subs = df["Sub_category"].dropna().value_counts().head(4) if "Sub_category" in df.columns else pd.Series(dtype=int)
+    return {
+        "n_skus": int(len(df)),
+        "top_subcategories": [{"name": str(k), "n": int(v)} for k, v in subs.items()],
+        "price_min": min(prices) if prices else None,
+        "price_median": statistics.median(prices) if prices else None,
+        "price_max": max(prices) if prices else None,
+    }
+
+
+def _text_or_none(value):
+    return None if value is None or pd.isna(value) or not str(value).strip() else str(value)
+
+
+def external_brand_items(ext, vectors):
+    """สินค้าจากไฟล์ + เวกเตอร์ -> brand_items ของ compute_coverage() (ข้ามแถวที่ไม่มีข้อความให้ embed)"""
+    items = []
+    for idx, row in ext.iterrows():
+        if vectors.get(idx) is None:
+            continue
+        extra = {k: _text_or_none(row.get(k)) for k in ("image_url", "product_url", "platform")}
+        items.append({"row": row, "pos": None, "vec": vectors[idx], "extra": extra})
+    return items
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="⑬ แบรนด์ vs Top N เทรนด์ของรอบ (TREND_RUN_ID)")
+    parser.add_argument("--brand", default=None, help="ชื่อแบรนด์ (ไม่ใส่ = TREND_TOPIC หรือถาม)")
+    parser.add_argument("--products", default=None,
+                        help="CSV สินค้าของแบรนด์ที่ไม่มีบน Watsons (ต้องมี product_name) - ไม่ใส่ = ใช้สินค้าบน Watsons")
+    args = parser.parse_args(argv)
+
+    print("=" * 70)
+    print("Phase 3 ⑬ — Brand Coverage: สินค้าของแบรนด์ vs Top N เทรนด์ของรอบนี้ (จาก ⑪)")
+    print("=" * 70)
+
+    df = pd.read_csv(TOOL_DIR / "product" / "watsons_product.csv", low_memory=False)
+    print(f"โหลดสินค้าจริงแล้ว: {len(df)} รายการ, {df['brand'].nunique()} แบรนด์")
+
+    # 🆕 (2026-09-12, audit m3) load_checkpoint(df) รับ df เพื่อ remap cache (เก็บด้วย content hash
+    # กันเรียงแถวใหม่/อัปเดตแล้วจับคู่ผิด) กลับเป็น {df.index: vector} ตาม df ปัจจุบัน - ค่า None แปลว่า
+    # สินค้าแถวนั้นยังไม่เคย embed (เนื้อหาไม่ตรงกับ hash ไหนใน cache เลย)
+    product_embeddings = load_checkpoint(df)
+    n_ready = sum(1 for v in product_embeddings.values() if v is not None)
+    if n_ready < len(df):
+        print(f"❌ embedding cache ไม่ครบ ({n_ready}/{len(df)}) - รัน "
+              f"match_products.py (⑫) ให้จบก่อน")
+        sys.exit(1)
+    all_idx = list(product_embeddings.keys())
+    pos_of_idx = {idx: pos for pos, idx in enumerate(all_idx)}  # df index -> ตำแหน่งใน all_vecs/sims
+    all_vecs = np.stack([product_embeddings[i] for i in all_idx])  # (10622, 2048)
+
+    if args.products:
+        brand = (args.brand or "").strip()
+        if not brand:
+            raise SystemExit("❌ --products ต้องใส่ --brand ด้วย")
+        ext = load_external_products(args.products)
+        print(f"✅ สินค้าจากไฟล์ของ '{brand}': {len(ext)} รายการ (ไม่ซ้ำชื่อ)")
+        brand_items = external_brand_items(ext, embed_external_products(ext))
+        n_brand_skus = len(ext)
+        platforms = (sorted({p for p in ext["platform"].dropna().astype(str) if p.strip()})
+                     if "platform" in ext.columns else [])
+        source = {"product_source": "external", "platforms": platforms, "portfolio": external_portfolio(ext)}
+    else:
+        brand_wanted = args.brand
+        if not brand_wanted:
+            brand_wanted, _ = prompt_run_config(default_topic="Watsons", default_years=3, ask_years=False)
+            # prompt_run_config ถามแบบ "หัวข้อ" ทั่วไป - ใช้ค่าที่ได้เป็นชื่อแบรนด์ตรงๆ (ไม่เกี่ยวกับปี)
+        brand = resolve_brand(df, brand_wanted)
+        if brand is None:
+            print(f"❌ ไม่เจอแบรนด์ '{brand_wanted}' บน Watsons เลย (ดูรายชื่อใกล้เคียงด้านบน) - ลองใหม่")
+            sys.exit(1)
+        brand_idx = df.index[df["brand"] == brand].tolist()
+        print(f"✅ พบแบรนด์ '{brand}': {len(brand_idx)} SKU")
+        brand_items = [{"row": df.loc[idx], "pos": pos_of_idx[idx]} for idx in brand_idx if idx in pos_of_idx]
+        n_brand_skus = len(brand_idx)
+        source = {"product_source": "watsons"}
+
+    trend_profiles = load_real_trend_profiles()
+    print(f"\nกำลัง embed {len(trend_profiles)} trend profile (input_type=query)...")
+    trends = embed_trend_profiles(trend_profiles)
+    print("เสร็จแล้ว")
+
+    rank_lookup = load_trend_overall_rank()  # 🆕 (2026-09-15) อันดับรวมเทรนด์จาก ⑥ ถ้ามี
+    top_rank_lookup = load_trend_top_rank()  # 🆕 (2026-09-16) อันดับภายใน Top N (1..N) จาก ⑪ - ใช้แสดงผล
+
+    print(f"\nกำลังคำนวณ cosine similarity เต็มตลาด ({len(df)} SKU) ต่อเทรนด์ (deterministic, ไม่ยิง API)... "
+          f"แล้วให้เหตุผลรายชิ้น (LLM) กับสินค้า {brand} สูงสุด {BRAND_TOP_K} อันดับแรกของแต่ละเทรนด์ "
+          f"(~{len(trends[0]) * min(BRAND_TOP_K, max(len(brand_items), 1))} เรียก)...")
+    coverage_report = compute_coverage(df, all_idx, all_vecs, brand_items, trends, rank_lookup, top_rank_lookup)
 
     out_path = OUTPUTS / f"phase3_brand_coverage_{brand.replace(' ', '_')}.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
-            "_note": "⑬ โหมด 1 - แบรนด์บน Watsons vs Top N เทรนด์ของรอบนี้ (embedding เดิมจาก ⑫ ทั้งหมด ไม่ยิง"
-                    " API สินค้าเพิ่ม)",
-            "brand": brand, "n_skus": len(brand_idx), "coverage": coverage_report,
+            "_note": "⑬ แบรนด์ vs Top N เทรนด์ของรอบนี้ - สินค้าบน Watsons ใช้ embedding เดิมจาก ⑫ (ไม่ยิง API"
+                    " สินค้าเพิ่ม), product_source=external = สินค้าจากไฟล์ จัดอันดับเทียบตลาด Watsons ชุดเดียวกัน",
+            "brand": brand, "n_skus": n_brand_skus, "n_market_skus": len(all_idx), **source,
+            "coverage": coverage_report,
         }, f, ensure_ascii=False, indent=2)
 
     # 🆕 (2026-09-16) ไฟล์ Excel คู่กับ JSON (ชื่อเดียวกัน คนละนามสกุล) - ข้อมูลชุดเดียวกัน ดู save_coverage_excel()
     xlsx_path = out_path.with_suffix(".xlsx")
-    save_coverage_excel(xlsx_path, brand, len(brand_idx), len(all_idx), coverage_report)
+    save_coverage_excel(xlsx_path, brand, n_brand_skus, len(all_idx), coverage_report)
 
     report_path = OUTPUTS / "phase4_master_trend_report.md"
-    if append_brand_section_to_report(report_path, brand, len(brand_idx), len(all_idx), coverage_report):
+    if append_brand_section_to_report(report_path, brand, n_brand_skus, len(all_idx), coverage_report):
         print(f"✅ ต่อท้ายอันดับ {brand} เข้า {report_path.name} แล้ว")
     else:
         print(f"  ⏭️  ไม่เจอ {report_path.name} ในรอบนี้ - ข้ามการต่อท้ายรายงาน (ไฟล์ ⑬ แยกยังเซฟไว้ปกติ)")
 
     print("\n" + "=" * 70)
-    print(f"ผล Brand Coverage: {brand} ({len(brand_idx)} SKU) เทียบ {len(coverage_report)} เทรนด์")
+    print(f"ผล Brand Coverage: {brand} ({n_brand_skus} SKU) เทียบ {len(coverage_report)} เทรนด์")
     print("=" * 70)
     for key, r in sorted(coverage_report.items(), key=lambda kv: kv[1]["brand_best_score"] or -1, reverse=True):
         rank_str = f" (อันดับเทรนด์ #{display_trend_rank(r)})" if display_trend_rank(r) is not None else ""
@@ -429,3 +586,7 @@ if __name__ == "__main__":
 
     print(f"\n✅ Saved -> {out_path}")
     print(f"✅ Saved (Excel) -> {xlsx_path}")
+
+
+if __name__ == "__main__":
+    main()

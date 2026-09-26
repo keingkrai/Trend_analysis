@@ -66,7 +66,7 @@
 <section class="page" data-label="Executive Summary">
   {{ bar_header(L.summary_header ~ " | " ~ b.brand) }}
   <div class="ex-left">
-    <div class="ex-title">{{ L.on_watsons.format(brand=b.brand) }}</div>
+    <div class="ex-title">{% if b.product_source == "external" %}{{ L.on_other.format(brand=b.brand, platforms=(b.platforms | join(", ")) or "-") }}{% else %}{{ L.on_watsons.format(brand=b.brand) }}{% endif %}</div>
     <div class="stat-grid">
       <div class="stat"><div class="lbl">{{ L.skus }}</div><div class="val">{{ b.n_skus or pf.n_skus }}</div></div>
       <div class="stat"><div class="lbl">{{ L.price_range }}</div>

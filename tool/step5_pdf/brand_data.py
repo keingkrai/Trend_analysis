@@ -190,7 +190,8 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
                 "rank": m.get("rank_vs_market"),
                 "similarity": m.get("similarity"),
                 "reason": m.get("match_reason") or "",
-                "image_url": cat.get("image_url"),
+                # สินค้านอกแคตตาล็อก Watsons (⑬ --products) มีรูปของตัวเองในผล ⑬ - ไม่มีในแคตตาล็อกให้ join
+                "image_url": m.get("image_url") or cat.get("image_url"),
             })
         best_rank = c.get("brand_best_rank_vs_market")
         level = fit_level(best_rank, thresholds)
@@ -223,7 +224,10 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
         "brand": brand,
         "n_skus": coverage.get("n_skus"),
         "n_market": trend_ctx["meta"].get("n_products_compared"),
-        "portfolio": portfolio_stats(catalog, brand),
+        # 🆕 (2026-09-26) แบรนด์ที่ไม่มีบน Watsons: ⑬ --products เก็บภาพรวมสินค้าในไฟล์ไว้ใน coverage เอง
+        "portfolio": coverage.get("portfolio") or portfolio_stats(catalog, brand),
+        "product_source": coverage.get("product_source") or "watsons",
+        "platforms": coverage.get("platforms") or [],
         "thresholds": thresholds,
         "momentum_split": round(split, 2),
         "rows": rows,

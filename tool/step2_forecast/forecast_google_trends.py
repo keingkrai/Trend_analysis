@@ -24,7 +24,7 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-from common.bootstrap import OUTPUTS, PROJECT_ROOT, prompt_run_config, use_bedrock
+from common.bootstrap import OUTPUTS, PROJECT_ROOT, SERPAPI_KEYS, prompt_run_config, use_bedrock
 
 # 🆕 (2026-09-22) ส่วนที่ใช้จริงของ trend_final_v2.py คัดลอกตรงตัวไว้ใน main/ (common/trend_final_v2_subset.py)
 from common import trend_final_v2_subset as tf2  # noqa: E402
@@ -65,13 +65,42 @@ def build_trend_keyword_mapping():
     return mapping
 
 
-def check_quota():
-    key = tf2.SERPAPI_KEY
+def _searches_left(key):
     url = f"https://serpapi.com/account.json?api_key={key}"
     with urllib.request.urlopen(url, timeout=15) as r:
         data = json.load(r)
-    left = data.get("plan_searches_left", data.get("total_searches_left"))
-    print(f"  SerpAPI quota เหลือ: {left} search (แผน {data.get('plan_name')})")
+    return data.get("plan_searches_left", data.get("total_searches_left")), data.get("plan_name")
+
+
+_chosen_key = None
+
+
+def _choose_key():
+    """🆕 (2026-09-26) SERPAPI_KEY มีได้หลายคีย์ (.env ของ GI_CH เก็บเป็นรายการ แต่ละคีย์เป็นแผนฟรี) - เลือกคีย์ที่
+    quota เหลือมากสุดครั้งเดียวต่อโปรเซส แล้วใช้คีย์นั้นทั้งขั้น (quota ก่อน/หลังต้องนับจากคีย์เดียวกัน) - คีย์ที่เช็ค
+    ไม่ผ่านถูกข้าม ไม่พิมพ์ตัวคีย์ออกหน้าจอ"""
+    global _chosen_key
+    if _chosen_key is None:
+        keys = SERPAPI_KEYS or [tf2.SERPAPI_KEY]
+        best, best_left = keys[0], -1
+        if len(keys) > 1:
+            for i, key in enumerate(keys, 1):
+                try:
+                    left, _plan = _searches_left(key)
+                except Exception as e:
+                    print(f"  ⚠️ SerpAPI คีย์ที่ {i}/{len(keys)} เช็ค quota ไม่ได้ ({type(e).__name__}) - ข้าม")
+                    continue
+                if (left or 0) > best_left:
+                    best, best_left = key, left or 0
+            print(f"  SerpAPI: เลือกคีย์ที่ {keys.index(best) + 1}/{len(keys)} (quota เหลือมากสุด)")
+        _chosen_key = best
+        tf2.SERPAPI_KEY = best  # tf2.serp_api() อ่านค่านี้ตอนเรียก
+    return _chosen_key
+
+
+def check_quota():
+    left, plan = _searches_left(_choose_key())
+    print(f"  SerpAPI quota เหลือ: {left} search (แผน {plan})")
     return left
 
 

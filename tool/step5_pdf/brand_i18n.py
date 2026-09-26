@@ -17,6 +17,7 @@ BRAND_STRINGS = {
         "prepared_for": "Prepared for {brand} by {company}",
         "summary_header": "Executive Summary",
         "on_watsons": "{brand} on Watsons Thailand",
+        "on_other": "{brand} on {platforms}",  # แบรนด์ที่ไม่มีบน Watsons (⑬ --products)
         "skus": "SKUs listed",
         "price_range": "Price range",
         "median_price": "median {v}",
@@ -97,6 +98,7 @@ BRAND_STRINGS = {
         "prepared_for": "จัดทำให้ {brand} โดย {company}",
         "summary_header": "สรุปผู้บริหาร",
         "on_watsons": "{brand} บน Watsons ประเทศไทย",
+        "on_other": "{brand} บน {platforms}",
         "skus": "จำนวนสินค้า (SKU)",
         "price_range": "ช่วงราคา",
         "median_price": "ราคากลาง {v}",

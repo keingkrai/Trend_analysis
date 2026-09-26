@@ -19,6 +19,7 @@ for _p in Path(__file__).resolve().parents:
 sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step2_forecast")))
 sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step1_evidence" / "social")))
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -571,3 +572,96 @@ def test_brand_coverage_displays_top_rank_and_falls_back_to_overall_rank_for_old
     md = rbc.build_brand_section_markdown("Srichand", 64, 10622, {"k": row})
     assert "| High-Efficiency Sun | #10 | Social |" in md and "#11" not in md
     assert "อันดับเทรนด์ (⑥)" not in md
+
+
+# ---------------------------------------------------------------------------
+# SERPAPI_KEY หลายคีย์ (.env ของ GI_CH) - 🆕 (2026-09-26)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("raw, expected", [
+    ('["k1", "k2"]', ["k1", "k2"]),
+    ("k1,k2", ["k1", "k2"]),
+    ("k1", ["k1"]),
+    ('"k1", "k2"', ["k1", "k2"]),
+    ("", []),
+    (None, []),
+    ("[", ["["]),  # รายการที่ไม่ครบ (เช่นแบ่งหลายบรรทัดใน .env) ไม่ทำให้พัง - ได้ค่าดิบกลับไป
+])
+def test_parse_serpapi_keys(raw, expected):
+    from common.bootstrap import parse_serpapi_keys
+    assert parse_serpapi_keys(raw) == expected
+
+
+# ---------------------------------------------------------------------------
+# ⑬ สินค้านอกแคตตาล็อก Watsons (--products) - 🆕 (2026-09-26)
+# ---------------------------------------------------------------------------
+
+def _brand_coverage_module():
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    import brand_coverage
+    return brand_coverage
+
+
+def test_rank_if_inserted_counts_market_products_scoring_higher():
+    rbc = _brand_coverage_module()
+    market = np.sort(np.array([0.1, 0.5, 0.9]))
+    assert rbc.rank_if_inserted(market, 0.95) == 1
+    assert rbc.rank_if_inserted(market, 0.9) == 1   # คะแนนเท่ากัน = อันดับเดียวกัน (นับเฉพาะตัวที่สูงกว่า)
+    assert rbc.rank_if_inserted(market, 0.7) == 2
+    assert rbc.rank_if_inserted(market, 0.0) == 4
+
+
+def test_compute_coverage_ranks_watsons_and_external_products_against_the_same_market():
+    rbc = _brand_coverage_module()
+    market_df = pd.DataFrame({"brand": ["A", "B", "Mine"], "product_name": ["a1", "b1", "m1"],
+                              "sale_price_thb": ["1,200.00", None, "99"]}, index=[10, 11, 12])
+    market_vecs = np.array([[1.0, 0.0], [0.6, 0.8], [0.0, 1.0]])
+    trends = ({"S::T": np.array([1.0, 0.0])}, {"S::T": "T"}, {"S::T": "S"}, {"S::T": {"trend": "T"}})
+    watsons_item = {"row": market_df.loc[12], "pos": 2}
+    external = {"row": pd.Series({"product_name": "x1", "sale_price_thb": "250", "Category": "Skincare"}),
+                "pos": None, "vec": np.array([0.8, 0.6]), "extra": {"platform": "Shopee", "image_url": None}}
+
+    report = rbc.compute_coverage(market_df, [10, 11, 12], market_vecs, [watsons_item, external], trends,
+                                  {("S", "T"): 4}, {("S", "T"): 1}, reason_fn=lambda profile, row: "why")
+    r = report["S::T"]
+    top = r["brand_top_matches"]
+    # x1 (cos 0.8) ชนะ m1 (cos 0) - แทรกเข้าตลาดได้อันดับ 2 (a1 = 1.0 สูงกว่า, b1 = 0.6 ต่ำกว่า)
+    assert [m["product_name"] for m in top] == ["x1", "m1"]
+    assert top[0]["rank_vs_market"] == 2 and top[0]["platform"] == "Shopee" and top[0]["sale_price_thb"] == 250.0
+    assert top[0]["category"] == "Skincare" and top[0]["match_reason"] == "why"
+    assert top[1]["rank_vs_market"] == 3  # m1 อยู่ในตลาดเอง: อันดับตามตำแหน่งจริง
+    assert r["brand_best_product"] == "x1" and r["brand_best_rank_vs_market"] == 2
+    assert r["brand_best_percentile_vs_market"] == round((3 - 1) / 3 * 100)
+    assert r["market_best_product"] == "A - a1" and r["brand_n_skus_considered"] == 2
+    assert r["trend_overall_rank"] == 4 and r["trend_top_rank"] == 1
+
+
+def test_load_external_products_drops_blank_names_and_keeps_the_richest_duplicate(tmp_path):
+    rbc = _brand_coverage_module()
+    path = tmp_path / "p.csv"
+    pd.DataFrame({"product_name": ["Serum", "Serum", "", "Cream"],
+                  "Key_Benefits": [None, "hydrating barrier repair", "x", "moisture"],
+                  "platform": ["Lazada", "Shopee", "Shopee", "Konvy"]}).to_csv(path, index=False)
+    df = rbc.load_external_products(path)
+    assert list(df["product_name"]) == ["Serum", "Cream"]
+    assert df.loc[0, "platform"] == "Shopee"  # แถวที่มีข้อความให้ embed มากกว่า
+
+
+def test_embed_external_products_caches_by_text(tmp_path, monkeypatch):
+    rbc = _brand_coverage_module()
+    monkeypatch.setattr(rbc, "EXTERNAL_CHECKPOINT_PATH", tmp_path / "ext.pkl")
+    df = pd.DataFrame({"product_name": ["Serum", "Cream"], "Key_Benefits": ["hydrating", "moisture"]})
+    calls = []
+    fake = lambda text: calls.append(text) or np.array([len(text), 1.0])  # noqa: E731
+    first = rbc.embed_external_products(df, embed=fake)
+    second = rbc.embed_external_products(df, embed=fake)
+    assert len(calls) == 2 and set(first) == {0, 1}
+    assert all(np.array_equal(first[i], second[i]) for i in first)
+
+
+def test_external_portfolio_matches_brand_data_shape():
+    rbc = _brand_coverage_module()
+    df = pd.DataFrame({"sale_price_thb": ["100", "1,000.00", None], "Sub_category": ["Face Serum", "Face Serum", None]})
+    p = rbc.external_portfolio(df)
+    assert p == {"n_skus": 3, "top_subcategories": [{"name": "Face Serum", "n": 2}],
+                 "price_min": 100.0, "price_median": 550.0, "price_max": 1000.0}

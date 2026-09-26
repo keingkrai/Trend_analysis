@@ -158,15 +158,17 @@ pip install -r requirements.txt
 
 สร้างไฟล์ `.env` ที่โฟลเดอร์บนสุดของ repo แล้ววางคีย์ตามตาราง (ไฟล์นี้ไม่ถูก commit)
 
+`common/bootstrap.py` หา `.env` ตามลำดับ: `TREND_ENV_FILE` (ถ้าตั้ง) → `.env` ของ repo นี้ → `.env` ของโฟลเดอร์แม่ — ใน GI_CH repo นี้อยู่ที่ `GI_CH/trend_pipeline/` และใช้ `GI_CH/.env` ไฟล์เดียว (ไม่มี `.env` ของตัวเอง)
+
 | ตัวแปร | ใช้ที่ | จำเป็น |
 |---|---|---|
 | `AWS_BEARER_TOKEN_BEDROCK` (หรือ `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`) | LLM ทุกขั้น | ✅ |
 | `AWS_REGION` | LLM (ค่าเริ่มต้น `us-east-1`) | – |
-| `SERPAPI_KEY` | ⑦ ⑩ Google Trends (เสียโควตา) | ✅ |
-| `NVIDIA_API` | ⑫ ⑬ embedding | ✅ |
+| `SERPAPI_KEY` | ⑦ ⑩ Google Trends (เสียโควตา) — คีย์เดียว หรือรายการ JSON บรรทัดเดียว `["k1","k2"]` (เลือกคีย์ที่ quota เหลือมากสุด) | ✅ |
+| `NVIDIA_EMBED_API_KEY` (หรือ `NVIDIA_API`) | ⑫ ⑬ embedding — ใช้ `NVIDIA_EMBED_API_KEY` ก่อนถ้ามี | ✅ |
 | `OPENROUTER_API_KEY`, `GEMINI_KEY` | ไม่ได้เรียกใช้แล้ว แต่โค้ดสร้าง client ตอน import — **ต้องมีค่าที่ไม่ว่าง** | ✅ |
 | `YOUTUBE_API_KEY`, `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | สาย Social | สำหรับสาย Social |
-| `APIFY_API_KEY` | ดึงหน้าเว็บที่บล็อกการ scrape ตรงๆ | แนะนำ |
+| `APIFY_API_KEY` (หรือ `APIFY_KEY`) | ดึงหน้าเว็บที่บล็อกการ scrape ตรงๆ | แนะนำ |
 | `OPEN_ALEX_KEY` | สาย Paper (ไม่มี = ข้าม OpenAlex) | – |
 | `NCBI_API_KEY`, `NCBI_EMAIL` | สาย Paper / PubMed Central (ไม่มี = ช้าลง) | – |
 
@@ -203,6 +205,7 @@ python main.py --topic "beauty and personal care" --years 3 --top-n 10 --skip-di
 | `--skip-brand` | ไม่ถามและไม่รัน ⑬ |
 | `--skip-pdf` | ไม่สร้างรายงาน PDF ⑯ |
 | `--skip-plots` | ไม่วาด bump chart / แผนที่เทรนด์ |
+| `--run-id` | ชื่อโฟลเดอร์รอบใน `output/` (ไม่ใส่ = `<หัวข้อ>_<วันเวลา>`) — ต้องยังไม่มีหรือว่างอยู่ |
 
 ### ลำดับที่รันจริง
 
@@ -234,6 +237,19 @@ python Plot_trend_map.py --run beauty_and_personal_care_20260916_082438
 ```
 
 บันทึก `trend_bump_chart.png` และ `step5c_df_cluster_forecast_ranks_<เวลา>.xlsx` (จาก `Plot_bump_chart.py`) กับ `trend_top10_zdelta_streamcount.png` (จาก `Plot_trend_map.py` - Top N ที่คัดแล้ววางตาม Z_Delta กับ Stream_Count) ไว้ในโฟลเดอร์รอบนั้น
+
+### ค้นหาแบรนด์ (⑬) ของรอบที่มีอยู่แล้ว
+
+```powershell
+$env:TREND_RUN_ID="<รอบ>"; python tool/step3_products/brand_coverage.py --brand Mizumi                              # สินค้าบน Watsons
+$env:TREND_RUN_ID="<รอบ>"; python tool/step3_products/brand_coverage.py --brand "My Brand" --products products.csv  # แบรนด์ที่ไม่มีบน Watsons
+```
+
+`--products` ใช้สินค้าจากไฟล์ CSV แทนแคตตาล็อก Watsons (ต้องมีคอลัมน์ `product_name` ที่เหลือใส่เท่าที่มี: `Key_Benefits`,
+`Primary_Use_Case`, `Product_Insights`, `ingredients`, `Category`, `Sub_category`, `sale_price_thb`, `sold_count`, `image_url`,
+`product_url`, `platform`) — embed ด้วยข้อความสูตรเดียวกับ ⑫ (cache ที่ `output/_checkpoints/external_product_embeddings_nvidia.pkl`)
+แล้วจัดอันดับเทียบตลาด Watsons ชุดเดิม: อันดับ = อันดับที่สินค้าชิ้นนั้นจะได้ถ้าแทรกเข้าไปในตลาด 10,622 SKU ผล JSON มี
+`product_source: "external"` และ `portfolio` ของสินค้าในไฟล์
 
 ### รายงาน PDF ของรอบที่มีอยู่แล้ว
 
