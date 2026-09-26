@@ -191,6 +191,23 @@ STAGE_IO_MAP = {
         "outputs": ["phase4_master_trend_report.md", "phase4_stepic_raw_analysis.json",
                     "phase4_stepic_final_insight.json"],
     },
+    "build_pdf_report": {
+        # 🆕 (2026-09-25) ⑯ รายงาน PDF ภาษาอังกฤษ - อ่านผลของขั้นเทรนด์มาจัดหน้า (ไม่รวมผล ⑬ แบรนด์)
+        "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_paper_social_z_delta_result.json", "phase2_longevity_cross_source_result.json",
+                   "phase2_category_overall_result.json", "phase3_scale_validation_nvidia_result.json",
+                   "phase4_stepic_final_insight.json", "phase4_stepic_raw_analysis.json"],
+        # 🆕 (2026-09-25) + ฉบับภาษาไทย (_TH) - build_pdf_report.py สร้าง 2 ภาษาในรันเดียว
+        "outputs": ["phase6_trend_report.pdf", "phase6_trend_report_TH.pdf", "phase6_report_context.json",
+                    "phase6_report_enrichment.json", "phase6_report_enrichment_TH.json"],
+    },
+    "build_brand_report": {
+        # 🆕 (2026-09-26) ⑰ รายงานแบรนด์ PDF - อ่านผล ⑬ phase3_brand_coverage_<แบรนด์>.json และเขียน
+        # phase6_brand_report_<แบรนด์>*.pdf ชื่อเปลี่ยนตามแบรนด์ จึงไม่ได้ใส่ในรายการ (ต้องเป็นชื่อตายตัว)
+        "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_paper_social_z_delta_result.json", "phase3_scale_validation_nvidia_result.json"],
+        "outputs": [],
+    },
 }
 
 _MODELS_USED_THIS_STAGE = {}  # {model_name: จำนวนครั้งที่ patch เข้าใช้จริงในขั้นนี้}

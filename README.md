@@ -103,6 +103,29 @@ flowchart LR
 วิเคราะห์แรงขับ 6 ด้าน (STEPIC: Society, Technology, Environment, Policy, Industry, Creativity) สังเคราะห์รวม
 แล้วประกอบเป็น Master Report ที่มีรายงาน 3 สาย ผลพยากรณ์ จุดเด่นเทรนด์ และสินค้าที่จับคู่ได้ เรียงตามอันดับความสนใจปีปัจจุบัน
 
+### รายงาน PDF (⑯)
+
+รายงานแบบสไลด์ 16:9 (แบบรายงาน Trend Hunter) **2 ไฟล์: ภาษาอังกฤษและภาษาไทย** เนื้อหาและจำนวนหน้าเหมือนกัน ประกอบจากผลทุกขั้นของรอบ: ปก, Report Summary, Takeaway,
+Market Overview, Trend Map (Z_Delta เทียบจำนวนสายที่ยืนยัน), Rank Trajectory (bump chart อันดับรายปี), STEPIC, Personas, แล้วเทรนด์ละ 3 หน้า (Trend/Insight + กราฟพยากรณ์ → Workshop Question → สินค้า Watsons
+ที่ใกล้ที่สุด) และภาคผนวกวิธีการ — เฉพาะเทรนด์ ไม่มีหน้าเทียบแบรนด์ (⑬ แยกจาก PDF) ตัวเลขทุกตัวมาจากไฟล์ผลรัน ไม่แสดงว่าเทรนด์มาจากสายไหน
+LLM ใช้แค่งานภาษา: ฉบับอังกฤษเรียบเรียงจุดเด่นเทรนด์ (⑪ เป็นภาษาไทย) เป็นภาษาอังกฤษ ฉบับไทยเขียนข้อความต่อเทรนด์เป็นภาษาไทย
+และแปลบทวิเคราะห์ภาษาอังกฤษ (Takeaway, STEPIC, Personas, เหตุผลจับคู่สินค้า ฯลฯ) - ทั้งหมด cache ไว้ รันสร้าง PDF ซ้ำจึงไม่เรียก LLM อีก
+ฉบับไทยคงชื่อเทรนด์ คีย์เวิร์ดค้นหา และชื่อแบรนด์/สินค้าเป็นภาษาอังกฤษ ปีเป็น ค.ศ. ข้อความตายตัวของทั้ง 2 ภาษาอยู่ที่
+`tool/phase6_pdf_report/i18n.py`
+โลโก้และชื่อบริษัทตั้งที่ `config/report_branding.json`
+
+### รายงานแบรนด์ x เทรนด์ (⑰)
+
+รายงาน **1 ไฟล์ต่อ 1 แบรนด์ลูกค้า** (อังกฤษ + ไทย, 16 หน้า) แยกจากรายงานเทรนด์ สร้างต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
+(ทั้งโหมด 1 และโหมด 2): ปก → สรุปผู้บริหาร (สินค้าของแบรนด์บน Watsons + จำนวนเทรนด์แต่ละระดับ + ประเด็นสำคัญ 3 ข้อ) →
+Trend Fit Matrix (แรงส่งของเทรนด์ x อันดับของสินค้าที่ใกล้ที่สุดของแบรนด์ แบ่ง 4 ช่อง: ปกป้อง / สร้างใหม่ / รักษาไว้ / เฝ้าดู) →
+ตารางภาพรวม → เทรนด์ละ 1 หน้า (สินค้าของแบรนด์ 3 อันดับแรก เทียบสินค้าเจ้าตลาด) → โอกาสพัฒนาสินค้า (เทรนด์ในช่อง สร้างใหม่) → ภาคผนวก
+
+**ระดับความพร้อมวัดจากอันดับจริงในตลาด** ของสินค้าที่ดีที่สุดของแบรนด์ (นำตลาด 1-25, แข่งขันได้ 26-100, ตามหลัง 101-500,
+ช่องว่าง เกิน 500 หรือไม่มีสินค้า - ปรับได้ที่ `config/brand_report.json`) ไม่ใช้ tier ของ ⑬ เพราะ tier วัดจาก percentile
+ของสินค้าที่ดีที่สุดซึ่งแทบเกิน 67 เสมอเมื่อแบรนด์มีหลาย SKU (รอบ 082438 ได้ "ตามทัน" ครบ 50/50 คู่) - เกณฑ์ตั้งขึ้นเอง
+ยังไม่ได้เทียบกับการตัดสินของคน LLM ใช้แค่แปลเหตุผลจับคู่สินค้าของแบรนด์เป็นไทย (cache ต่อแบรนด์) ข้อความเทรนด์ใช้ cache ของ ⑯
+
 ### โมเดลที่ใช้
 
 | งาน | โมเดล |
@@ -175,6 +198,8 @@ python main.py --topic "beauty and personal care" --years 3 --top-n 10 --skip-di
 | `--top-n` | จำนวนเทรนด์ที่ใช้ต่อหลังพยากรณ์ (ค่าเริ่มต้น 10) |
 | `--skip-discovery` | ไม่ถามและไม่รัน ⑩ |
 | `--skip-brand` | ไม่ถามและไม่รัน ⑬ |
+| `--skip-pdf` | ไม่สร้างรายงาน PDF ⑯ |
+| `--skip-plots` | ไม่วาด bump chart / แผนที่เทรนด์ |
 
 ### ลำดับที่รันจริง
 
@@ -192,15 +217,39 @@ python main.py --topic "beauty and personal care" --years 3 --top-n 10 --skip-di
 | 10 | ⑭-⑮ รายงาน 🤖 | `phase5_report/run_stepic_report.py` | `phase4_master_trend_report.md`, `phase4_stepic_*.json` |
 | (ถาม) | ⑩ รอบค้นพบเพิ่ม 🤖💸 | `phase2_three_streams/cross_category_discovery.py` | `phase2_cross_category_discovery_result.json` |
 | (ถาม) | ⑬ ค้นหาแบรนด์ 🤖 | `phase3_supply_layer/run_brand_coverage.py` | `phase3_brand_coverage_<แบรนด์>.json` / `.xlsx` และต่อท้ายหัวข้อแบรนด์ใน `phase4_master_trend_report.md` |
+| (ถาม) ต่อจาก ⑬ แต่ละแบรนด์ | ⑰ รายงานแบรนด์ PDF 🤖 | `phase6_pdf_report/build_brand_report.py` | `phase6_brand_report_<แบรนด์>.pdf` / `_TH.pdf`, `phase6_brand_context_<แบรนด์>.json`, `phase6_brand_enrichment_<แบรนด์>_TH.json` |
+| ท้ายสุด (ไม่จำเป็น) | ⑯ รายงาน PDF 🤖 | `phase6_pdf_report/build_pdf_report.py` | `phase6_trend_report.pdf` (อังกฤษ), `phase6_trend_report_TH.pdf` (ไทย), `phase6_report_context.json`, `phase6_report_enrichment.json` / `_TH.json` |
 
-### Bump chart
+### Bump chart และแผนที่เทรนด์
+
+`main.py` โหมด 1 วาดให้เองหลังขั้นบังคับครบ (ข้ามด้วย `--skip-plots`) รันเดี่ยวๆ กับรอบที่มีอยู่แล้วได้:
 
 ```powershell
 python Plot_bump_chart.py                                              # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
 python Plot_bump_chart.py --run beauty_and_personal_care_20260916_082438
+python Plot_trend_map.py --run beauty_and_personal_care_20260916_082438
 ```
 
-บันทึก `trend_bump_chart.png` และ `step5c_df_cluster_forecast_ranks_<เวลา>.xlsx` ไว้ในโฟลเดอร์รอบนั้น
+บันทึก `trend_bump_chart.png` และ `step5c_df_cluster_forecast_ranks_<เวลา>.xlsx` (จาก `Plot_bump_chart.py`) กับ `trend_top10_zdelta_streamcount.png` (จาก `Plot_trend_map.py` - Top N ที่คัดแล้ววางตาม Z_Delta กับ Stream_Count) ไว้ในโฟลเดอร์รอบนั้น
+
+### รายงาน PDF ของรอบที่มีอยู่แล้ว
+
+```powershell
+python tool/phase6_pdf_report/build_pdf_report.py                     # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
+python tool/phase6_pdf_report/build_pdf_report.py --run beauty_and_personal_care_20260916_082438
+python tool/phase6_pdf_report/build_pdf_report.py --run <รอบ> --lang th # เฉพาะฉบับภาษาไทย (en = เฉพาะอังกฤษ, ค่าเริ่มต้น both)
+python tool/phase6_pdf_report/build_pdf_report.py --run <รอบ> --no-llm  # ไม่เรียก LLM (ใช้ cache หรือข้อความสำรอง)
+```
+
+ต้องมี Chromium ของ Playwright (`playwright install chromium` ครั้งเดียว) — `--refresh-llm` เรียบเรียงข้อความใหม่ทุกเทรนด์,
+`--keep-html` เก็บไฟล์ HTML ไว้ดูหน้าตาในเบราว์เซอร์, `--title` / `--title-th` เปลี่ยนชื่อรายงานบนปกฉบับอังกฤษ/ไทย
+
+รายงานแบรนด์ (⑰) ของรอบที่มีผลค้นหาแบรนด์ (⑬) อยู่แล้ว:
+
+```powershell
+python tool/phase6_pdf_report/build_brand_report.py --run <รอบ> --brand Mizumi                    # แบรนด์เดียว (ใส่ --brand ซ้ำได้)
+python tool/phase6_pdf_report/build_brand_report.py --run <รอบ>                                   # ทุกแบรนด์ที่มีผล ⑬ ในรอบนั้น
+```
 
 ---
 
@@ -292,6 +341,7 @@ $env:TREND_RUN_ID="beauty_and_personal_care_20260916_082438"; $env:TREND_TOPIC="
 |---|---|---|
 | `output/_checkpoints/phase3_product_embeddings_checkpoint_nvidia.pkl` | เวกเตอร์สินค้า อ้างอิงด้วย hash ของข้อความสินค้า | ⑫ embed ใหม่ทั้งหมด และ ⑬ ใช้ไม่ได้จนกว่า ⑫ จะรันจบ |
 | `memory/scraped_cache.json` (ในโฟลเดอร์ที่สั่งรัน ปกติคือ `memory/` ที่โฟลเดอร์บนสุด) | บทความที่ดึงมาแล้ว | ดึงเว็บใหม่ ช้าลง |
+| `output/_checkpoints/product_images/` | รูปสินค้า Watsons ที่ย่อแล้วสำหรับรายงาน PDF ⑯ | โหลดรูปใหม่ตอนสร้าง PDF ครั้งถัดไป |
 
 ---
 
@@ -330,7 +380,8 @@ $env:TREND_SUBSET_FULL="1"; python -m pytest tool/tests/test_trend_final_subset.
 ```
 Trend_analysis/
 ├── main.py                  orchestrator — เรียกแต่ละขั้นเป็น subprocess ตามลำดับ
-├── Plot_bump_chart.py       bump chart ของรอบที่เลือก
+├── Plot_bump_chart.py       bump chart + ตารางอันดับรายปี ของรอบที่เลือก
+├── Plot_trend_map.py        แผนที่เทรนด์ Top N (Z_Delta vs Stream_Count)
 ├── requirements.txt
 ├── .env                     คีย์ API (ไม่ถูก commit)
 ├── config/rss_feeds.json    แหล่งข่าวของสาย News

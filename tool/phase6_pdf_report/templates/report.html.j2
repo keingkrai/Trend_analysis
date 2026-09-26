@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{%- set meta = ctx.meta -%}
+{%- set trends = ctx.trends -%}
+
+{#- ข้อความตายตัวทั้งหมดมาจาก L (= i18n.STRINGS[lang]) - แก้คำที่ i18n.py ไม่ต้องแก้เทมเพลต
+    data-label ของแต่ละหน้าเป็นภาษาอังกฤษเสมอ (ใช้ในคำเตือนข้อความล้นกล่องและเทส ไม่แสดงในรายงาน) -#}
+
+{#- ======================= macros ======================= -#}
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro trend_head(t, sub) -%}
+  <div class="t-head"><h2>{{ t.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub">{{ sub }}</div>
+{%- endmacro %}
+
+{% macro thumb(t) -%}
+  {%- set img = (t.products[0].image if t.products else none) -%}
+  {%- if img -%}<img src="{{ img }}" alt="">{%- else -%}<div class="ph">{{ t.rank }}</div>{%- endif -%}
+{%- endmacro %}
+
+{%- set end_clause = L.briefing_end.format(end=meta.forecast_end) if meta.forecast_end else "" -%}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.cover_sub }}{% if meta.forecast_end %}{{ L.cover_outlook.format(end=meta.forecast_end) }}{% endif %}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.cover_sources }}</div>
+  </div>
+  <div class="cover-strip">
+    {% for t in trends[:5] %}
+    <div class="cover-tile">{{ thumb(t) }}<div class="cap">{{ t.name }}</div></div>
+    {% endfor %}
+  </div>
+</section>
+
+{#- ======================= 2. Report Summary ======================= -#}
+<section class="page" data-label="Report Summary">
+  {{ bar_header(L.report_summary ~ " | " ~ report_title) }}
+  <div class="brief">
+    <div class="brief-logo">{{ logo() }}</div>
+    <div class="brief-text fit" data-name="briefing">
+      <p><b>{{ L.prepared_by }}</b> {{ brand.prepared_by or brand.company_name }}</p>
+      <p><b>{{ L.briefing }}</b> {{ L.briefing_text.format(n=meta.top_n, topic=(meta.title if lang == "th" else meta.topic),
+                                                          total=(meta.n_trends_total or L.briefing_total_na), end=end_clause) }}</p>
+    </div>
+  </div>
+  {% set top = trends[0] %}
+  <div class="sec-label" style="top:196px">{{ L.top_insights }}</div>
+  <div class="insight-card">
+    <div class="thumb">{{ thumb(top) }}</div>
+    <div class="txt fit" data-name="top insight">
+      <b class="nm">{{ top.name }}</b>&nbsp; <span class="hl">{{ top.text.headline }}</span><br>
+      <b>{{ L.trend_label }}</b> {{ top.text.trend }} <b>{{ L.insight_label }}</b> {{ top.text.insight }}
+    </div>
+  </div>
+  {% if trends | length > 1 %}
+  <div class="sec-label" style="top:312px">{{ L.top_microtrends }}</div>
+  <div class="micro-grid">
+    {% for t in trends[1:9] %}
+    <div class="micro">
+      <div class="thumb">{{ thumb(t) }}</div>
+      <div class="txt"><div class="nm">{{ t.name }}</div><div class="hl">{{ t.text.headline }}</div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. Takeaway ======================= -#}
+{% set tk = ctx.takeaway %}
+{% if tk.mega_trend_name or tk.macro_direction %}
+<section class="page" data-label="Takeaway">
+  {{ bar_header(L.report_summary ~ " | " ~ report_title) }}
+  <div class="prose fit" data-name="takeaway">
+    <h3>{{ L.takeaway }}</h3>
+    {% if tk.mega_trend_name %}<div class="mega">{{ tk.mega_trend_name }}</div>{% endif %}
+    <p>{{ tk.macro_direction }} {{ tk.core_concept }}</p>
+    {% if tk.key_opportunity %}<p><b>{{ L.opportunity_label }}</b> {{ tk.key_opportunity }}</p>{% endif %}
+    {% if tk.key_risk %}<p><b>{{ L.risk_label }}</b> {{ tk.key_risk }}</p>{% endif %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 4. Market Overview ======================= -#}
+{% set ov = ctx.overview %}
+<section class="page" data-label="Market Overview">
+  {{ bar_header(L.market_overview) }}
+  <div class="ov-left">
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">{{ L.overall_momentum }}</div>
+        <div class="val">{{ ov.overall.Z_Delta | signed }}</div><div class="sub">{{ ov.overall.Status or "" }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.trend_strength }}</div>
+        <div class="val">{{ ov.market.current_trend_strength or L.na }}</div><div class="sub">{{ L.current_signal }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.direction }}</div>
+        <div class="val">{{ ov.market.overall_direction or L.na }}</div><div class="sub">{{ L.next_years.format(years=(meta.years or L.few)) }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.est_duration }}</div>
+        <div class="val">{{ ov.market.estimated_trend_duration or L.na }}</div><div class="sub">{{ L.of_shift }}</div></div>
+    </div>
+    <div class="ov-summary fit" data-name="market summary">
+      <h3>{{ L.market_summary }}</h3>
+      <p>{{ ov.market.summary or tk.macro_direction }}</p>
+    </div>
+  </div>
+  <div class="ov-right">
+    <div class="chart-title">{{ L.momentum_by_trend }}</div>
+    <div class="chart-sub">{{ L.momentum_sub }}</div>
+    {%- set zmax = [trends | map(attribute="z_delta") | select("number") | max | default(1.0), 1.0] | max -%}
+    {%- set scale = zmax / 0.6 -%}
+    {%- set row_h = [34, (330 / (trends | length)) | round(0, "floor")] | min -%}
+    <div class="mbar">
+      <div class="mbar-grid">
+        {% for thr, lbl in [(0.2, L.thr_rising), (0.8, L.thr_breakout)] %}
+        <div class="gl" style="left:{{ (thr / scale * 100) | round(2) }}%"><span>{{ lbl }}</span></div>
+        {% endfor %}
+      </div>
+      <div class="mbar-axis"></div>
+      {% for t in trends %}
+      {%- set z = t.z_delta if t.z_delta is number else 0 -%}
+      {%- set w = ([z, 0] | max) / scale * 100 -%}
+      <div class="mbar-row" style="height:{{ row_h }}px">
+        <div class="mbar-name"><span class="r">{{ t.rank }}</span>{{ t.name }}</div>
+        <div class="mbar-track">
+          <div class="mbar-fill" style="width:{{ w | round(2) }}%; top:{{ (row_h - 14) / 2 }}px"></div>
+          <div class="mbar-val" style="left:calc({{ w | round(2) }}% + 6px); top:{{ (row_h - 14) / 2 - 1 }}px">{{ t.z_delta | signed }} <span class="st">{{ t.status }}</span></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 4b. Trend Map (Z_Delta x sources) ======================= -#}
+{% if charts["__trend_map__"] %}
+<section class="page" data-label="Trend Map">
+  {{ bar_header(L.trend_map_header) }}
+  <div class="intro">{{ L.trend_map_intro.format(n=(trends | length)) }}</div>
+  <div class="tm-wrap"><img src="{{ charts['__trend_map__'] }}" alt="{{ L.trend_map_alt }}"></div>
+  <div class="ev-note">{{ L.trend_map_note }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 4c. Bump chart (rank by year) ======================= -#}
+{% if charts["__bump_chart__"] %}
+<section class="page" data-label="Rank Trajectory">
+  {{ bar_header(L.bump_header.format(n=(trends | length))) }}
+  <div class="intro">{{ L.bump_intro.format(n=(trends | length)) }}</div>
+  <div class="tm-wrap"><img src="{{ charts['__bump_chart__'] }}" alt="{{ L.bump_alt }}"></div>
+  <div class="ev-note">{{ L.bump_note.format(n=(trends | length)) }}{% if meta.forecast_end %}{{ L.bump_note_end.format(end=meta.forecast_end) }}{% endif %}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 5. STEPIC ======================= -#}
+{% if ctx.stepic %}
+<section class="page" data-label="STEPIC">
+  {{ bar_header(L.stepic_header) }}
+  <div class="intro">{{ L.stepic_intro }}</div>
+  <div class="stepic-grid">
+    {% for s in ctx.stepic %}
+    <div class="st-tile dim-{{ s.dimension | lower }}">
+      <div class="st-head">{{ s.dimension_label or s.dimension }}</div>
+      <div class="st-body fit" data-name="stepic {{ s.dimension }}"><div class="hl">{{ s.headline }}</div>{{ s.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 6. Personas ======================= -#}
+{% if ctx.personas %}
+<section class="page" data-label="Personas">
+  {{ bar_header(L.personas_header) }}
+  <div class="persona-row">
+    {% for p in ctx.personas[:3] %}
+    <div class="persona">
+      <div class="p-head">{{ p.name }}</div>
+      <div class="p-body fit" data-name="persona {{ loop.index }}">
+        {{ p.description }}
+        {% if p.value_driver %}<span class="k">{{ L.value_driver }}</span>{{ p.value_driver }}{% endif %}
+        {% if p.channel_preference %}<span class="k">{{ L.preferred_channels }}</span>{{ p.channel_preference }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 7. Signals + Outlook ======================= -#}
+{% if ctx.signals or tk.projection %}
+<section class="page" data-label="Signals">
+  {{ bar_header(L.signals_header) }}
+  <div class="sig-list">
+    {% for s in ctx.signals[:4] %}
+    <div class="sig">
+      <div class="dims">{{ s.dimensions }}</div>
+      <div class="body fit" data-name="signal {{ loop.index }}">{{ s.signal }}<div class="imp">{{ s.implication }}</div></div>
+    </div>
+    {% endfor %}
+    {% if tk.projection %}
+    <div class="sig outlook">
+      <div class="dims">{{ L.next_3_months }}</div>
+      <div class="body fit" data-name="outlook">{{ tk.projection }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 8. หน้าคั่น ======================= -#}
+<section class="page" data-label="Consumer Insights">
+  <div class="div-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ L.consumer_insights }}</h1>
+    <div class="sub">{{ L.divider_sub.format(n=meta.top_n) }}</div>
+  </div>
+  <div class="div-body fit" data-name="how to read">
+    <p>{{ L.divider_text }}</p>
+    <div class="legend">
+      <b>{{ L.momentum }}</b><span>{{ L.momentum_def }}</span>
+      <b>{{ L.durability }}</b><span>{{ L.durability_def }}</span>
+      <b>{{ L.breadth }}</b><span>{{ L.breadth_def }}</span>
+    </div>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 9. เทรนด์ละ 3 หน้า ======================= -#}
+{% for t in trends %}
+{%- set a = t.analysis -%}
+<section class="page" data-label="Trend {{ t.rank }}">
+  {{ trend_head(t, t.text.headline) }}
+  <div class="t-body fit" data-name="trend text">
+    <p><b>{{ L.trend_label }}</b> {{ t.text.trend }}</p>
+    <p><b>{{ L.insight_label }}</b> {{ t.text.insight }}</p>
+  </div>
+  <div class="t-mid">
+    <div class="t-chart">
+      <div class="cap">{{ L.chart_caption }}{% if meta.forecast_end %}{{ L.chart_caption_end.format(end=meta.forecast_end) }}{% endif %}</div>
+      {% if charts[t.name] %}<img src="{{ charts[t.name] }}" alt="{{ L.chart_alt }}">{% else %}<div class="ph" style="height:200px;font-size:12px">{{ L.no_forecast }}</div>{% endif %}
+    </div>
+    <div class="t-panel fit" data-name="signal panel">
+      <div class="kv">
+        <span class="k">{{ L.status }}</span><span class="v">{{ t.status or L.na }}</span>
+        <span class="k">{{ L.peak_interest }}</span><span class="v">{{ t.peak_month or L.na }}</span>
+        <span class="k">{{ L.investment_signal }}</span><span class="v">{{ a.investment_signal or L.na }}</span>
+        <span class="k">{{ L.confidence }}</span><span class="v">{{ a.confidence_level or L.na }}</span>
+        <span class="k">{{ L.trend_stage }}</span><span class="v">{{ a.trend_stage or L.na }}</span>
+        <span class="k">{{ L.main_driver }}</span><span class="v">{{ a.primary_driver or L.na }}</span>
+        <span class="k">{{ L.duration }}</span><span class="v">{{ a.estimated_duration or L.na }}</span>
+      </div>
+      {% if t.target %}<div class="tgt"><span class="k">{{ L.target_consumer }}</span>{{ t.target }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="t-foot">
+    <div class="rank-box"><div class="n">#{{ t.rank }}</div><div class="l">{{ L.rank }}</div></div>
+    <div class="metrics">
+      {%- set mom = (([t.z_delta or 0, 0] | max) / 1.5 * 100) -%}
+      <span class="ml">{{ L.momentum }}</span><span class="seg"><i style="width:{{ [mom, 100] | min | round(1) }}%"></i></span><span class="mv">{{ t.z_delta | signed }}</span>
+      {%- set dur = t.longevity_score if t.longevity_score is number else 0 -%}
+      <span class="ml">{{ L.durability }}</span><span class="seg"><i style="width:{{ [dur, 100] | min }}%"></i></span><span class="mv">{{ t.longevity_score if t.longevity_score is number else L.na }}/100</span>
+      {%- set br = t.stream_count if t.stream_count is number else 0 -%}
+      <span class="ml">{{ L.breadth }}</span><span class="seg"><i style="width:{{ ([br, 3] | min) / 3 * 100 }}%"></i></span><span class="mv">{{ L.sources_of_3.format(n=(br if br else L.na)) }}</span>
+    </div>
+    <div class="kw"><span class="k">{{ L.tracked_keywords }}</span>{% for k in t.keywords[:6] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
+    <div class="facts">
+      {% if t.cluster_size %}{{ L.linked_concepts.format(n=t.cluster_size) }}<br>{% endif %}
+      {% if t.pct_months_with_data is number %}{{ L.months_with_data.format(pct=(t.pct_months_with_data | round(1))) }}<br>{% endif %}
+      {{ L.rank_score.format(v=(t.rank_score | num(2))) }}
+    </div>
+  </div>
+  {{ footer() }}
+</section>
+
+<section class="page" data-label="Workshop {{ t.rank }}">
+  {{ trend_head(t, t.text.headline) }}
+  <div class="w-q fit" data-name="workshop question" data-min="16"><div><span>{{ t.text.workshop_question }}</span></div></div>
+  <div class="w-foot">{{ L.overlooked.format(n=t.rank) }} <b>{{ L.workshop_question }}</b></div>
+  {{ footer() }}
+</section>
+
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.evidence_sub) }}
+  {% if t.products %}
+  <div class="prod-row">
+    {% for p in t.products %}
+    <div class="prod">
+      <div class="img">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph">{{ p.brand }}</div>{% endif %}</div>
+      <div class="info">
+        <div class="nm">{{ p.name }}</div>
+        <div class="br">{{ p.brand }}{% if p.category %} · {{ p.category }}{% endif %}</div>
+        <div class="meta"><span>{{ p.price_thb | thb }}</span></div>
+        <div class="why fit" data-name="match reason" data-min="6.5">{{ p.reason }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="prose">{{ L.no_products }}</div>
+  {% endif %}
+  {%- set stats = L.evidence_stats.format(best=(t.similarity_stats.max | num(2)), mean=(t.similarity_stats.mean | num(2)),
+                                           n="{:,}".format(t.n_products_compared or 0)) if t.similarity_stats.max is defined else "" %}
+  <div class="ev-note">{{ L.evidence_note.format(stats=stats) }}</div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 10. Appendix ======================= -#}
+<section class="page" data-label="Methodology">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid">
+    <div class="ap-box fit" data-name="method 1"><h3>{{ L.method_1_title }}</h3>
+      {{ L.method_1.format(total=(L.method_1_total.format(n=meta.n_trends_total) if meta.n_trends_total else "")) }}</div>
+    <div class="ap-box fit" data-name="method 2"><h3>{{ L.method_2_title }}</h3>
+      {{ L.method_2.format(years=(meta.years or L.few)) }}</div>
+    <div class="ap-box fit" data-name="method 3"><h3>{{ L.method_3_title }}</h3>
+      {{ L.method_3.format(n=meta.top_n) }}</div>
+    <div class="ap-box fit" data-name="method 4"><h3>{{ L.method_4_title }}</h3>
+      {{ L.method_4.format(n="{:,}".format(meta.n_products_compared or 0)) }}</div>
+  </div>
+  {{ footer() }}
+</section>
+
+<section class="page" data-label="Notes">
+  {{ bar_header(L.notes_header) }}
+  <div class="ap-cols">
+    <div class="ap-box fit" data-name="run details">
+      <h3>{{ L.run_details }}</h3>
+      <div class="kv2">
+        <span class="k">{{ L.topic }}</span><span>{{ meta.topic }}</span>
+        <span class="k">{{ L.run_id }}</span><span>{{ meta.run_id }}</span>
+        <span class="k">{{ L.data_collected }}</span><span>{{ run_date | date_long }}</span>
+        <span class="k">{{ L.report_generated }}</span><span>{{ generated_at | date_long(true) }}</span>
+        <span class="k">{{ L.forecast_window }}</span><span>{{ meta.forecast_start or L.na }} - {{ meta.forecast_end or L.na }}</span>
+        <span class="k">{{ L.language_models }}</span><span>{{ meta.models_used | join(", ") or L.na }}</span>
+        <span class="k">{{ L.report_copy }}</span><span>{{ text_sources }}</span>
+      </div>
+      {% if ctx.excluded %}
+      <h3 style="margin-top:.9em">{{ L.not_included }}</h3>
+      <ul>{% for e in ctx.excluded %}<li><b>{{ e.name }}</b>{% if e.overall_rank %} ({{ L.rank_n.format(n=e.overall_rank) }}){% endif %} - {{ e.reason }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    <div class="ap-box fit" data-name="limitations">
+      <h3>{{ L.how_to_use }}</h3>
+      <p>{{ L.how_to_use_text }}</p>
+      {% if ctx.missing %}
+      <h3 style="margin-top:.9em">{{ L.data_not_available }}</h3>
+      <ul>{% for m in ctx.missing %}<li>{{ m }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  </div>
+  {{ footer() }}
+</section>
+
+<script>
+// ย่อฟอนต์ของกล่อง .fit ทีละ 0.25px จนข้อความพอดีกล่อง (ไม่ต่ำกว่า data-min, ค่าเริ่มต้น 7px)
+// คืนรายชื่อกล่องที่ยังล้น ให้ Python พิมพ์เตือน - เรียกจาก render.py ก่อนสั่งพิมพ์ PDF
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

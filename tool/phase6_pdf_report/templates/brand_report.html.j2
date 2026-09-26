@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+{% include "brand.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{#- ⑰ รายงานแบรนด์ - 1 ไฟล์ต่อ 1 แบรนด์ ใช้หน้าตา/สไตล์ชุดเดียวกับรายงานเทรนด์ (style.css) + brand.css
+    ข้อความตายตัวมาจาก L (= brand_i18n.brand_strings(lang)) / b = brand context (brand_data.build_brand_context)
+    ชื่อ "brand" ในเทมเพลตนี้คือ branding ของผู้จัดทำ (S&J) ส่วนแบรนด์ลูกค้าคือ b.brand -#}
+{%- set meta = ctx.meta -%}
+{%- set n_market = "{:,}".format(b.n_market or 0) -%}
+{%- set th = b.thresholds -%}
+
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro img_or_ph(p, label) -%}
+  {%- if p and p.image -%}<img src="{{ p.image }}" alt="">{%- else -%}<div class="ph">{{ label }}</div>{%- endif -%}
+{%- endmacro %}
+
+{% macro level_tag(level) -%}
+  {%- if level -%}<span class="fit-tag"><span class="fit-dot fit-{{ level }}"></span>{{ L[level] }}</span>
+  {%- else -%}<span class="fit-tag muted">{{ L.not_checked }}</span>{%- endif -%}
+{%- endmacro %}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.report_kind }}{% if meta.forecast_end %}{{ L.cover_outlook.format(end=meta.forecast_end) }}{% endif %}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.prepared_for.format(brand=b.brand, company=brand.company_name) }}</div>
+  </div>
+  <div class="cover-strip">
+    {% for r in b.rows[:5] %}
+    <div class="cover-tile">{{ img_or_ph(r.products[0] if r.products else none, r.rank) }}<div class="cap">{{ r.name }}</div></div>
+    {% endfor %}
+  </div>
+</section>
+
+{#- ======================= 2. สรุปผู้บริหาร ======================= -#}
+{%- set pf = b.portfolio -%}
+<section class="page" data-label="Executive Summary">
+  {{ bar_header(L.summary_header ~ " | " ~ b.brand) }}
+  <div class="ex-left">
+    <div class="ex-title">{{ L.on_watsons.format(brand=b.brand) }}</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">{{ L.skus }}</div><div class="val">{{ b.n_skus or pf.n_skus }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.price_range }}</div>
+        <div class="val val-sm">{% if pf.price_min is number %}{{ pf.price_min | thb }} - {{ pf.price_max | thb }}{% else %}{{ L.na }}{% endif %}</div>
+        <div class="sub">{% if pf.price_median is number %}{{ L.median_price.format(v=(pf.price_median | thb)) }}{% endif %}</div></div>
+    </div>
+    <div class="ex-subcats">
+      <div class="lbl">{{ L.main_subcategories }}</div>
+      {% for s in pf.top_subcategories %}<div class="subcat"><span>{{ s.name }}</span><b>{{ s.n }}</b></div>{% endfor %}
+    </div>
+  </div>
+  <div class="ex-right">
+    <div class="ex-title">{{ L.fit_across.format(n=b.rows | length) }}</div>
+    <div class="lvl-row">
+      {% for lv in ["leading", "competitive", "behind", "gap"] %}
+      <div class="lvl">
+        <div class="n">{{ b.counts[lv] }}</div>
+        <div class="nm"><span class="fit-dot fit-{{ lv }}"></span>{{ L[lv] }}</div>
+        <div class="def">
+          {%- if lv == "leading" %}{{ L.leading_def.format(a=th.leading) }}
+          {%- elif lv == "competitive" %}{{ L.competitive_def.format(a=th.leading + 1, b=th.competitive) }}
+          {%- elif lv == "behind" %}{{ L.behind_def.format(a=th.competitive + 1, b=th.behind) }}
+          {%- else %}{{ L.gap_def.format(a=th.behind) }}{% endif -%}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ex-title" style="margin-top:18px">{{ L.key_messages }}</div>
+    <ol class="msgs fit" data-name="key messages">
+      {%- set hs = b.highlights -%}
+      {%- if hs.strongest %}{% set r = b.rows | selectattr("rank", "equalto", hs.strongest) | first %}
+      <li>{{ L.msg_strongest.format(trend=r.name, product=(r.products[0].name if r.products else "-"),
+                                    rank="{:,}".format(r.best_rank), n=n_market) }}</li>{% endif %}
+      {%- if hs.opportunity %}{% set r = b.rows | selectattr("rank", "equalto", hs.opportunity) | first %}
+      <li>{% if r.products and r.best_rank %}{{ L.msg_opportunity.format(trend=r.name, z=(r.z_delta | signed), rank="{:,}".format(r.best_rank)) }}
+          {%- else %}{{ L.msg_opportunity_none.format(trend=r.name, z=(r.z_delta | signed), brand=b.brand) }}{% endif %}</li>{% endif %}
+      {%- if hs.quick_win %}{% set r = b.rows | selectattr("rank", "equalto", hs.quick_win) | first %}
+      <li>{{ L.msg_quick_win.format(trend=r.name, gap=(r.gap_to_leader | num(2))) }}</li>{% endif %}
+      {%- if not (hs.strongest or hs.opportunity or hs.quick_win) %}<li>{{ L.msg_none }}</li>{% endif %}
+    </ol>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. Trend Fit Matrix ======================= -#}
+<section class="page" data-label="Fit Matrix">
+  {{ bar_header(L.matrix_header) }}
+  <div class="intro">{{ L.matrix_intro.format(brand=b.brand, n=n_market, split=(b.momentum_split | signed)) }}</div>
+  {% if charts["__fit_matrix__"] %}<div class="fm-wrap"><img src="{{ charts['__fit_matrix__'] }}" alt="{{ L.matrix_header }}"></div>{% endif %}
+  <div class="fm-legend">
+    {% for r in b.rows %}
+    <div class="fm-item"><span class="fm-no" style="background:{{ r.color }};color:{{ r.color_text }}">{{ r.rank }}</span>
+      <span class="fm-name">{{ r.name }}</span>
+      <span class="fm-lv">{{ level_tag(r.level) }}{% if r.quadrant %} · <b class="q-{{ r.quadrant }}">{{ L[r.quadrant] }}</b>{% endif %}</span></div>
+    {% endfor %}
+  </div>
+  <div class="quad-legend">
+    {% for q in ["defend", "build", "maintain", "monitor"] %}
+    <div class="q q-{{ q }}"><b>{{ L[q] }}</b> {{ L[q ~ "_def"] }}</div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 4. ตารางภาพรวม ======================= -#}
+<section class="page" data-label="Fit Overview">
+  {{ bar_header(L.overview_header.format(n=b.rows | length)) }}
+  <div class="fx-wrap fit" data-name="overview table">
+    <table class="fx">
+      <colgroup><col style="width:3%"><col style="width:19%"><col style="width:8%"><col style="width:28%"><col style="width:8%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:6%"></colgroup>
+      <thead><tr><th>#</th><th>{{ L.col_trend }}</th><th class="num">{{ L.col_momentum }}</th><th>{{ L.col_best }}</th><th class="num">{{ L.col_price }}</th><th class="num">{{ L.col_rank }}</th><th class="num">{{ L.col_gap }}</th><th>{{ L.col_fit }}</th><th>{{ L.col_action }}</th></tr></thead>
+      <tbody>
+      {% for r in b.rows %}
+        {% if not r.checked %}
+        <tr class="na"><td class="num">{{ r.rank }}</td><td>{{ r.name }}</td><td class="num">{{ r.z_delta | signed }}</td><td colspan="6">{{ L.not_checked_row }}</td></tr>
+        {% else %}
+        {%- set p = r.products[0] if r.products else none -%}
+        <tr>
+          <td class="num">{{ r.rank }}</td>
+          <td>{{ r.name }}</td>
+          <td class="num">{{ r.z_delta | signed }}</td>
+          <td>{% if p %}<div class="fx-prod"><span class="fx-thumb">{{ img_or_ph(p, "") }}</span><span class="fx-name">{{ p.name }}</span></div>{% else %}<span class="muted">{{ L.no_product }}</span>{% endif %}</td>
+          <td class="num">{{ (p.price_thb | thb) if p else "-" }}</td>
+          <td class="num">{{ "#{:,}".format(r.best_rank) if r.best_rank else "-" }}</td>
+          <td class="num">{{ r.gap_to_leader | num(2) if r.gap_to_leader is number else "-" }}</td>
+          <td>{{ level_tag(r.level) }}</td>
+          <td class="q-{{ r.quadrant }}"><b>{{ L[r.quadrant] }}</b></td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 5-14. เทรนด์ละ 1 หน้า ======================= -#}
+{% for r in b.rows %}
+{%- set t = r.trend -%}
+<section class="page" data-label="Brand Trend {{ r.rank }}">
+  <div class="t-head"><h2>{{ r.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub">{{ t.text.headline }}</div>
+  <div class="bt-left">
+    <div class="bt-text fit" data-name="trend text"><b>{{ L.trend_label }}</b> {{ t.text.trend }}</div>
+    <div class="bt-stats kv">
+      <span class="k">{{ L.momentum }}</span><span class="v">{{ r.z_delta | signed }} · {{ t.status or L.na }}</span>
+      <span class="k">{{ L.peak_interest }}</span><span class="v">{{ t.peak_month or L.na }}</span>
+      <span class="k">{{ L.fit_level }}</span><span class="v">{{ level_tag(r.level) }}</span>
+      <span class="k">{{ L.your_best_rank }}</span><span class="v">{{ L.rank_of.format(rank="{:,}".format(r.best_rank), n=n_market) if r.best_rank else L.na }}</span>
+      <span class="k">{{ L.action }}</span><span class="v q-{{ r.quadrant }}">{{ L[r.quadrant] if r.quadrant else L.not_checked }}</span>
+    </div>
+    {% if r.quadrant %}<div class="bt-action">{{ L[r.quadrant ~ "_def"] }}</div>{% endif %}
+  </div>
+  <div class="bt-right">
+    <div class="pc-heads"><div>{{ L.your_products }}</div><div>{{ L.market_leader }}</div></div>
+    <div class="pc-grid">
+      {% for i in range(3) %}
+      {%- set p = r.products[i] if r.products | length > i else none -%}
+      {% if p %}
+      <div class="pc">
+        <div class="img">{{ img_or_ph(p, b.brand) }}</div>
+        <div class="info">
+          <div class="nm">{{ p.name }}</div>
+          <div class="meta"><span>{{ p.price_thb | thb }}</span><b>{{ L.rank_n.format(rank="{:,}".format(p.rank)) if p.rank else "" }}</b></div>
+          <div class="why fit" data-name="brand reason" data-min="6.5">{{ p.reason }}</div>
+        </div>
+      </div>
+      {% elif i == 0 %}
+      <div class="pc pc-empty">{{ L.no_brand_products.format(brand=b.brand) if r.checked else L.not_checked_row }}</div>
+      {% else %}
+      <div class="pc pc-blank"></div>
+      {% endif %}
+      {% endfor %}
+      {%- set ld = r.leader -%}
+      {% if ld %}
+      <div class="pc leader{% if ld.brand == b.brand %} is-you{% endif %}">
+        <div class="tag">{{ L.you_lead.format(brand=b.brand) if ld.brand == b.brand else ld.brand }}</div>
+        <div class="img">{{ img_or_ph(ld, ld.brand) }}</div>
+        <div class="info">
+          <div class="nm">{{ ld.name }}</div>
+          <div class="meta"><span>{{ ld.price_thb | thb }}</span><b>{{ L.rank_n.format(rank=1) }}</b></div>
+          <div class="why fit" data-name="leader reason" data-min="6.5">{{ ld.reason }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="pc pc-blank"></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="ev-note">{{ L.trend_note.format(n=n_market) }}</div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 15. โอกาสพัฒนาสินค้า ======================= -#}
+<section class="page" data-label="Opportunities">
+  {{ bar_header(L.opp_header ~ " | " ~ b.brand) }}
+  <div class="intro">{{ L.opp_intro.format(brand=b.brand) }}</div>
+  {% if b.opportunities %}
+  <div class="opp-grid n{{ b.opportunities | length }}">
+    {% for rank in b.opportunities %}
+    {%- set r = b.rows | selectattr("rank", "equalto", rank) | first -%}
+    {%- set t = r.trend -%}
+    <div class="opp">
+      <div class="opp-head"><span class="rk">#{{ r.rank }}</span> {{ r.name }}
+        <span class="opp-meta">{{ L.momentum }} {{ r.z_delta | signed }} · {{ level_tag(r.level) }}</span></div>
+      <div class="opp-body fit" data-name="opportunity {{ r.rank }}">
+        <b>{{ L.consumer_need }}</b> {{ t.text.insight }}<br>
+        <b>{{ L.product_direction }}</b> {{ t.text.trend }}
+        {% if t.target %}<br><b>{{ L.target }}</b> {{ t.target }}{% endif %}
+        <div class="opp-kw">{% for k in t.keywords[:4] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="opp-none">{{ L.opp_none.format(brand=b.brand) }}</div>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{#- ======================= 16. ภาคผนวก ======================= -#}
+<section class="page" data-label="Method">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid">
+    <div class="ap-box fit" data-name="method fit"><h3>{{ L.m_fit_title }}</h3>
+      {{ L.m_fit.format(n=n_market, brand=b.brand, a=th.leading, a1=th.leading + 1, b=th.competitive, b1=th.competitive + 1, c=th.behind) }}</div>
+    <div class="ap-box fit" data-name="method matrix"><h3>{{ L.m_matrix_title }}</h3>
+      {{ L.m_matrix.format(split=(b.momentum_split | signed)) }}</div>
+    <div class="ap-box fit" data-name="method data"><h3>{{ L.m_data_title }}</h3>
+      {{ L.m_data.format(run_id=meta.run_id, brand=b.brand, skus=(b.n_skus or b.portfolio.n_skus), t=(b.rows | length), date=(run_date | date_long)) }}</div>
+    <div class="ap-box fit" data-name="method limits"><h3>{{ L.m_limits_title }}</h3>
+      {{ L.m_limits }}</div>
+  </div>
+  {{ footer() }}
+</section>
+
+<script>
+// เหมือนรายงานเทรนด์ (report.html.j2): ย่อฟอนต์กล่อง .fit จนพอดี แล้วคืนกล่องที่ยังล้นให้ Python เตือน
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

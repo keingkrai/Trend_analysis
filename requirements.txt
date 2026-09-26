@@ -39,7 +39,9 @@ faster_whisper==1.2.1          # transcribe เสียง YouTube เมื่
 imageio_ffmpeg==0.6.0          # ffmpeg binary ให้ faster_whisper ใช้
 
 # --- อื่นๆ ---
-matplotlib==3.11.0             # กราฟใน trend.ipynb / v1 report
+matplotlib==3.11.0             # กราฟใน trend.ipynb / v1 report + กราฟพยากรณ์ในรายงาน PDF ⑯
+jinja2==3.1.6                  # 🆕 (2026-09-25) เทมเพลต HTML ของรายงาน PDF ⑯ (พิมพ์เป็น PDF ด้วย playwright ด้านบน)
+pillow==12.2.0                 # 🆕 (2026-09-25) ย่อรูปสินค้าก่อนฝังในรายงาน PDF ⑯
 tavily-python==0.7.27          # web search fallback (Tavily)
 tqdm==4.68.3                   # progress bar
 

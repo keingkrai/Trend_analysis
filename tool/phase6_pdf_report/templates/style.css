@@ -1,0 +1,255 @@
+/* ⑯ PDF Report — 16:9 ตามไฟล์ตัวอย่าง Trend Hunter (10 x 5.625 นิ้ว = 960 x 540 CSS px ต่อหน้า)
+   ข้อความยาวจาก LLM อยู่ในกล่อง .fit ขนาดตายตัว - fitAll() ใน report.html.j2 ลดขนาดฟอนต์จนพอดีกล่อง
+   ขนาดตัวอักษรข้างใน .fit ต้องเป็นหน่วย em เพื่อให้ย่อตามกล่องแม่ได้ */
+@page { size: 10in 5.625in; margin: 0; }
+
+:root {
+  --accent: #E8611A;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #8a8983;
+  --card: #e8e8e6;
+  --line: #d6d5d0;
+  --series: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #ffffff; }
+body {
+  font-family: "Segoe UI", Calibri, "Leelawadee UI", Tahoma, sans-serif;
+  color: var(--ink);
+  counter-reset: page;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+@media screen {
+  body { background: #7a7a78; padding: 16px 0; }
+  .page { margin: 0 auto 16px; box-shadow: 0 2px 12px rgba(0, 0, 0, .35); }
+}
+
+.page {
+  width: 960px; height: 540px;
+  position: relative; overflow: hidden;
+  background: #ffffff;
+  break-after: page; page-break-after: always;
+  counter-increment: page;
+}
+.page:last-child { break-after: auto; page-break-after: auto; }
+
+b, strong { font-weight: 600; }
+.fit { overflow: hidden; }
+.muted { color: var(--ink-2); }
+
+/* ---------- โลโก้ / ชื่อบริษัท ---------- */
+.logo-img { height: 24px; max-width: 170px; object-fit: contain; display: block; }
+.logo-chip { background: #ffffff; border-radius: 4px; padding: 4px 8px; display: inline-flex; }
+.logo-chip.on-black { background: #000000; }  /* โลโก้ตัวหนังสือสีขาว (logo_for_dark_bg) บนหน้าพื้นขาว */
+.logo-chip .logo-img { height: 22px; }
+.wordmark { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; white-space: nowrap; }
+.on-dark .wordmark { color: #ffffff; }
+
+/* ---------- หัวหน้าแบบแถบดำ ---------- */
+.bar-header {
+  height: 58px; background: #000000; color: #ffffff;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px 0 24px;
+}
+.bar-header h2 { font-size: 23px; font-weight: 300; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.footer-copy { position: absolute; right: 20px; bottom: 9px; font-size: 7px; color: var(--ink-2); text-align: right; }
+.page-no { position: absolute; left: 22px; bottom: 9px; font-size: 8px; color: var(--ink-3); }
+.page-no::after { content: counter(page); }
+
+/* ---------- ปก ---------- */
+.cover-top { position: absolute; inset: 0 0 150px 0; background: #000000; color: #ffffff; padding: 0 46px; }
+.cover-logo { position: absolute; top: 34px; right: 30px; }
+.cover-top h1 { position: absolute; left: 46px; right: 46px; top: 178px; font-size: 40px; font-weight: 600; line-height: 1.12; }
+.cover-sub { position: absolute; left: 46px; top: 244px; font-size: 25px; font-weight: 300; }
+.cover-date { position: absolute; left: 46px; top: 292px; font-size: 21px; letter-spacing: .12em; font-family: Consolas, "Segoe UI", monospace; }
+.cover-sources { position: absolute; left: 46px; top: 338px; font-size: 13px; font-weight: 300; letter-spacing: .02em; color: #c3c2b7; }
+.cover-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; display: flex; }
+.cover-tile { flex: 1; position: relative; background: #ffffff; overflow: hidden; }
+.cover-tile + .cover-tile { border-left: 2px solid #ffffff; }
+.cover-tile img { width: 100%; height: 100%; object-fit: contain; padding: 8px 8px 26px; }
+.cover-tile .cap {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 5px 10px;
+  background: rgba(0, 0, 0, .58); color: #ffffff; font-size: 10.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ภาพแทนเมื่อไม่มีรูปสินค้า */
+.ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #d9d9d6; color: var(--ink-2); font-weight: 600; font-size: 20px; }
+
+/* ---------- Report Summary ---------- */
+.brief { position: absolute; left: 24px; right: 24px; top: 78px; height: 100px; display: flex; gap: 22px; align-items: center; }
+.brief-logo { width: 120px; display: flex; justify-content: center; }
+.brief-logo .logo-img { height: 30px; max-width: 120px; }
+.brief-text { flex: 1; height: 100px; font-size: 15px; line-height: 1.45; }
+.brief-text p + p { margin-top: .45em; }
+.sec-label { position: absolute; left: 24px; font-size: 12px; font-weight: 700; }
+
+.insight-card { position: absolute; left: 22px; right: 22px; top: 214px; height: 88px; background: var(--card); display: flex; }
+.insight-card .thumb { width: 88px; height: 88px; flex: none; background: #ffffff; }
+.insight-card .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.insight-card .txt { flex: 1; padding: 6px 12px; font-size: 9.5px; line-height: 1.35; }
+.insight-card .txt .nm { font-size: 1.15em; }
+.insight-card .txt .hl { font-style: italic; }
+
+.micro-grid { position: absolute; left: 22px; right: 22px; top: 330px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.micro { height: 58px; background: var(--card); display: flex; overflow: hidden; }
+.micro .thumb { width: 58px; height: 58px; flex: none; background: #ffffff; }
+.micro .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.micro .txt { padding: 4px 8px; min-width: 0; }
+.micro .nm { font-size: 10px; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.micro .hl { font-size: 9px; font-style: italic; line-height: 1.25; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---------- ข้อความยาวทั้งหน้า (Takeaway ฯลฯ) ---------- */
+.prose { position: absolute; left: 24px; right: 24px; top: 80px; bottom: 34px; font-size: 13.5px; line-height: 1.5; }
+.prose h3 { font-size: 1.05em; font-weight: 700; margin-bottom: .7em; }
+.prose p + p { margin-top: .75em; }
+.prose .mega { font-size: 1.5em; font-weight: 300; margin-bottom: .35em; }
+
+/* ---------- Market Overview ---------- */
+.ov-left { position: absolute; left: 24px; top: 80px; width: 372px; bottom: 34px; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { background: var(--card); padding: 9px 12px; height: 72px; }
+.stat .lbl { font-size: 10px; color: var(--ink-2); }
+.stat .val { font-size: 22px; font-weight: 600; line-height: 1.25; }
+.stat .sub { font-size: 9.5px; color: var(--ink-2); }
+.ov-summary { margin-top: 12px; height: 238px; font-size: 12px; line-height: 1.45; }
+.ov-summary h3 { font-size: 1em; font-weight: 700; margin-bottom: .35em; }
+
+.ov-right { position: absolute; left: 420px; right: 24px; top: 80px; bottom: 34px; }
+.chart-title { font-size: 13px; font-weight: 700; }
+.tm-wrap { position: absolute; left: 24px; right: 24px; top: 112px; bottom: 60px; }
+.tm-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.chart-sub { font-size: 9.5px; color: var(--ink-2); margin-top: 2px; }
+.mbar { position: relative; margin-top: 18px; }
+.mbar-row { display: flex; align-items: center; height: 36px; }
+.mbar-name { width: 196px; flex: none; font-size: 10px; line-height: 1.2; padding-right: 10px; }
+.mbar-name .r { color: var(--ink-3); display: inline-block; width: 16px; }
+.mbar-track { position: relative; flex: 1; height: 100%; }
+.mbar-fill { position: absolute; left: 0; top: 11px; height: 14px; background: var(--series); border-radius: 0 4px 4px 0; }
+.mbar-val { position: absolute; top: 9px; font-size: 10px; white-space: nowrap; }
+.mbar-val .st { color: var(--ink-2); }
+.mbar-grid { position: absolute; top: -12px; bottom: 0; left: 196px; right: 0; pointer-events: none; }
+.mbar-grid .gl { position: absolute; top: 12px; bottom: 0; border-left: 1px solid var(--line); }
+.mbar-grid .gl span { position: absolute; top: -13px; left: 3px; font-size: 8.5px; color: var(--ink-2); white-space: nowrap; }
+.mbar-axis { position: absolute; left: 196px; top: 12px; bottom: 0; border-left: 1px solid var(--ink-3); }
+
+/* ---------- STEPIC ---------- */
+.intro { position: absolute; left: 24px; right: 24px; top: 70px; font-size: 11px; color: var(--ink-2); }
+.stepic-grid { position: absolute; left: 22px; right: 22px; top: 94px; bottom: 32px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 6px; }
+.st-tile { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.st-head { color: #ffffff; padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* ข้อความในช่องถูกย่อเหลือหัวข้อ ~6 คำ + 1 ประโยค ~20 คำ (enrich.condense_report_texts) จึงใช้ตัวใหญ่ได้ */
+.st-body { flex: 1; padding: 12px 14px; font-size: 14.5px; line-height: 1.42; min-height: 0; }
+.st-body .hl { font-weight: 700; font-size: 1.2em; line-height: 1.25; margin-bottom: .45em; }
+.dim-society .st-head { background: #1c5cab; }
+.dim-technology .st-head { background: #b54a1c; }
+.dim-environment .st-head { background: #0b6e4f; }
+.dim-policy .st-head { background: #4a3aa7; }
+.dim-industry .st-head { background: #a3335f; }
+.dim-creativity .st-head { background: #8a5a00; }
+
+/* ---------- Personas ---------- */
+.persona-row { position: absolute; left: 22px; right: 22px; top: 80px; bottom: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.persona { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.persona .p-head { background: #000000; color: #ffffff; padding: 10px 14px; font-size: 15px; font-weight: 300; }
+.persona .p-body { flex: 1; padding: 12px 16px; font-size: 13px; line-height: 1.42; min-height: 0; }
+.persona .p-body .k { font-weight: 700; margin-top: .7em; display: block; }
+
+/* ---------- Signals ---------- */
+.sig-list { position: absolute; left: 24px; right: 24px; top: 78px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; }
+.sig { flex: 1; display: flex; gap: 14px; min-height: 0; border-top: 1px solid var(--line); padding-top: 6px; }
+/* สัญญาณละ ~22 คำ + ผลกระทบ ~12 คำ และแนวโน้ม ~35 คำ (enrich.condense_report_texts) จึงใช้ตัวใหญ่ได้ */
+.sig .dims { width: 170px; flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; padding-top: 2px; }
+.sig .body { flex: 1; font-size: 14px; line-height: 1.42; min-height: 0; }
+.sig .body .imp { font-style: italic; color: var(--ink-2); margin-top: .3em; }
+.outlook { background: var(--card); padding: 8px 12px; flex: 1.15 !important; }
+
+/* ---------- หน้าคั่น ---------- */
+.div-top { position: absolute; left: 0; right: 0; top: 0; height: 238px; background: #000000; color: #ffffff; padding: 0 24px; }
+.div-top .cover-logo { top: 16px; right: 22px; }
+.div-top h1 { position: absolute; left: 24px; bottom: 76px; font-size: 36px; font-weight: 300; }
+.div-top .sub { position: absolute; left: 24px; bottom: 26px; font-size: 21px; font-weight: 300; }
+.div-body { position: absolute; left: 24px; right: 24px; top: 262px; bottom: 34px; font-size: 13.5px; line-height: 1.5; }
+.div-body p + p { margin-top: .6em; }
+.div-body .legend { margin-top: .8em; display: grid; grid-template-columns: 110px 1fr; row-gap: .35em; font-size: .9em; }
+
+/* ---------- หน้าเทรนด์ ---------- */
+.t-head { position: absolute; left: 24px; right: 22px; top: 18px; height: 38px; display: flex; align-items: center; gap: 14px; }
+.t-head h2 { font-size: 27px; font-weight: 300; white-space: nowrap; max-width: 720px; overflow: hidden; text-overflow: ellipsis; }
+.t-rule { flex: 1; border-top: 1.5px solid var(--ink); }
+.t-sub { position: absolute; left: 24px; right: 24px; top: 58px; height: 22px; font-size: 15px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-body { position: absolute; left: 24px; right: 24px; top: 86px; height: 118px; font-size: 12px; line-height: 1.42; }
+.t-body p + p { margin-top: .55em; }
+.t-mid { position: absolute; left: 24px; right: 24px; top: 212px; height: 226px; display: flex; gap: 14px; }
+.t-chart { width: 548px; flex: none; border: 1px solid var(--card); padding: 4px; display: flex; flex-direction: column; }
+.t-chart .cap { font-size: 10px; font-weight: 700; padding: 2px 4px 0; }
+.t-chart img { width: 538px; height: 200px; display: block; }
+.t-panel { flex: 1; background: var(--card); padding: 10px 14px; font-size: 11px; line-height: 1.35; min-height: 0; }
+.kv { display: grid; grid-template-columns: 104px 1fr; row-gap: .38em; }
+.kv .k { color: var(--ink-2); }
+.kv .v { font-weight: 600; }
+.t-panel .tgt { margin-top: .7em; border-top: 1px solid var(--line); padding-top: .5em; }
+.t-panel .tgt .k { color: var(--ink-2); display: block; }
+
+.t-foot { position: absolute; left: 24px; right: 20px; bottom: 26px; height: 64px; display: flex; gap: 16px; align-items: center; }
+.rank-box { width: 64px; height: 64px; flex: none; background: #000000; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rank-box .n { font-size: 26px; font-weight: 600; line-height: 1; }
+.rank-box .l { font-size: 10px; margin-top: 3px; }
+.metrics { width: 290px; flex: none; display: grid; grid-template-columns: 70px 150px 1fr; row-gap: 5px; align-items: center; font-size: 10px; }
+.metrics .ml { text-align: right; padding-right: 8px; }
+.metrics .mv { padding-left: 8px; color: var(--ink-2); white-space: nowrap; }
+.seg { height: 10px; background: repeating-linear-gradient(90deg, #d0cfca 0 3px, #ffffff 3px 4px); position: relative; }
+.seg i { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(90deg, #000000 0 3px, #ffffff 3px 4px); }
+.kw { flex: 1; font-size: 9.5px; line-height: 1.35; min-width: 0; }
+.kw .k { color: var(--ink-2); display: block; margin-bottom: 2px; }
+.chip { display: inline-block; border: 1px solid var(--line); border-radius: 9px; padding: 0 7px; margin: 0 3px 3px 0; white-space: nowrap; }
+.facts { width: 150px; flex: none; font-size: 10px; line-height: 1.5; }
+
+/* ---------- Workshop Question ---------- */
+.w-q { position: absolute; left: 70px; right: 70px; top: 96px; bottom: 70px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 34px; line-height: 1.72; font-weight: 300; }
+.w-q span { background: #000000; color: #ffffff; padding: 0 .25em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.w-foot { position: absolute; left: 24px; bottom: 30px; font-size: 14px; }
+.w-foot b { font-weight: 700; }
+
+/* ---------- Market Evidence ---------- */
+.prod-row { position: absolute; left: 24px; right: 24px; top: 92px; height: 380px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.prod { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.prod .img { height: 158px; background: #ffffff; border: 1px solid var(--card); display: flex; align-items: center; justify-content: center; }
+.prod .img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.prod .img .ph { font-size: 11px; padding: 10px; text-align: center; }
+.prod .info { padding: 7px 9px 8px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.prod .nm { font-size: 10.5px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.prod .br { font-size: 9.5px; color: var(--ink-2); margin-top: 2px; }
+.prod .meta { font-size: 9.5px; margin-top: 4px; display: flex; justify-content: space-between; }
+.prod .why { flex: 1; font-size: 9.5px; line-height: 1.35; margin-top: 6px; border-top: 1px solid var(--line); padding-top: 5px; min-height: 0; }
+.ev-note { position: absolute; left: 24px; right: 170px; bottom: 26px; font-size: 9px; line-height: 1.4; color: var(--ink-2); }
+
+/* ---------- Appendix ---------- */
+.ap-grid { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 34px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+.ap-box { background: var(--card); padding: 12px 16px; font-size: 12.5px; line-height: 1.42; min-height: 0; }
+.ap-box h3 { font-size: 1.1em; font-weight: 700; margin-bottom: .35em; }
+.ap-box ul { padding-left: 1.1em; }
+.ap-box li + li { margin-top: .25em; }
+.ap-cols { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ap-cols .ap-box { height: 100%; }
+.kv2 { display: grid; grid-template-columns: 120px 1fr; row-gap: .3em; }
+.kv2 .k { color: var(--ink-2); }
+
+/* ---------- ฉบับภาษาไทย (body.lang-th) ---------- */
+/* Leelawadee UI มีอักษรไทยครบและอ่านง่ายทั้งจอและพิมพ์ - ตัวละตินในฉบับไทย (ชื่อเทรนด์/แบรนด์) ใช้ฟอนต์เดียวกันให้กลมกลืน */
+.lang-th { font-family: "Leelawadee UI", "Segoe UI", Tahoma, sans-serif; }
+/* อักษรไทยไม่มีตัวเอน (เบราว์เซอร์เอียงรูปเองแล้วอ่านยาก) และ letter-spacing ทำให้สระ/วรรณยุกต์ลอยห่างจากตัวอักษร */
+.lang-th .hl, .lang-th .imp { font-style: normal; }
+.lang-th .sig .body .imp { font-style: normal; }  /* .sig .body .imp (italic) เฉพาะเจาะจงกว่าบรรทัดบน ต้องระบุซ้ำ */
+.lang-th .st-head, .lang-th .sig .dims, .lang-th .bar-header h2 { letter-spacing: 0; }
+/* บรรทัดภาษาไทยต้องสูงกว่า (สระบน + วรรณยุกต์ซ้อน) - ช่องที่ตัดด้วย line-clamp จะตัดหัวสระทิ้งถ้าบรรทัดเตี้ย */
+.lang-th .micro .hl { font-size: 8.5px; line-height: 1.4; }
+.lang-th .prod .nm { line-height: 1.4; }
+.lang-th .t-sub { height: 26px; }

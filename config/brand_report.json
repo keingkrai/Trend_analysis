@@ -1,0 +1,7 @@
+{
+  "_note": "⑰ รายงานแบรนด์ PDF (tool/phase6_pdf_report/build_brand_report.py) - เกณฑ์ระดับความพร้อมของแบรนด์ต่อเทรนด์ วัดจากอันดับของสินค้าที่ดีที่สุดของแบรนด์ในตลาด (1 = ใกล้เทรนด์ที่สุดจาก SKU ทั้งหมดบน Watsons): อันดับ <= leading = นำตลาด, <= competitive = แข่งขันได้, <= behind = ตามหลัง, มากกว่านั้นหรือไม่มีสินค้า = ช่องว่าง. เกณฑ์ตั้งขึ้นเอง (2026-09-26) ยังไม่ได้เทียบกับการตัดสินของคน. momentum_split = เส้นแบ่งแรงส่งใน Trend Fit Matrix: \"median\" = ค่ากลาง Z_Delta ของเทรนด์ในรายงาน หรือใส่ตัวเลข Z_Delta ตรงๆ. strong_fit_levels = ระดับที่นับว่าแบรนด์พร้อม (ครึ่งบนของ matrix)",
+  "fit_rank_thresholds": {"leading": 25, "competitive": 100, "behind": 500},
+  "momentum_split": "median",
+  "strong_fit_levels": ["leading", "competitive"],
+  "products_per_trend": 3
+}

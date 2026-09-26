@@ -9,6 +9,7 @@
 | `phase2_three_streams/` | ①-⑤ สาย Social / News, ⑦ พยากรณ์, ⑧-⑨ สรุประดับหมวด, ⑥ Rank Score, ⑩ รอบค้นพบเพิ่ม |
 | `phase3_supply_layer/` | ⑪ จุดเด่น + Top N, ⑫ จับคู่สินค้า, ⑬ ค้นหาแบรนด์ |
 | `phase5_report/` | ⑭-⑮ STEPIC → Master Report |
+| `phase6_pdf_report/` | ⑯ รายงานเทรนด์ PDF และ ⑰ รายงานแบรนด์ x เทรนด์ PDF - อังกฤษ + ไทย (Jinja2 → Playwright Chromium) |
 | `product/` | `watsons_product.csv` — สินค้า Watsons 10,622 SKU / 695 แบรนด์ |
 | `tests/` | `test_pure_functions.py`, `test_trend_final_subset.py` |
 | `phase0_cleanup/`, `phase4_discovery_round/` | บันทึกเก่า ไม่ต้องรัน |

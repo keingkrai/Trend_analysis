@@ -28,6 +28,16 @@ Thin orchestrator — รันไปป์ไลน์ v2 ทั้งชุด
      bootstrap.py's "_legacy_flat" sentinel)
   --topic/--years ยังใช้ได้เหมือนเดิมสำหรับรันอัตโนมัติ (ข้ามเมนูไปโหมด 1 ตรงๆ)
 
+🆕 (2026-09-25) โหมด 1 วาดกราฟสรุปของรอบให้เองหลังขั้นบังคับครบ (Plot_bump_chart.py -> trend_bump_chart.png +
+step5c_df_cluster_forecast_ranks_*.xlsx, Plot_trend_map.py -> trend_top10_zdelta_streamcount.png) - ข้ามด้วย --skip-plots
+
+🆕 (2026-09-25) ⑯ รายงาน PDF 2 ไฟล์ อังกฤษ + ไทย (เฉพาะเทรนด์ ไม่มีหน้าแบรนด์/⑬) รันท้ายโหมด 1 - ข้ามด้วย
+--skip-pdf / สร้างใหม่ทีหลังด้วย `python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ>`
+
+🆕 (2026-09-26) ⑰ รายงานแบรนด์ x เทรนด์ PDF (อังกฤษ + ไทย) 1 ไฟล์ต่อแบรนด์ - สร้างต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
+ทั้งโหมด 1 และโหมด 2 (โหมด 1 ข้ามด้วย --skip-pdf) / สร้างใหม่ทีหลังด้วย
+`python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ> --brand <แบรนด์>`
+
 Usage:
     python main.py                    # เจอเมนูเลือกโหมด 1/2 ก่อน
     python main.py --skip-discovery   # ข้าม ⑩ ไปเลย ไม่ถาม (โหมด 1 อัตโนมัติ)
@@ -75,15 +85,28 @@ STAGES = [
 DISCOVERY_STAGE = ("⑩ รอบค้นพบเพิ่ม (optional, เสีย quota เล็กน้อย)",
                    "phase2_three_streams/cross_category_discovery.py", False)
 BRAND_STAGE = "phase3_supply_layer/run_brand_coverage.py"  # ⑬ - แยกไปด้านล่าง ไม่ใช่ topic เดียวกัน
+# 🆕 (2026-09-26) ⑰ รายงานแบรนด์ x เทรนด์ PDF (อังกฤษ + ไทย) 1 ไฟล์ต่อแบรนด์ - รันต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
+BRAND_REPORT_STAGE = "phase6_pdf_report/build_brand_report.py"
+# 🆕 (2026-09-25) ⑯ รายงาน PDF - ไม่อยู่ใน STAGES เพราะไม่บังคับ (ไม่เกี่ยวกับ ⑬ แบรนด์):
+# PDF พังต้องไม่ทำให้รอบรันเป็นชั่วโมงเสีย (ผลทุกขั้นยังอยู่ครบ สร้าง PDF ใหม่ทีหลังได้ด้วยคำสั่งเดี่ยว)
+PDF_STAGE = ("⑯ รายงาน PDF (อังกฤษ + ไทย)", "phase6_pdf_report/build_pdf_report.py", False)
+# 🆕 (2026-09-25) กราฟสรุปผลของรอบ - สคริปต์อยู่ที่ root ของ repo (ไม่ใช่ tool/) รับ --run <run_id> ไม่ถามเลือกรอบ
+# ไม่บังคับ: กราฟพังต้องไม่ทำให้รอบรันเป็นชั่วโมงเสีย (รันซ้ำเดี่ยวๆ ทีหลังได้ด้วย python <สคริปต์> --run <รอบ>)
+# ต้องรันหลัง STAGES ครบ - อ่านผล ⑦ (step5c) และ ⑪ (ชุด Top N)
+PLOT_STAGES = [
+    ("📊 Bump chart + ตารางอันดับรายปี (step5c)", "Plot_bump_chart.py"),
+    ("📊 แผนที่เทรนด์ Top N (Z_Delta vs Stream_Count)", "Plot_trend_map.py"),
+]
 
 
-def run_stage(label, rel_path, required, env):
-    script = TOOL_DIR / rel_path
+def run_stage(label, rel_path, required, env, base=TOOL_DIR, extra_args=()):
+    """base = โฟลเดอร์ที่ rel_path นับจาก (ค่าเริ่มต้น tool/ - สคริปต์กราฟอยู่ที่ root จึงส่ง base=PROJECT_ROOT)"""
+    script = base / rel_path
     print("\n" + "=" * 70)
     print(f"▶ {label}")
     print(f"  ({rel_path})")
     print("=" * 70)
-    result = subprocess.run([sys.executable, str(script)], cwd=str(PROJECT_ROOT), env=env)
+    result = subprocess.run([sys.executable, str(script), *extra_args], cwd=str(PROJECT_ROOT), env=env)
     if result.returncode != 0:
         tag = "❌ พัง (จำเป็น - หยุดที่นี่)" if required else "⚠️ พัง (ไม่บังคับ - ไปต่อ)"
         print(f"\n{tag}: {label} (exit code {result.returncode})")
@@ -146,19 +169,26 @@ def _list_available_runs():
     return candidates
 
 
-def run_brand_lookup_loop(env):
+def run_brand_lookup_loop(env, make_pdf=True):
     """ลูปถามชื่อแบรนด์ต่อเนื่อง เรียก ⑬ (run_brand_coverage.py) ทีละแบรนด์ - ใช้ร่วมกันทั้งโหมด 1
-    (ท้ายไปป์ไลน์ที่เพิ่งรันจบ) และโหมด 2 (เลือกรอบเก่ามาเช็ค) กันโค้ดซ้ำ"""
+    (ท้ายไปป์ไลน์ที่เพิ่งรันจบ) และโหมด 2 (เลือกรอบเก่ามาเช็ค) กันโค้ดซ้ำ - คืนจำนวนแบรนด์ที่รัน
+    🆕 (2026-09-26) make_pdf: หลัง ⑬ ของแต่ละแบรนด์ สร้างรายงานแบรนด์ PDF (⑰) ของแบรนด์นั้นต่อทันที"""
     print("\n" + "-" * 70)
     print("⑬ จับคู่สินค้า (โหมด 1 — แบรนด์บน Watsons) — ทำได้หลายแบรนด์ต่อเนื่อง พิมพ์ว่างเพื่อจบ")
     print("-" * 70)
+    n_brands = 0
     while True:
         brand = input("ชื่อแบรนด์ (Enter เพื่อข้าม/จบ): ").strip()
         if not brand:
-            break
+            return n_brands
+        n_brands += 1
         brand_env = env.copy()
         brand_env["TREND_TOPIC"] = brand  # run_brand_coverage.py ใช้ prompt_run_config ตัวเดียวกัน
         run_stage(f"⑬ Brand Coverage — {brand}", BRAND_STAGE, False, brand_env)
+        if make_pdf:
+            # ถ้า ⑬ พัง (ไม่มีผลของแบรนด์นี้) ⑰ จะแจ้งเองว่าไม่พบผลแล้วจบ - ไม่บังคับ ไม่หยุดลูป
+            run_stage(f"⑰ รายงานแบรนด์ PDF — {brand}", BRAND_REPORT_STAGE, False, brand_env,
+                      extra_args=["--brand", brand])
 
 
 def run_mode_brand_lookup():
@@ -251,6 +281,10 @@ def run_mode_full_pipeline(args):
                   f'TREND_TOP_N={top_n} python "{script}"')
             sys.exit(1)
 
+    if not args.skip_plots:
+        for label, script_name in PLOT_STAGES:
+            run_stage(label, script_name, False, env, base=PROJECT_ROOT, extra_args=["--run", run_id])
+
     if not args.skip_discovery:
         ans = input("\nรัน ⑩ รอบค้นพบเพิ่มไหม (optional, เสีย SerpAPI quota เล็กน้อย)? [y/N]: ").strip().lower()
         if ans == "y":
@@ -258,8 +292,11 @@ def run_mode_full_pipeline(args):
         else:
             print("  ⏭️  ข้าม ⑩")
 
+    if not args.skip_pdf:
+        run_stage(*PDF_STAGE, env)
+
     if not args.skip_brand:
-        run_brand_lookup_loop(env)
+        run_brand_lookup_loop(env, make_pdf=not args.skip_pdf)
 
     print("\n" + "=" * 70)
     print(f"🏁 จบไปป์ไลน์ — ผลทั้งหมดอยู่ที่ {PROJECT_ROOT / 'output' / run_id}")
@@ -274,6 +311,9 @@ def main():
                         help=f"จำนวนเทรนด์อันดับแรกที่ใช้หลังพยากรณ์ (ไม่ใส่ = ถามตอนรัน, Enter = {DEFAULT_TOP_N})")
     parser.add_argument("--skip-discovery", action="store_true", help="ข้าม ⑩ ไปเลย ไม่ถาม")
     parser.add_argument("--skip-brand", action="store_true", help="ข้าม ⑬ (จับคู่แบรนด์) ไปเลย ไม่ถาม")
+    parser.add_argument("--skip-pdf", action="store_true",
+                        help="ไม่สร้างรายงาน PDF: ⑯ รายงานเทรนด์ท้ายไปป์ไลน์ และ ⑰ รายงานแบรนด์หลังค้นหาแต่ละแบรนด์")
+    parser.add_argument("--skip-plots", action="store_true", help="ไม่วาด bump chart / แผนที่เทรนด์ หลังขั้นบังคับครบ")
     args = parser.parse_args()
 
     # 🆕 (2026-09-15) --topic ที่ส่งมาทาง CLI แปลว่าตั้งใจรันอัตโนมัติ (เช่น scheduler) - ข้ามเมนูไป
