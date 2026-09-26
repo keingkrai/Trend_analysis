@@ -550,3 +550,10 @@ def test_stepic_tiles_read_every_dimension_whatever_its_wrapping():
     assert list(tiles) == ["Society", "Technology", "Industry", "Creativity"]
     assert tiles["Technology"]["headline"] == "Transdermal Delivery"
     assert tiles["Industry"]["headline"].startswith("Convergence") and "{" not in tiles["Industry"]["body"]
+
+
+def test_thai_signal_without_a_label_is_blank_not_none(run_dir):
+    from i18n import localize
+    ctx, _ = build_context(run_dir)
+    ctx["signals"] = [{"signal": "s", "implication": "i"}]  # ไม่มีช่อง dimensions เลย
+    assert localize(ctx, "th")["signals"][0]["dimensions"] == ""

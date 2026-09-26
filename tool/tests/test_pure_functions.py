@@ -712,3 +712,15 @@ def test_stepic_shape_ignores_missing_or_bad_input():
     from common.stepic_shape import as_text, normalize_stepic
     assert normalize_stepic(None)["technology"] == {} and normalize_stepic({"policy": "text"})["policy"] == {}
     assert as_text(None) == "" and as_text(["a", "", {"concept": "b"}]) == "a; b"
+
+
+def test_signals_and_personas_read_either_field_name():
+    from common.stepic_shape import normalize_personas, normalize_signals
+    assert normalize_signals([{"dimensions": "SOCIETY + INDUSTRY", "signal": "s", "implication": "i"},
+                              {"convergence_pattern": "SOCIETY x TECHNOLOGY", "signal": "s2"}, "junk"]) == [
+        {"dimensions": "SOCIETY + INDUSTRY", "signal": "s", "implication": "i"},
+        {"dimensions": "SOCIETY x TECHNOLOGY", "signal": "s2", "implication": ""}]
+    got = normalize_personas([{"name": "A", "description": "d", "motivations": ["Fortify", "Transparency"]},
+                              {"name": "B", "value_driver": "v", "channel_preference": "TikTok"}])
+    assert got[0]["value_driver"] == "Fortify; Transparency" and got[0]["channel_preference"] == ""
+    assert got[1] == {"name": "B", "description": "", "value_driver": "v", "channel_preference": "TikTok"}

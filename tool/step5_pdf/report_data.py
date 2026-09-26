@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # tool/ -> common.stepic_shape (ไม่ใช่ bootstrap)
-from common.stepic_shape import as_text, normalize_stepic  # noqa: E402
+from common.stepic_shape import as_text, normalize_personas, normalize_signals, normalize_stepic  # noqa: E402
 
 HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
 RANK_FILE = "phase2_rank_score_final_mode_result.json"
@@ -396,8 +396,9 @@ def build_context(run_dir, catalog_path=None, top_products=5):
             "key_risk": stepic_final.get("key_risk", ""),
         },
         "stepic": _stepic_tiles(stepic_raw),
-        "personas": stepic_final.get("emerging_personas") or [],
-        "signals": stepic_final.get("cross_dimensional_signals") or [],
+        # 🆕 (2026-09-26) ชื่อช่องต่างกันแต่ละรอบ -> ชุดเดียว (ดู common/stepic_shape.py)
+        "personas": normalize_personas(stepic_final.get("emerging_personas")),
+        "signals": normalize_signals(stepic_final.get("cross_dimensional_signals")),
         "trends": trends,
         "excluded": excluded,
         "missing": missing,

@@ -63,3 +63,30 @@ def stepic_for_report(raw):
         if fields:
             report[dim] = {k: as_text(v) for k, v in fields.items()}
     return report
+
+
+# 🆕 (2026-09-26) บทสังเคราะห์ (integrate_stepic -> phase4_stepic_final_insight.json) ก็ตั้งชื่อช่องต่างกันแต่ละรอบ:
+# สัญญาณข้ามมิติ รอบ 082438 = "dimensions", รอบ 111455 = "convergence_pattern" (PDF ฉบับไทยพิมพ์ "None")
+# personas รอบ 082438 = value_driver/channel_preference, รอบ 111455 = motivations (list) (PDF ไม่แสดงเลย)
+_SIGNAL_DIMENSIONS = ("dimensions", "convergence_pattern", "dimension", "pattern")
+_PERSONA_DRIVERS = ("value_driver", "motivations", "key_motivations", "drivers")
+_PERSONA_CHANNELS = ("channel_preference", "preferred_channels", "channels")
+
+
+def _first_text(item, keys):
+    return next((as_text(item[k]) for k in keys if as_text(item.get(k))), "")
+
+
+def normalize_signals(items):
+    """สัญญาณข้ามมิติ -> [{"dimensions", "signal", "implication"}] (ข้อความทุกช่อง ช่องที่ไม่มีได้ "")"""
+    return [{"dimensions": _first_text(s, _SIGNAL_DIMENSIONS), "signal": as_text(s.get("signal")),
+             "implication": as_text(s.get("implication"))}
+            for s in (items or []) if isinstance(s, dict)]
+
+
+def normalize_personas(items):
+    """personas -> [{"name", "description", "value_driver", "channel_preference"}] (ข้อความทุกช่อง)"""
+    return [{"name": as_text(p.get("name")), "description": as_text(p.get("description")),
+             "value_driver": _first_text(p, _PERSONA_DRIVERS),
+             "channel_preference": _first_text(p, _PERSONA_CHANNELS)}
+            for p in (items or []) if isinstance(p, dict)]
