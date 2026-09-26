@@ -90,7 +90,7 @@ def load_all_clusters():
     return clusters
 
 
-# ต้องตรงกับ OUTPUT_DIR ของ ⑦ (fetch_trends_worldwide_serpapi.py) และชื่อไฟล์ที่ trend_final_v2.forecast_trend() เขียน
+# ต้องตรงกับ OUTPUT_DIR ของ ⑦ (forecast_google_trends.py) และชื่อไฟล์ที่ trend_final_v2.forecast_trend() เขียน
 FORECAST_DIR_NAME = "serpapi_forecast_run"
 FORECAST_FILE = "step5c_df_cluster_forecast.xlsx"
 

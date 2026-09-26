@@ -50,6 +50,7 @@ for _p in Path(__file__).resolve().parents:
         sys.path.insert(0, str(_p))
         break
 from common.bootstrap import PROJECT_ROOT, TOOL_DIR
+sys.path.insert(0, str(TOOL_DIR / "step3_products"))  # match_supply.py (ย้ายไป experiments/ แล้ว ไม่ได้อยู่โฟลเดอร์เดียวกัน)
 from match_supply import build_trend_matchable_text, get_embedding, cosine_similarity
 
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)

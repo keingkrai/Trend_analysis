@@ -17,6 +17,9 @@
 
 ## 📰 อัปเดตล่าสุด
 
+- **2026-09-26** — จัดโฟลเดอร์ `tool/` ตามลำดับที่รันจริง (`step1_evidence` … `step5_pdf`) และตั้งชื่อสคริปต์ตามงานที่ทำ
+  (เช่น `validate_at_scale_nvidia.py` → `step3_products/match_products.py`) สคริปต์ที่ `main.py` ไม่ได้เรียกย้ายไป
+  `experiments/` — ชื่อไฟล์ผลลัพธ์ในโฟลเดอร์รอบไม่เปลี่ยน ดูตาราง [ลำดับที่รันจริง](#ลำดับที่รันจริง)
 - **2026-09-22** — โค้ดทั้งหมดที่ใช้อยู่ใน repo นี้แล้ว ส่วนที่ใช้จริงของ `trend_final.py` / `trend_final_v2.py`
   (ระบบรุ่นแรก ไม่อยู่ใน repo) คัดลอกตรงตัวไว้ใน `tool/common/` พร้อมเทสต์เทียบต้นฉบับ
 - **2026-09-16** — คัด **Top N** (ค่าเริ่มต้น 10) ด้วย Rank Score หลังพยากรณ์ ⑪ แยกเทรนด์ "สินค้า" กับ "ช่องทาง/พฤติกรรมการซื้อ"
@@ -111,7 +114,7 @@ Market Overview, Trend Map (Z_Delta เทียบจำนวนสายท�
 LLM ใช้แค่งานภาษา: ฉบับอังกฤษเรียบเรียงจุดเด่นเทรนด์ (⑪ เป็นภาษาไทย) เป็นภาษาอังกฤษ ฉบับไทยเขียนข้อความต่อเทรนด์เป็นภาษาไทย
 และแปลบทวิเคราะห์ภาษาอังกฤษ (Takeaway, STEPIC, Personas, เหตุผลจับคู่สินค้า ฯลฯ) - ทั้งหมด cache ไว้ รันสร้าง PDF ซ้ำจึงไม่เรียก LLM อีก
 ฉบับไทยคงชื่อเทรนด์ คีย์เวิร์ดค้นหา และชื่อแบรนด์/สินค้าเป็นภาษาอังกฤษ ปีเป็น ค.ศ. ข้อความตายตัวของทั้ง 2 ภาษาอยู่ที่
-`tool/phase6_pdf_report/i18n.py`
+`tool/step5_pdf/i18n.py`
 โลโก้และชื่อบริษัทตั้งที่ `config/report_branding.json`
 
 ### รายงานแบรนด์ x เทรนด์ (⑰)
@@ -207,18 +210,18 @@ python main.py --topic "beauty and personal care" --years 3 --top-n 10 --skip-di
 
 | ลำดับ | ขั้น | สคริปต์ (ต่อจาก `tool/`) | ผลลัพธ์ในโฟลเดอร์รอบ |
 |---|---|---|---|
-| 1-3 | ①-⑤ Paper / Social / News 🤖 | `phase1_paper_stream/paper_stream.py`<br/>`phase2_three_streams/social/social_stream.py`<br/>`phase2_three_streams/news/news_stream.py` | `phase1_paper_stream_result.json`<br/>`phase2_social_stream_result.json`<br/>`phase2_news_stream_result.json` |
-| 4 | ตรวจว่า 3 สายต่างกันจริง (ไม่จำเป็น) | `phase2_three_streams/compare_all_streams.py` | `phase2_all_streams_comparison.json` |
-| 5 | ⑦ พยากรณ์ 🤖💸 | `phase2_three_streams/fetch_trends_worldwide_serpapi.py` | `phase2_paper_social_z_delta_result.json`, `serpapi_forecast_run/step5a-5c_*.xlsx` |
-| 6 | ⑧-⑨ สรุประดับหมวด | `phase2_three_streams/run_category_aggregation.py` | `phase2_category_overall_result.json` |
-| 7 | ⑥ Rank Score | `phase2_three_streams/rank_trends.py` | `phase2_rank_score_final_mode_result.json`, `phase2_longevity_cross_source_result.json` |
-| 8 | ⑪ จุดเด่น + Top N 🤖 | `phase3_supply_layer/extract_trend_highlights.py` | `phase3_trend_highlights_result.json`, `serpapi_forecast_run/step5c_df_cluster_forecast_top{N}.xlsx` |
-| 9 | ⑫ จับคู่สินค้า 🤖 | `phase3_supply_layer/validate_at_scale_nvidia.py` | `phase3_scale_validation_nvidia_result.json` |
-| 10 | ⑭-⑮ รายงาน 🤖 | `phase5_report/run_stepic_report.py` | `phase4_master_trend_report.md`, `phase4_stepic_*.json` |
-| (ถาม) | ⑩ รอบค้นพบเพิ่ม 🤖💸 | `phase2_three_streams/cross_category_discovery.py` | `phase2_cross_category_discovery_result.json` |
-| (ถาม) | ⑬ ค้นหาแบรนด์ 🤖 | `phase3_supply_layer/run_brand_coverage.py` | `phase3_brand_coverage_<แบรนด์>.json` / `.xlsx` และต่อท้ายหัวข้อแบรนด์ใน `phase4_master_trend_report.md` |
-| (ถาม) ต่อจาก ⑬ แต่ละแบรนด์ | ⑰ รายงานแบรนด์ PDF 🤖 | `phase6_pdf_report/build_brand_report.py` | `phase6_brand_report_<แบรนด์>.pdf` / `_TH.pdf`, `phase6_brand_context_<แบรนด์>.json`, `phase6_brand_enrichment_<แบรนด์>_TH.json` |
-| ท้ายสุด (ไม่จำเป็น) | ⑯ รายงาน PDF 🤖 | `phase6_pdf_report/build_pdf_report.py` | `phase6_trend_report.pdf` (อังกฤษ), `phase6_trend_report_TH.pdf` (ไทย), `phase6_report_context.json`, `phase6_report_enrichment.json` / `_TH.json` |
+| 1-3 | ①-⑤ Paper / Social / News 🤖 | `step1_evidence/paper/paper_stream.py`<br/>`step1_evidence/social/social_stream.py`<br/>`step1_evidence/news/news_stream.py` | `phase1_paper_stream_result.json`<br/>`phase2_social_stream_result.json`<br/>`phase2_news_stream_result.json` |
+| 4 | ตรวจว่า 3 สายต่างกันจริง (ไม่จำเป็น) | `step1_evidence/check_streams_differ.py` | `phase2_all_streams_comparison.json` |
+| 5 | ⑦ พยากรณ์ 🤖💸 | `step2_forecast/forecast_google_trends.py` | `phase2_paper_social_z_delta_result.json`, `serpapi_forecast_run/step5a-5c_*.xlsx` |
+| 6 | ⑧-⑨ สรุประดับหมวด | `step2_forecast/summarize_categories.py` | `phase2_category_overall_result.json` |
+| 7 | ⑥ Rank Score | `step2_forecast/rank_trends.py` | `phase2_rank_score_final_mode_result.json`, `phase2_longevity_cross_source_result.json` |
+| 8 | ⑪ จุดเด่น + Top N 🤖 | `step3_products/trend_highlights.py` | `phase3_trend_highlights_result.json`, `serpapi_forecast_run/step5c_df_cluster_forecast_top{N}.xlsx` |
+| 9 | ⑫ จับคู่สินค้า 🤖 | `step3_products/match_products.py` | `phase3_scale_validation_nvidia_result.json` |
+| 10 | ⑭-⑮ รายงาน 🤖 | `step4_report/stepic_report.py` | `phase4_master_trend_report.md`, `phase4_stepic_*.json` |
+| (ถาม) | ⑩ รอบค้นพบเพิ่ม 🤖💸 | `step2_forecast/discovery_round.py` | `phase2_cross_category_discovery_result.json` |
+| (ถาม) | ⑬ ค้นหาแบรนด์ 🤖 | `step3_products/brand_coverage.py` | `phase3_brand_coverage_<แบรนด์>.json` / `.xlsx` และต่อท้ายหัวข้อแบรนด์ใน `phase4_master_trend_report.md` |
+| (ถาม) ต่อจาก ⑬ แต่ละแบรนด์ | ⑰ รายงานแบรนด์ PDF 🤖 | `step5_pdf/brand_report_pdf.py` | `phase6_brand_report_<แบรนด์>.pdf` / `_TH.pdf`, `phase6_brand_context_<แบรนด์>.json`, `phase6_brand_enrichment_<แบรนด์>_TH.json` |
+| ท้ายสุด (ไม่จำเป็น) | ⑯ รายงาน PDF 🤖 | `step5_pdf/trend_report_pdf.py` | `phase6_trend_report.pdf` (อังกฤษ), `phase6_trend_report_TH.pdf` (ไทย), `phase6_report_context.json`, `phase6_report_enrichment.json` / `_TH.json` |
 
 ### Bump chart และแผนที่เทรนด์
 
@@ -235,10 +238,10 @@ python Plot_trend_map.py --run beauty_and_personal_care_20260916_082438
 ### รายงาน PDF ของรอบที่มีอยู่แล้ว
 
 ```powershell
-python tool/phase6_pdf_report/build_pdf_report.py                     # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
-python tool/phase6_pdf_report/build_pdf_report.py --run beauty_and_personal_care_20260916_082438
-python tool/phase6_pdf_report/build_pdf_report.py --run <รอบ> --lang th # เฉพาะฉบับภาษาไทย (en = เฉพาะอังกฤษ, ค่าเริ่มต้น both)
-python tool/phase6_pdf_report/build_pdf_report.py --run <รอบ> --no-llm  # ไม่เรียก LLM (ใช้ cache หรือข้อความสำรอง)
+python tool/step5_pdf/trend_report_pdf.py                     # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
+python tool/step5_pdf/trend_report_pdf.py --run beauty_and_personal_care_20260916_082438
+python tool/step5_pdf/trend_report_pdf.py --run <รอบ> --lang th # เฉพาะฉบับภาษาไทย (en = เฉพาะอังกฤษ, ค่าเริ่มต้น both)
+python tool/step5_pdf/trend_report_pdf.py --run <รอบ> --no-llm  # ไม่เรียก LLM (ใช้ cache หรือข้อความสำรอง)
 ```
 
 ต้องมี Chromium ของ Playwright (`playwright install chromium` ครั้งเดียว) — `--refresh-llm` เรียบเรียงข้อความใหม่ทุกเทรนด์,
@@ -247,8 +250,8 @@ python tool/phase6_pdf_report/build_pdf_report.py --run <รอบ> --no-llm  # 
 รายงานแบรนด์ (⑰) ของรอบที่มีผลค้นหาแบรนด์ (⑬) อยู่แล้ว:
 
 ```powershell
-python tool/phase6_pdf_report/build_brand_report.py --run <รอบ> --brand Mizumi                    # แบรนด์เดียว (ใส่ --brand ซ้ำได้)
-python tool/phase6_pdf_report/build_brand_report.py --run <รอบ>                                   # ทุกแบรนด์ที่มีผล ⑬ ในรอบนั้น
+python tool/step5_pdf/brand_report_pdf.py --run <รอบ> --brand Mizumi                    # แบรนด์เดียว (ใส่ --brand ซ้ำได้)
+python tool/step5_pdf/brand_report_pdf.py --run <รอบ>                                   # ทุกแบรนด์ที่มีผล ⑬ ในรอบนั้น
 ```
 
 ---
@@ -306,9 +309,9 @@ with use_bedrock(module=tf2):
 ### Embedding สินค้า
 
 ```python
-sys.path.insert(0, "tool/phase3_supply_layer")
+sys.path.insert(0, "tool/step3_products")
 import pandas as pd
-from validate_at_scale_nvidia import TOOL_DIR, embed_all_products, load_checkpoint, get_embedding
+from match_products import TOOL_DIR, embed_all_products, load_checkpoint, get_embedding
 
 df = pd.read_csv(TOOL_DIR / "product" / "watsons_product.csv", low_memory=False)
 vectors = embed_all_products(df)          # embed เฉพาะแถวที่ยังไม่มีใน cache แล้วคืน {แถว: เวกเตอร์ 2,048 มิติ}
@@ -330,7 +333,7 @@ vec = get_embedding("ครีมกันแดดไม่มีน้ำห�
 ทุกขั้นเป็นสคริปต์แยก เมื่อขั้นไหนพัง `main.py` จะพิมพ์คำสั่งซ่อมให้ ตั้งค่ารอบเดิมแล้วรันเฉพาะขั้นนั้นจากโฟลเดอร์บนสุดของ repo
 
 ```powershell
-$env:TREND_RUN_ID="beauty_and_personal_care_20260916_082438"; $env:TREND_TOPIC="beauty and personal care"; $env:TREND_YEARS="3"; $env:TREND_TOP_N="10"; python tool/phase3_supply_layer/extract_trend_highlights.py
+$env:TREND_RUN_ID="beauty_and_personal_care_20260916_082438"; $env:TREND_TOPIC="beauty and personal care"; $env:TREND_YEARS="3"; $env:TREND_TOP_N="10"; python tool/step3_products/trend_highlights.py
 ```
 
 ถ้ารันสคริปต์ตรงๆ โดยไม่ตั้ง `TREND_RUN_ID` ผลจะลงโฟลเดอร์ `adhoc_<เวลา>` (โฟลเดอร์ที่ว่างจะลบตัวเองตอนจบ)
@@ -391,24 +394,32 @@ Trend_analysis/
     │   ├── bootstrap.py              path, .env, use_bedrock(), ฟังก์ชันร่วม (select/triplet/graph/Longevity/Top N)
     │   ├── trend_final_subset.py     ส่วนที่ใช้จริงของ trend_final.py (ชื่อ tf)
     │   └── trend_final_v2_subset.py  ส่วนที่ใช้จริงของ trend_final_v2.py (ชื่อ tf2) — รวม forecast_trend
-    ├── phase1_paper_stream/          สาย Paper (+ scrapers/ MDPI, PubMed Central)
-    ├── phase2_three_streams/         สาย Social, News, ⑦ พยากรณ์, ⑧-⑨, ⑥, ⑩
-    ├── phase3_supply_layer/          ⑪ ⑫ ⑬
-    ├── phase5_report/                ⑭-⑮
+    ├── step1_evidence/               ①-⑤ หลักฐาน 3 สาย
+    │   ├── paper/                    สาย Paper (+ scrapers/ MDPI, PubMed Central)
+    │   ├── social/                   สาย Social (Pantip, Reddit, YouTube)
+    │   ├── news/                     สาย News (ไทย + สากล)
+    │   └── check_streams_differ.py   ตรวจว่า 3 สายต่างกันจริง
+    ├── step2_forecast/               ⑦ forecast_google_trends, ⑧-⑨ summarize_categories, ⑥ rank_trends, ⑩ discovery_round
+    ├── step3_products/               ⑪ trend_highlights, ⑫ match_products, ⑬ brand_coverage
+    ├── step4_report/                 ⑭-⑮ stepic_report
+    ├── step5_pdf/                    ⑯ trend_report_pdf, ⑰ brand_report_pdf
     ├── product/watsons_product.csv   สินค้า Watsons 10,622 SKU / 695 แบรนด์
-    ├── phase0_cleanup/               บันทึกการสร้าง trend_final_v2.py (ไม่ต้องรัน)
-    ├── phase4_discovery_round/       มีแค่ README — โค้ดของ ⑩ อยู่ใน phase2_three_streams/
-    └── tests/                        test_pure_functions.py, test_trend_final_subset.py
+    ├── experiments/                  สคริปต์ทดลอง/เทียบผลที่ main.py ไม่ได้เรียก
+    ├── history/                      บันทึกการพัฒนาแต่ละเฟส (ไม่ต้องรัน)
+    └── tests/                        test_pure_functions.py, test_trend_final_subset.py, test_pdf_report.py
 ```
 
 > [!TIP]
-> ชื่อโฟลเดอร์ `phase0-5` คือลำดับที่เขียนโค้ด ไม่ตรงกับเลขขั้น ①-⑮ — หาสคริปต์ของแต่ละขั้นจากตาราง [ลำดับที่รันจริง](#ลำดับที่รันจริง)
+> เลขโฟลเดอร์ `step1-5` เรียงตามลำดับที่ `main.py` รัน ส่วนเลขในวงกลม ①-⑰ คือเลขขั้นเดิมของเอกสารออกแบบ (ไม่ได้เรียงตามลำดับรัน
+> เช่น ⑥ รันหลัง ⑦) — ดูตาราง [ลำดับที่รันจริง](#ลำดับที่รันจริง) ชื่อไฟล์ผลลัพธ์ในโฟลเดอร์รอบ (`phase1_…`, `phase3_…`) ยังเป็นชื่อเดิม
+> เพื่อให้รอบเก่าอ่านได้
 
 ---
 
 ## 📚 เอกสารเพิ่มเติม
 
 - [output/README.md](output/README.md) — กติกาการตั้งชื่อโฟลเดอร์ในผลลัพธ์
-- README ของแต่ละโฟลเดอร์ใน `tool/` — รายละเอียดเฉพาะขั้น
+- [tool/README.md](tool/README.md) — มีอะไรในแต่ละโฟลเดอร์ของ `tool/`
+- `tool/history/` — บันทึกการพัฒนาแต่ละเฟส (ผลเทียบ baseline, บั๊กที่เจอระหว่างทาง)
 - เอกสารออกแบบฉบับเต็ม (หลักการ ผังการทำงาน การควบคุมคุณภาพ ประวัติการตัดสินใจ) อยู่ใน Obsidian vault ของโปรเจกต์
   ซึ่งไม่ได้อยู่ใน repo นี้

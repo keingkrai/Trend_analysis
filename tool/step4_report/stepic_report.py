@@ -340,7 +340,7 @@ def load_supply_layer_results():
         top1 = r["top_matches"][0]
         # 🆕 (2026-09-14, แก้ตามที่เจ้าของงานสั่ง) top1 อาจมี match_reason - LLM ให้แค่คำอธิบาย ไม่ตัดสิน
         # verdict แล้ว (similarity ยังเป็นตัวจัดอันดับ/ตัดสินหลักอยู่เหมือนเดิม - ดู
-        # validate_at_scale_nvidia.py's generate_match_reason()) - ใส่ต่อท้ายถ้ามี ไม่มีก็ไม่พังเพราะ
+        # match_products.py's generate_match_reason()) - ใส่ต่อท้ายถ้ามี ไม่มีก็ไม่พังเพราะ
         # ไฟล์ผลลัพธ์ที่รันก่อนแก้ฟีเจอร์นี้ (2026-09-11) จะไม่มี key นี้เลย (.get คืน None พอดี)
         reason_suffix = f" — {top1['match_reason']}" if top1.get("match_reason") else ""
         context_lines.append(
@@ -352,7 +352,7 @@ def load_supply_layer_results():
         )
         for m in r["top_matches"][:5]:
             # 🆕 (2026-09-12, audit M6) เดิม hardcode "" เสมอ ทั้งที่มีข้อมูลจริงจาก ⑫ แล้ว
-            # (validate_at_scale_nvidia.py เก็บ sale_price_thb/sold_count ไว้ให้แล้ว)
+            # (match_products.py เก็บ sale_price_thb/sold_count ไว้ให้แล้ว)
             price = m.get("sale_price_thb")
             sold = m.get("sold_count")
             product_rows.append({

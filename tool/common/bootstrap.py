@@ -2,8 +2,8 @@
 """
 bootstrap — ตัวหาตำแหน่งโปรเจกต์ให้ทุกสคริปต์ใน tool/
 
-ทำไมต้องมี: สคริปต์ใน tool/ อยู่ลึกไม่เท่ากัน (phase2_three_streams/social/ ลึก 3 ชั้น
-ส่วน phase0_cleanup/ ลึก 1 ชั้น) การเขียน BASE_DIR = parent.parent แบบตายตัวเหมือนใน analysis/
+ทำไมต้องมี: สคริปต์ใน tool/ อยู่ลึกไม่เท่ากัน (step1_evidence/social/ ลึก 2 ชั้น
+ส่วน step2_forecast/ ลึก 1 ชั้น) การเขียน BASE_DIR = parent.parent แบบตายตัวเหมือนใน analysis/
 เดิมจะพังทันทีที่ย้ายไฟล์ - ตัวนี้เดินขึ้นไปหาไฟล์ .env แทน จึงย้ายไฟล์ไปไหนก็ยังหาเจอ
 
 🆕 (2026-09-11) `PROJECT_ROOT` กับ `OUTPUTS` เป็นคนละเรื่องกันตั้งใจ แยกออกจากกันเพราะเคยพังมาแล้ว:
@@ -152,12 +152,12 @@ STAGE_IO_MAP = {
     "paper_stream": {"inputs": [], "outputs": ["phase1_paper_stream_result.json"]},
     "social_stream": {"inputs": [], "outputs": ["phase2_social_stream_result.json"]},
     "news_stream": {"inputs": [], "outputs": ["phase2_news_stream_result.json"]},
-    "fetch_trends_worldwide_serpapi": {
+    "forecast_google_trends": {
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
                    "phase2_news_stream_result.json"],
         "outputs": ["phase2_paper_social_z_delta_result.json"],
     },
-    "run_category_aggregation": {
+    "summarize_categories": {
         "inputs": ["phase2_paper_social_z_delta_result.json"],
         "outputs": ["phase2_category_overall_result.json"],
     },
@@ -166,7 +166,7 @@ STAGE_IO_MAP = {
                    "phase2_social_stream_result.json", "phase2_news_stream_result.json"],
         "outputs": ["phase2_rank_score_final_mode_result.json", "phase2_longevity_cross_source_result.json"],
     },
-    "extract_trend_highlights": {
+    "trend_highlights": {
         # 🆕 (2026-09-16) + ผล ⑥ ใช้คัด Top N เทรนด์ + ผลพยากรณ์ของ ⑦ ใช้ทำสำเนา step5c_..._top{N}.xlsx
         # (ไฟล์สำเนาชื่อเปลี่ยนตาม N จึงไม่ได้ใส่ใน outputs ที่ต้องเป็นชื่อตายตัว)
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
@@ -174,15 +174,15 @@ STAGE_IO_MAP = {
                    "serpapi_forecast_run/step5c_df_cluster_forecast.xlsx"],
         "outputs": ["phase3_trend_highlights_result.json"],
     },
-    "validate_at_scale_nvidia": {
+    "match_products": {
         "inputs": ["phase3_trend_highlights_result.json"],
         "outputs": ["phase3_scale_validation_nvidia_result.json"],
     },
-    "cross_category_discovery": {
+    "discovery_round": {
         "inputs": [],
         "outputs": ["phase2_cross_category_discovery_result.json"],
     },
-    "run_stepic_report": {
+    "stepic_report": {
         # 🆕 (2026-09-16) + ผล ⑪ ใช้อ่านชุด Top N ที่คัดไว้ (selected_trends) ให้รายงานตรงกับ ⑪-⑫
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
                    "phase2_news_stream_result.json", "phase3_scale_validation_nvidia_result.json",
@@ -191,17 +191,17 @@ STAGE_IO_MAP = {
         "outputs": ["phase4_master_trend_report.md", "phase4_stepic_raw_analysis.json",
                     "phase4_stepic_final_insight.json"],
     },
-    "build_pdf_report": {
+    "trend_report_pdf": {
         # 🆕 (2026-09-25) ⑯ รายงาน PDF ภาษาอังกฤษ - อ่านผลของขั้นเทรนด์มาจัดหน้า (ไม่รวมผล ⑬ แบรนด์)
         "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
                    "phase2_paper_social_z_delta_result.json", "phase2_longevity_cross_source_result.json",
                    "phase2_category_overall_result.json", "phase3_scale_validation_nvidia_result.json",
                    "phase4_stepic_final_insight.json", "phase4_stepic_raw_analysis.json"],
-        # 🆕 (2026-09-25) + ฉบับภาษาไทย (_TH) - build_pdf_report.py สร้าง 2 ภาษาในรันเดียว
+        # 🆕 (2026-09-25) + ฉบับภาษาไทย (_TH) - trend_report_pdf.py สร้าง 2 ภาษาในรันเดียว
         "outputs": ["phase6_trend_report.pdf", "phase6_trend_report_TH.pdf", "phase6_report_context.json",
                     "phase6_report_enrichment.json", "phase6_report_enrichment_TH.json"],
     },
-    "build_brand_report": {
+    "brand_report_pdf": {
         # 🆕 (2026-09-26) ⑰ รายงานแบรนด์ PDF - อ่านผล ⑬ phase3_brand_coverage_<แบรนด์>.json และเขียน
         # phase6_brand_report_<แบรนด์>*.pdf ชื่อเปลี่ยนตามแบรนด์ จึงไม่ได้ใส่ในรายการ (ต้องเป็นชื่อตายตัว)
         "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
@@ -215,7 +215,7 @@ _MODELS_USED_THIS_STAGE = {}  # {model_name: จำนวนครั้งท�
 
 def record_model_used(model_name):
     """ให้ use_typhoon()/use_nvidia()/use_gemini()/use_gemma()/use_deepseek()/use_deepseek_nvidia()
-    (และ use_typhoon_v2() ใน run_stepic_report.py) เรียกตอน patch จริง เพื่อให้ manifest ของขั้นนี้
+    (และ use_typhoon_v2() ใน stepic_report.py) เรียกตอน patch จริง เพื่อให้ manifest ของขั้นนี้
     บันทึกไว้ว่า "เผลอใช้โมเดลสำรอง" ตัวไหนบ้าง - ไม่ต้องรอ manifest write ตอนจบ ก็สะสมไว้ในตัวแปรนี้ก่อน"""
     _MODELS_USED_THIS_STAGE[model_name] = _MODELS_USED_THIS_STAGE.get(model_name, 0) + 1
 

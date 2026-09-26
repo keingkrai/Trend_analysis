@@ -8,14 +8,14 @@ Phase 3 — ⑬ จับคู่สินค้า (โหมด 1: แบร�
 COMPANY_NAME/PRODUCT_CATALOG_PATH ก่อนรันทีละบริษัท) — **ไม่ต้องอัปโหลดไฟล์ ไม่ต้อง scrape ใหม่เลย**
 เพราะ ⑫ มีข้อมูลสินค้าจริงครบ 10,622 SKU จาก 695 แบรนด์อยู่แล้ว แค่ filter ตาม brand ที่ผู้ใช้เลือก
 
-**ทุก embedding ที่ใช้เป็นของที่คำนวณไว้แล้วจาก ⑫ (`validate_at_scale_nvidia.py`) - ไม่ยิง NVIDIA API
+**ทุก embedding ที่ใช้เป็นของที่คำนวณไว้แล้วจาก ⑫ (`match_products.py`) - ไม่ยิง NVIDIA API
 เพิ่มเลยสำหรับฝั่งสินค้า** (โหลด checkpoint .pkl ที่ embed ครบ 10,622 ชิ้นไว้แล้ว) ยิงแค่ 15 ครั้งสำหรับ
 เทรนด์ (เหมือนเดิม) แล้วคำนวณ cosine similarity **ใหม่ทั้งหมด** (deterministic, ไม่มีค่า API เลย -
 เป็นแค่ numpy dot product ระหว่าง embedding ที่มีอยู่แล้ว) เพื่อได้ full distribution ทั้ง 10,622 ชิ้น
 ต่อเทรนด์ (ไม่ใช่แค่ top-15 ที่ ⑫ เซฟไว้) - ใช้หา percentile ที่แบรนด์ที่เลือกอยู่ตรงไหนของทั้งตลาด
 
 โมเดล/มิติต้องตรงกับที่ embed ตอน ⑫ เป๊ะ (nvidia/llama-nemotron-embed-vl-1b-v2, 2048 มิติ, asymmetric
-query/passage) - ใช้ไฟล์เดียวกัน (`validate_at_scale_nvidia.py`) import ฟังก์ชันมาโดยตรง ไม่เขียนซ้ำ
+query/passage) - ใช้ไฟล์เดียวกัน (`match_products.py`) import ฟังก์ชันมาโดยตรง ไม่เขียนซ้ำ
 
 🆕 (2026-09-16) ออกผล 2 ไฟล์ต่อแบรนด์ตามที่เจ้าของงานขอ: JSON เดิม + **Excel**
 (`phase3_brand_coverage_<แบรนด์>.xlsx` ชีต "สรุป" + "รายเทรนด์") - ข้อมูลชุดเดียวกันเป๊ะ ไม่ได้คำนวณเพิ่ม
@@ -35,7 +35,7 @@ for _p in Path(__file__).resolve().parents:
         break
 from common.bootstrap import OUTPUTS, TOOL_DIR, prompt_run_config  # noqa: E402
 
-from validate_at_scale_nvidia import (  # noqa: E402
+from match_products import (  # noqa: E402
     generate_match_reason, get_embedding, load_checkpoint, load_real_trend_profiles,
 )
 from match_supply import build_trend_matchable_text, cosine_similarity  # noqa: E402
@@ -192,7 +192,7 @@ def build_brand_section_markdown(brand, n_skus, n_market, coverage_report):
     พร้อมเหตุผลรายชิ้น ตามที่เจ้าของงานขอ - ตารางที่ 2 จะไม่ขึ้นเลยถ้าเป็นผลรอบเก่าที่ไม่มี
     `brand_top_matches` (ไม่ error)"""
     lines = [f"\n---\n\n## Brand Coverage — {brand} ({n_skus} SKU)",
-             f"> เพิ่มโดย ⑬ (`run_brand_coverage.py`, โหมด 1) - อันดับสินค้า {brand} เทียบกับสินค้า"
+             f"> เพิ่มโดย ⑬ (`brand_coverage.py`, โหมด 1) - อันดับสินค้า {brand} เทียบกับสินค้า"
              f"**ทั้งตลาด {n_market} SKU จริง** ต่อเทรนด์ (ไม่ใช่ percentile เทียบแค่เทรนด์อื่นกันเอง) "
              f"| \"อันดับเทรนด์\" = อันดับภายในชุด Top N ของรอบนี้ (1 = Rank Score สูงสุด, \"-\" = ไม่มีข้อมูลอันดับ) "
              f"| \"เหตุผล\" มาจาก LLM - อธิบายเฉยๆ ไม่ตัดสิน similarity ยังเป็นตัวจัดอันดับหลัก "
@@ -238,7 +238,7 @@ def build_brand_section_markdown(brand, n_skus, n_market, coverage_report):
 
 def append_brand_section_to_report(report_path, brand, n_skus, n_market, coverage_report):
     """🆕 (2026-09-14) เจ้าของงานขอ: อันดับสินค้าแบรนด์ต่อเทรนด์ต้องไปโผล่ใน Master Report ด้วย ไม่ใช่แค่
-    อยู่ในไฟล์ ⑬ แยกที่ไม่มีใครอ่านต่อ - ⑬ รัน**หลัง** ⑭-⑮ (run_stepic_report.py) เสมอตามลำดับใน main.py
+    อยู่ในไฟล์ ⑬ แยกที่ไม่มีใครอ่านต่อ - ⑬ รัน**หลัง** ⑭-⑮ (stepic_report.py) เสมอตามลำดับใน main.py
     จึงต่อท้าย (append) เข้าไฟล์รายงานที่มีอยู่แล้วแทนที่จะย้อนไปแก้ trend_final_v2.py (รายงานเขียนเสร็จ
     ไปแล้วตอนนี้ถึงจะมาถึงจุดนี้) - ถ้ารันหลายแบรนด์ต่อกันในรอบเดียว (main.py's loop) แต่ละแบรนด์จะได้
     section แยกของตัวเอง ต่อท้ายไปเรื่อยๆ ตามลำดับที่พิมพ์
@@ -267,7 +267,7 @@ if __name__ == "__main__":
     n_ready = sum(1 for v in product_embeddings.values() if v is not None)
     if n_ready < len(df):
         print(f"❌ embedding cache ไม่ครบ ({n_ready}/{len(df)}) - รัน "
-              f"validate_at_scale_nvidia.py (⑫) ให้จบก่อน")
+              f"match_products.py (⑫) ให้จบก่อน")
         sys.exit(1)
 
     brand_wanted, _ = prompt_run_config(default_topic="Watsons", default_years=3, ask_years=False)
@@ -283,14 +283,14 @@ if __name__ == "__main__":
     trend_profiles = load_real_trend_profiles()
     print(f"\nกำลัง embed {len(trend_profiles)} trend profile (input_type=query)...")
     # 🆕 (2026-09-12, audit M4) key ผสม "stream::trend" กันชื่อเทรนด์ชนกันข้ามสายทับกันเงียบๆ
-    # (แก้เหมือนกับที่แก้ใน validate_at_scale_nvidia.py)
+    # (แก้เหมือนกับที่แก้ใน match_products.py)
     trend_vectors, trend_names, trend_streams, trend_profile_by_key = {}, {}, {}, {}
     for profile in trend_profiles:
         stream = profile.get("stream", "?")
         key = f"{stream}::{profile['trend']}"
         text = build_trend_matchable_text(profile)
         # 🆕 (2026-09-16) ข้ามเทรนด์ที่ ⑪ ตอบ "ข้อมูลไม่พอ" ครบทุกฟิลด์ (ข้อความ embed ว่าง -> embedding API
-        # ตอบ 400) เหมือนที่ทำใน validate_at_scale_nvidia.py (⑫) - ไม่งั้น ⑬ จะพังด้วยสาเหตุเดียวกัน
+        # ตอบ 400) เหมือนที่ทำใน match_products.py (⑫) - ไม่งั้น ⑬ จะพังด้วยสาเหตุเดียวกัน
         if not text.strip():
             print(f"    ⏭️ ข้าม '{profile['trend']}' [{stream}] - ⑪ ตอบ 'ข้อมูลไม่พอ' ทุกฟิลด์ที่ใช้จับคู่")
             continue

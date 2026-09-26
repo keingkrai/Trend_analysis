@@ -3,7 +3,7 @@
 Phase 2 — รัน Step 6-7 (การตีความ LLM ของ Z_Delta) ผ่าน NVIDIA NIM's deepseek-v4-pro-0813 แทน
 OpenRouter (ที่ล้มเหลวด้วย 402 credit หมดตอนรันจริงครั้งก่อน)
 
-**ไม่ยิง SerpAPI ใหม่เลย** - โหลด monthly_df จริงที่ fetch_trends_worldwide_serpapi.py ดึงมาแล้วจาก
+**ไม่ยิง SerpAPI ใหม่เลย** - โหลด monthly_df จริงที่ forecast_google_trends.py ดึงมาแล้วจาก
 step5a_monthly_trends.xlsx (94 คีย์เวิร์ดจริง, ใช้ quota ไปแล้ว 94/98 - เหลือแค่ 4 ไม่พอ fetch ใหม่) มา
 เป็น monthly_df_override แทน แล้วรัน forecast_trend() ซ้ำ (feature engineering + modeling ทำใหม่ได้ฟรี
 เพราะเป็น local compute ล้วนๆ) แต่คราวนี้ patch tf2.client/tf2.MODEL_NAME ให้ชี้ไป NVIDIA NIM ก่อน

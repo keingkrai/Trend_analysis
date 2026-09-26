@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Phase 1 — แยกสาย Paper (นำร่อง)
-ดู workspace/phase1_paper_stream/README.md และ
+ดู workspace/step1_evidence/paper/README.md และ
 Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
 
 เป้าหมาย: ดึงกลุ่ม Scientific_Papers ออกมาเป็นสายของตัวเอง → สกัด triplet + Louvain clustering แยก
@@ -183,7 +183,7 @@ def _read_jsonl(path):
 
 def fetch_mdpi_native_pool(queries, since, until):
     """แหล่งที่ 2 🆕 (2026-09-11) — mdpi_scraper.py (เขียนโดยเพื่อนเจ้าของงาน, วางไว้ที่
-    workspace/phase1_paper_stream/scrapers/) ยิงตรงที่ mdpi.com/search ผ่าน Playwright (headed —
+    workspace/step1_evidence/paper/scrapers/) ยิงตรงที่ mdpi.com/search ผ่าน Playwright (headed —
     Akamai bot manager ของ MDPI บล็อก headless/requests/httpx ทั้งหมด แม้แต่ robots.txt) เลิกอ้อมผ่าน
     Google News domain search แบบเดิม (`site:mdpi.com` ผ่าน RSS) ที่ได้แค่ title จาก stub ไม่มี abstract
 

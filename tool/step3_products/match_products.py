@@ -51,7 +51,7 @@ RESULT_PATH = OUTPUTS / "phase3_scale_validation_nvidia_result.json"
 CHECKPOINT_EVERY = 200
 TOP_K = 15
 # 🆕 (2026-09-14) เหตุผลข้อความต้องยิง LLM จริง (เสีย credit) ต่างจาก similarity ที่คำนวณเองแบบ
-# deterministic - จำกัดไว้แค่ top 5 ที่ report ใช้จริง (ดู run_stepic_report.py's
+# deterministic - จำกัดไว้แค่ top 5 ที่ report ใช้จริง (ดู stepic_report.py's
 # load_supply_layer_results()'s `r["top_matches"][:5]`) ไม่ใช่ทั้ง TOP_K=15 ที่เก็บไว้เผื่อดูย้อนหลัง
 MATCH_REASON_TOP_K = 5
 
@@ -90,7 +90,7 @@ def _product_hash(row):
 def load_checkpoint(df=None):
     """โหลด cache จากดิสก์ - เก็บเป็น {content_hash: vector} (ทนการเรียงแถวใหม่/แถวเพิ่ม-หายได้จริง)
     ถ้าส่ง df มา จะ remap เป็น {df.index: vector} ให้ตรงกับแถวปัจจุบันของ df นั้น เพื่อความเข้ากันได้กับ
-    โค้ดที่ยังอ้างอิงด้วย index (เช่น run_brand_coverage.py ที่เรียกฟังก์ชันนี้ตรงๆ ไม่ผ่าน
+    โค้ดที่ยังอ้างอิงด้วย index (เช่น brand_coverage.py ที่เรียกฟังก์ชันนี้ตรงๆ ไม่ผ่าน
     embed_all_products)"""
     raw = {}
     if CHECKPOINT_PATH.exists():
@@ -139,11 +139,11 @@ def embed_all_products(df):
 
 
 def load_real_trend_profiles():
-    """🆕 (2026-09-11) 15 profile จริงจาก extract_trend_highlights.py (Typhoon, ⑪) - แทนที่
+    """🆕 (2026-09-11) 15 profile จริงจาก trend_highlights.py (Typhoon, ⑪) - แทนที่
     match_supply.py's TREND_PROFILES (5 ตัว, manual ล้วน) ที่ใช้ทดสอบกลไกมาตลอด"""
     path = OUTPUTS / "phase3_trend_highlights_result.json"
     if not path.exists():
-        raise SystemExit(f"❌ ไม่มี {path.name} - รัน extract_trend_highlights.py (⑪) ก่อน")
+        raise SystemExit(f"❌ ไม่มี {path.name} - รัน trend_highlights.py (⑪) ก่อน")
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     profiles = data.get("profiles") or []
@@ -266,7 +266,7 @@ if __name__ == "__main__":
                 continue
             sim = cosine_similarity(tvec, pvec)
             row = df.loc[idx]
-            # 🆕 (2026-09-12, audit M6) เดิมไม่ได้เก็บราคา/ยอดขายเลย - ปลายทาง (run_stepic_report.py)
+            # 🆕 (2026-09-12, audit M6) เดิมไม่ได้เก็บราคา/ยอดขายเลย - ปลายทาง (stepic_report.py)
             # เลย hardcode ค่าว่างเสมอ ทั้งที่มีข้อมูลจริงอยู่แล้ว (sale_price_thb เต็ม 100%, sold_count
             # มีจริงแค่ ~25% ของแถว - เก็บเป็น None ไม่ใช่ 0 เวลาไม่มีข้อมูล กัน "0 ยอดขาย" ปลอมๆ) -
             # sale_price_thb เป็น string มี comma คั่นหลักพัน (เช่น "1,790.00") ต้องตัดออกก่อนแปลงเลข

@@ -3,7 +3,7 @@
 Phase 2 — เทียบคลัสเตอร์สาย Social กับสาย Paper (Phase 1) และ baseline (pipeline เดิม)
 
 เกณฑ์วัดว่าสำเร็จตาม Phase 2 README: "3 หมวดให้ผลต่างกันจริงไหม? ถ้าเห็นตรงกันหมดทุกเทรนด์ = แยกไปก็
-เท่านั้น" - ใช้ตรรกะเดียวกับ phase1_paper_stream/compare_to_baseline.py (word-level Jaccard, ฟรี
+เท่านั้น" - ใช้ตรรกะเดียวกับ experiments/compare_to_baseline.py (word-level Jaccard, ฟรี
 ไม่ใช้ LLM)
 """
 import csv

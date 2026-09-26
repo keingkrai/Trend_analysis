@@ -1,7 +1,7 @@
 {
-  "_note": "⑯ PDF Report - โลโก้/ชื่อบริษัทบนรายงาน PDF (tool/phase6_pdf_report). logo_path นับจากโฟลเดอร์ main/ รองรับ .png .jpg .svg - ว่างไว้ = แสดงชื่อบริษัทเป็นตัวอักษรแทนโลโก้. logo_for_dark_bg = true เมื่อโลโก้มีตัวหนังสือสีขาว (ออกแบบมาสำหรับพื้นดำ): หน้าพื้นดำแสดงโลโก้ตรงๆ ส่วนหน้าพื้นขาวจะวางบนกล่องดำ - false (ค่าเริ่มต้น) = โลโก้สำหรับพื้นขาว หน้าพื้นดำจะวางบนกล่องขาวแทน",
+  "_note": "⑯ PDF Report - โลโก้/ชื่อบริษัทบนรายงาน PDF (tool/step5_pdf). logo_path นับจากโฟลเดอร์ main/ รองรับ .png .jpg .svg - ว่างไว้ = แสดงชื่อบริษัทเป็นตัวอักษรแทนโลโก้. logo_for_dark_bg = true เมื่อโลโก้มีตัวหนังสือสีขาว (ออกแบบมาสำหรับพื้นดำ): หน้าพื้นดำแสดงโลโก้ตรงๆ ส่วนหน้าพื้นขาวจะวางบนกล่องดำ - false (ค่าเริ่มต้น) = โลโก้สำหรับพื้นขาว หน้าพื้นดำจะวางบนกล่องขาวแทน",
   "company_name": "S & J International Enterprises Public Company Limited",
-  "logo_path": "tool/phase6_pdf_report/assets/logo.png",
+  "logo_path": "tool/step5_pdf/assets/logo.png",
   "logo_for_dark_bg": true,
   "prepared_by": "",
   "accent_color": "#E8611A"

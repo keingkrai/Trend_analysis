@@ -7,7 +7,7 @@ aggregate_forecast (aggregate_to_category_level/aggregate_to_overall_level), com
 ทำหน้าที่ "คำนวณคะแนนจาก verdict ที่ตัดสินไว้แล้ว" ซึ่งเป็นหลักการหลักของโปรเจกต์นี้ (LLM ให้ verdict,
 โค้ดคำนวณคะแนน ไม่ให้ LLM คิดเลขเอง) - จึงสำคัญที่สุดที่ต้องเทสได้แบบไม่ต้องยิง API
 
-รัน: pytest main/tool/tests/test_pure_functions.py -v
+รัน: pytest tool/tests/test_pure_functions.py -v
 """
 import sys
 from pathlib import Path
@@ -16,8 +16,8 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams")))
-sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams" / "social")))
+sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step2_forecast")))
+sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step1_evidence" / "social")))
 
 import pandas as pd
 import pytest
@@ -531,9 +531,9 @@ def test_collect_top_n_returns_fewer_when_not_enough_trends_have_data():
 # ---------------------------------------------------------------------------
 
 def _import_highlights_module():
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
-    import extract_trend_highlights
-    return extract_trend_highlights
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    import trend_highlights
+    return trend_highlights
 
 
 def test_export_top_n_forecast_keeps_only_selected_names_file_by_count_and_removes_stale(tmp_path):
@@ -559,8 +559,8 @@ def test_export_top_n_forecast_skips_quietly_when_forecast_missing(tmp_path):
 
 
 def test_brand_coverage_displays_top_rank_and_falls_back_to_overall_rank_for_old_results():
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
-    import run_brand_coverage as rbc
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    import brand_coverage as rbc
 
     assert rbc.display_trend_rank({"trend_top_rank": 10, "trend_overall_rank": 11}) == 10
     assert rbc.display_trend_rank({"trend_overall_rank": 11}) == 11  # ผลรอบเก่าที่ยังไม่มี top rank

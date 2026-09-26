@@ -32,11 +32,11 @@ Thin orchestrator — รันไปป์ไลน์ v2 ทั้งชุด
 step5c_df_cluster_forecast_ranks_*.xlsx, Plot_trend_map.py -> trend_top10_zdelta_streamcount.png) - ข้ามด้วย --skip-plots
 
 🆕 (2026-09-25) ⑯ รายงาน PDF 2 ไฟล์ อังกฤษ + ไทย (เฉพาะเทรนด์ ไม่มีหน้าแบรนด์/⑬) รันท้ายโหมด 1 - ข้ามด้วย
---skip-pdf / สร้างใหม่ทีหลังด้วย `python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ>`
+--skip-pdf / สร้างใหม่ทีหลังด้วย `python tool/step5_pdf/trend_report_pdf.py --run <ชื่อรอบ>`
 
 🆕 (2026-09-26) ⑰ รายงานแบรนด์ x เทรนด์ PDF (อังกฤษ + ไทย) 1 ไฟล์ต่อแบรนด์ - สร้างต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
 ทั้งโหมด 1 และโหมด 2 (โหมด 1 ข้ามด้วย --skip-pdf) / สร้างใหม่ทีหลังด้วย
-`python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ> --brand <แบรนด์>`
+`python tool/step5_pdf/brand_report_pdf.py --run <ชื่อรอบ> --brand <แบรนด์>`
 
 Usage:
     python main.py                    # เจอเมนูเลือกโหมด 1/2 ก่อน
@@ -70,26 +70,26 @@ def slugify(text, max_len=50):
 # (label, script path relative to TOOL_DIR, required?) - required=False แปลว่าพังแล้วไปต่อได้
 # (สคริปต์ต่อจากนี้จะเช็ค input file เองแล้ว error ชัดเจนถ้าขั้นก่อนหน้าไม่ผ่านจริง)
 STAGES = [
-    ("①-⑤ สาย Paper", "phase1_paper_stream/paper_stream.py", True),
-    ("①-⑤ สาย Social", "phase2_three_streams/social/social_stream.py", True),
-    ("①-⑤ สาย News", "phase2_three_streams/news/news_stream.py", True),
-    ("ยืนยัน 3 สายต่างกันจริง (sanity check)", "phase2_three_streams/compare_all_streams.py", False),
-    ("⑦ Google Trends จริง (SerpAPI - เสีย quota)", "phase2_three_streams/fetch_trends_worldwide_serpapi.py", True),
-    ("⑧-⑨ ชั้นหมวด + ภาพรวม", "phase2_three_streams/run_category_aggregation.py", True),
+    ("①-⑤ สาย Paper", "step1_evidence/paper/paper_stream.py", True),
+    ("①-⑤ สาย Social", "step1_evidence/social/social_stream.py", True),
+    ("①-⑤ สาย News", "step1_evidence/news/news_stream.py", True),
+    ("ยืนยัน 3 สายต่างกันจริง (sanity check)", "step1_evidence/check_streams_differ.py", False),
+    ("⑦ Google Trends จริง (SerpAPI - เสีย quota)", "step2_forecast/forecast_google_trends.py", True),
+    ("⑧-⑨ ชั้นหมวด + ภาพรวม", "step2_forecast/summarize_categories.py", True),
     # 🆕 (2026-09-16) เปลี่ยนเป็นขั้นที่ต้องผ่าน - ⑪ เป็นต้นไปใช้ผลนี้คัด Top N เทรนด์ (ดู bootstrap.select_top_trends)
-    ("⑥ รวมคีย์เวิร์ด + Rank Score (ใช้คัด Top N)", "phase2_three_streams/rank_trends.py", True),
-    ("⑪ จับคู่จุดเด่น (LLM)", "phase3_supply_layer/extract_trend_highlights.py", True),
-    ("⑫ ชั้นอุปทาน (embed 10,622 SKU จริง)", "phase3_supply_layer/validate_at_scale_nvidia.py", True),
-    ("⑭-⑮ STEPIC → Master Report", "phase5_report/run_stepic_report.py", True),
+    ("⑥ รวมคีย์เวิร์ด + Rank Score (ใช้คัด Top N)", "step2_forecast/rank_trends.py", True),
+    ("⑪ จับคู่จุดเด่น (LLM)", "step3_products/trend_highlights.py", True),
+    ("⑫ ชั้นอุปทาน (embed 10,622 SKU จริง)", "step3_products/match_products.py", True),
+    ("⑭-⑮ STEPIC → Master Report", "step4_report/stepic_report.py", True),
 ]
 DISCOVERY_STAGE = ("⑩ รอบค้นพบเพิ่ม (optional, เสีย quota เล็กน้อย)",
-                   "phase2_three_streams/cross_category_discovery.py", False)
-BRAND_STAGE = "phase3_supply_layer/run_brand_coverage.py"  # ⑬ - แยกไปด้านล่าง ไม่ใช่ topic เดียวกัน
+                   "step2_forecast/discovery_round.py", False)
+BRAND_STAGE = "step3_products/brand_coverage.py"  # ⑬ - แยกไปด้านล่าง ไม่ใช่ topic เดียวกัน
 # 🆕 (2026-09-26) ⑰ รายงานแบรนด์ x เทรนด์ PDF (อังกฤษ + ไทย) 1 ไฟล์ต่อแบรนด์ - รันต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
-BRAND_REPORT_STAGE = "phase6_pdf_report/build_brand_report.py"
+BRAND_REPORT_STAGE = "step5_pdf/brand_report_pdf.py"
 # 🆕 (2026-09-25) ⑯ รายงาน PDF - ไม่อยู่ใน STAGES เพราะไม่บังคับ (ไม่เกี่ยวกับ ⑬ แบรนด์):
 # PDF พังต้องไม่ทำให้รอบรันเป็นชั่วโมงเสีย (ผลทุกขั้นยังอยู่ครบ สร้าง PDF ใหม่ทีหลังได้ด้วยคำสั่งเดี่ยว)
-PDF_STAGE = ("⑯ รายงาน PDF (อังกฤษ + ไทย)", "phase6_pdf_report/build_pdf_report.py", False)
+PDF_STAGE = ("⑯ รายงาน PDF (อังกฤษ + ไทย)", "step5_pdf/trend_report_pdf.py", False)
 # 🆕 (2026-09-25) กราฟสรุปผลของรอบ - สคริปต์อยู่ที่ root ของ repo (ไม่ใช่ tool/) รับ --run <run_id> ไม่ถามเลือกรอบ
 # ไม่บังคับ: กราฟพังต้องไม่ทำให้รอบรันเป็นชั่วโมงเสีย (รันซ้ำเดี่ยวๆ ทีหลังได้ด้วย python <สคริปต์> --run <รอบ>)
 # ต้องรันหลัง STAGES ครบ - อ่านผล ⑦ (step5c) และ ⑪ (ชุด Top N)
@@ -140,7 +140,7 @@ def _list_available_runs():
     (มีผล ⑪ trend profile อยู่) เรียงจากอัปเดตล่าสุดไปเก่าสุด - รวม "ข้อมูลเก่าก่อนมีระบบแยกรอบ" (เก็บ
     แบนๆ ที่ output/ ตรงๆ ไม่มี run_id subfolder) เป็นตัวเลือกพิเศษด้วยถ้ามีจริง (ดู bootstrap.py's
     "_legacy_flat" sentinel) - ไม่เช็ค embedding checkpoint ตรงนี้ (เป็น global ข้ามรอบอยู่แล้ว เช็คจริง
-    ที่ run_brand_coverage.py เองตอนรัน จะรายงานชัดเจนถ้าไม่ครบ)
+    ที่ brand_coverage.py เองตอนรัน จะรายงานชัดเจนถ้าไม่ครบ)
 
     label ของแต่ละตัวเลือกจะพยายามใส่หัวข้อจริง (จาก _get_run_topic()) นำหน้าเสมอ - ตกมาที่ label เดิม
     (เช่น ชื่อโฟลเดอร์) ถ้าอ่านหัวข้อจริงไม่ได้"""
@@ -170,7 +170,7 @@ def _list_available_runs():
 
 
 def run_brand_lookup_loop(env, make_pdf=True):
-    """ลูปถามชื่อแบรนด์ต่อเนื่อง เรียก ⑬ (run_brand_coverage.py) ทีละแบรนด์ - ใช้ร่วมกันทั้งโหมด 1
+    """ลูปถามชื่อแบรนด์ต่อเนื่อง เรียก ⑬ (brand_coverage.py) ทีละแบรนด์ - ใช้ร่วมกันทั้งโหมด 1
     (ท้ายไปป์ไลน์ที่เพิ่งรันจบ) และโหมด 2 (เลือกรอบเก่ามาเช็ค) กันโค้ดซ้ำ - คืนจำนวนแบรนด์ที่รัน
     🆕 (2026-09-26) make_pdf: หลัง ⑬ ของแต่ละแบรนด์ สร้างรายงานแบรนด์ PDF (⑰) ของแบรนด์นั้นต่อทันที"""
     print("\n" + "-" * 70)
@@ -183,7 +183,7 @@ def run_brand_lookup_loop(env, make_pdf=True):
             return n_brands
         n_brands += 1
         brand_env = env.copy()
-        brand_env["TREND_TOPIC"] = brand  # run_brand_coverage.py ใช้ prompt_run_config ตัวเดียวกัน
+        brand_env["TREND_TOPIC"] = brand  # brand_coverage.py ใช้ prompt_run_config ตัวเดียวกัน
         run_stage(f"⑬ Brand Coverage — {brand}", BRAND_STAGE, False, brand_env)
         if make_pdf:
             # ถ้า ⑬ พัง (ไม่มีผลของแบรนด์นี้) ⑰ จะแจ้งเองว่าไม่พบผลแล้วจบ - ไม่บังคับ ไม่หยุดลูป

@@ -38,7 +38,7 @@ MASTER_REPORT_COLS = ["cluster_id", "trend", "model", "status", "current_z", "fo
                       "peak_month", "keywords", "context", "data_quality", "pct_months_with_data"]
 
 # ข้อความภาษาไทยที่ขั้นก่อนหน้าเขียนไว้เป็นค่าตายตัว -> ภาษาอังกฤษ (รายงานเป็นภาษาอังกฤษทั้งเล่ม)
-# ต้องตรงกับ extract_trend_highlights.py's exclusion_reason() ทุกตัวอักษร
+# ต้องตรงกับ trend_highlights.py's exclusion_reason() ทุกตัวอักษร
 EXCLUSION_REASON_EN = {
     "เทรนด์ประเภทช่องทาง/พฤติกรรมการซื้อ - ไม่มีคุณสมบัติสินค้าให้จับคู่":
         "Sales-channel / shopping-behaviour trend - no product attributes to match against products",
@@ -142,7 +142,7 @@ def load_master_report(forecast):
 
 def load_trend_rows(run_dir):
     """แถวเทรนด์เต็ม (Target/Key Benefits/Longevity ฯลฯ) -> {(stream, ชื่อเทรนด์): row}
-    ใช้ Longevity ที่ปรับข้ามสายแล้ว (⑥) ก่อน ถ้าไม่มีค่อยใช้แถวดิบจากไฟล์ผลแต่ละสาย (เหมือน run_stepic_report.py)"""
+    ใช้ Longevity ที่ปรับข้ามสายแล้ว (⑥) ก่อน ถ้าไม่มีค่อยใช้แถวดิบจากไฟล์ผลแต่ละสาย (เหมือน stepic_report.py)"""
     rows = {}
     for stream, fname in STREAM_FILES.items():
         for t in (read_json(run_dir / fname) or {}).get("trends", []):
@@ -220,7 +220,7 @@ def _models_used(manifest):
 
 
 def _stepic_tiles(raw):
-    """6 ช่อง STEPIC -> [{dimension, headline, body}] - แต่ละมิติ LLM ตอบคนละโครง (ดู run_stepic_report.py)
+    """6 ช่อง STEPIC -> [{dimension, headline, body}] - แต่ละมิติ LLM ตอบคนละโครง (ดู stepic_report.py)
     จึงต้องระบุช่องที่ใช้ต่อมิติ ช่องไหนหายก็ตกไปใช้ช่องถัดไปที่มีข้อความ"""
     if not raw:
         return []

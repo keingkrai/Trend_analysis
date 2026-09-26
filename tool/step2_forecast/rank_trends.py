@@ -320,7 +320,7 @@ if __name__ == "__main__":
     else:
         print("✅ ทุกสายมี Cluster Size จริง")
 
-    # 🆕 (2026-09-11) โหลด Z_Delta จริงจาก fetch_trends_worldwide_serpapi.py ถ้ารันแล้ว - ยกระดับจาก
+    # 🆕 (2026-09-11) โหลด Z_Delta จริงจาก forecast_google_trends.py ถ้ารันแล้ว - ยกระดับจาก
     # โหมด preliminary (cluster size) เป็น final (Z_Delta) โดยอัตโนมัติ ไม่ต้องแก้โค้ดตอนมีข้อมูลจริง
     # build_trend_keyword_mapping() (ในไฟล์นั้น) ผูก trend_name เป็น key เดียวข้ามทุกสาย (ไม่แยกสาย) จึง
     # map ชื่อเทรนด์ -> Z_Delta ตัวเดียวใช้ได้กับทุกสายที่มีชื่อเทรนด์ตรงกันเป๊ะ
@@ -363,7 +363,7 @@ if __name__ == "__main__":
 
     # 🆕 (2026-09-12, audit M5) เดิมสคริปต์นี้พิมพ์ผลออกจอเฉยๆ ไม่เซฟไฟล์เลย - เซฟทั้ง 2 อย่าง:
     # (1) ตาราง Rank Score รวมทุกสาย (2) Longevity ที่แก้ D2 แล้วต่อสาย ให้ขั้นถัดไปอ่านได้
-    # ⚠️ ขั้นถัดไป (⑪ extract_trend_highlights.py, ⑭-⑮ run_stepic_report.py) ยังไม่ได้แก้ให้อ่านไฟล์นี้
+    # ⚠️ ขั้นถัดไป (⑪ trend_highlights.py, ⑭-⑮ stepic_report.py) ยังไม่ได้แก้ให้อ่านไฟล์นี้
     # แทนไฟล์ stream ดิบ - เป็นงานต่อยอดที่ต้องทำแยก (ดู [[แผนแก้ Data Science Audit]])
     rank_out = OUTPUTS / "phase2_rank_score_final_mode_result.json"
     df_result.to_json(rank_out, orient="records", force_ascii=False, indent=2)

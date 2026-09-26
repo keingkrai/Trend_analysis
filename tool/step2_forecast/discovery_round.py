@@ -27,7 +27,7 @@ from common.bootstrap import OUTPUTS, PROJECT_ROOT, tf, use_bedrock, safe_json_p
 # 🆕 (2026-09-22) ส่วนที่ใช้จริงของ trend_final_v2.py คัดลอกตรงตัวไว้ใน main/ (common/trend_final_v2_subset.py)
 from common import trend_final_v2_subset as tf2  # noqa: E402
 
-from fetch_trends_worldwide_serpapi import (  # noqa: E402
+from forecast_google_trends import (  # noqa: E402
     build_trend_keyword_mapping, check_quota, _force_worldwide_query,
 )
 
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     user_query = _force_worldwide_query(topic)
     print(f"\nกำลังยิง Google Trends เฉพาะ {len(all_new_keywords)} คำใหม่ (worldwide) แล้วพยากรณ์...")
     # 🆕 (2026-09-16) แพตช์ tf2 ด้วย - Step 6-7 ข้างใน forecast_trend() เคยยิง OpenRouter (402) เพราะ
-    # use_bedrock() ปกติแพตช์แค่ trend_final v1 (ดู fetch_trends_worldwide_serpapi.py จุดเดียวกัน)
+    # use_bedrock() ปกติแพตช์แค่ trend_final v1 (ดู forecast_google_trends.py จุดเดียวกัน)
     with use_bedrock(module=tf2):
         cluster_names, df_results, master_report, _ = tf2.forecast_trend(
             OUTPUT_DIR, theme_mapping, user_query, horizon=horizon_months,

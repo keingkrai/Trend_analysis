@@ -16,10 +16,10 @@
     phase6_report_enrichment_TH.json     cache ข้อความ/คำแปลภาษาไทยจาก LLM
 
 Usage:
-    python tool/phase6_pdf_report/build_pdf_report.py                  # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
-    python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ>
-    python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ> --lang th   # เฉพาะฉบับภาษาไทย
-    python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ> --no-llm    # ไม่เรียก LLM เลย
+    python tool/step5_pdf/trend_report_pdf.py                  # ถามว่าจะใช้รอบไหน (Enter = ล่าสุด)
+    python tool/step5_pdf/trend_report_pdf.py --run <ชื่อรอบ>
+    python tool/step5_pdf/trend_report_pdf.py --run <ชื่อรอบ> --lang th   # เฉพาะฉบับภาษาไทย
+    python tool/step5_pdf/trend_report_pdf.py --run <ชื่อรอบ> --no-llm    # ไม่เรียก LLM เลย
 main.py เรียกขั้นนี้ให้เองท้ายไปป์ไลน์ โดยส่ง TREND_RUN_ID มาทาง env (ได้ทั้ง 2 ภาษา)
 """
 import argparse
@@ -45,7 +45,7 @@ LANG_LABELS = {"en": "ภาษาอังกฤษ", "th": "ภาษาไท
 sys.path.insert(0, str(HERE))
 from report_data import HIGHLIGHTS_FILE, build_context, read_json  # noqa: E402
 
-DEFAULT_BRANDING = {"company_name": "S & J International Enterprises Public Company Limited", "logo_path": "tool/phase6_pdf_report/assets/logo.png", "logo_for_dark_bg": True,
+DEFAULT_BRANDING = {"company_name": "S & J International Enterprises Public Company Limited", "logo_path": "tool/step5_pdf/assets/logo.png", "logo_for_dark_bg": True,
                     "prepared_by": "", "accent_color": "#E8611A"}
 
 

@@ -17,9 +17,9 @@ LLM: แปลเหตุผลจับคู่สินค้าของแ
     phase6_brand_enrichment_<แบรนด์>_TH.json      cache คำแปลเหตุผลจับคู่สินค้า
 
 Usage:
-    python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ> --brand Mizumi
-    python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ> --brand Mizumi --brand Eucerin
-    python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ>          # ทุกแบรนด์ที่มีผล ⑬ ในรอบนั้น
+    python tool/step5_pdf/brand_report_pdf.py --run <ชื่อรอบ> --brand Mizumi
+    python tool/step5_pdf/brand_report_pdf.py --run <ชื่อรอบ> --brand Mizumi --brand Eucerin
+    python tool/step5_pdf/brand_report_pdf.py --run <ชื่อรอบ>          # ทุกแบรนด์ที่มีผล ⑬ ในรอบนั้น
 main.py เรียกให้เองหลัง ⑬ ของแต่ละแบรนด์ (ทั้งโหมด 1 และโหมด 2) โดยส่ง TREND_RUN_ID ทาง env + --brand
 """
 import argparse
@@ -33,7 +33,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import build_pdf_report as trend_report  # noqa: E402  (ตัวเลือกรอบ/branding/bootstrap/ข้อความเทรนด์ ใช้ร่วมกับ ⑯)
+import trend_report_pdf as trend_report  # noqa: E402  (ตัวเลือกรอบ/branding/bootstrap/ข้อความเทรนด์ ใช้ร่วมกับ ⑯)
 from brand_data import (build_brand_context, brand_reason_groups, find_coverage_file,  # noqa: E402
                         list_coverage_files, load_catalog, load_config, safe_file_part)
 from report_data import build_context, read_json  # noqa: E402

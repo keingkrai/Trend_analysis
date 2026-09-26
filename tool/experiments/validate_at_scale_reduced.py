@@ -26,7 +26,8 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-from common.bootstrap import OUTPUTS, PROJECT_ROOT, CHECKPOINTS
+from common.bootstrap import OUTPUTS, PROJECT_ROOT, CHECKPOINTS, TOOL_DIR
+sys.path.insert(0, str(TOOL_DIR / "step3_products"))  # match_supply.py (ย้ายไป experiments/ แล้ว ไม่ได้อยู่โฟลเดอร์เดียวกัน)
 from match_supply import TREND_PROFILES, build_trend_matchable_text, cosine_similarity
 
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)

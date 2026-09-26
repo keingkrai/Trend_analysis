@@ -131,7 +131,7 @@ def evaluate_one_series(g, horizon):
 
 if __name__ == "__main__":
     if not DATA_PATH.exists():
-        raise SystemExit(f"❌ ไม่มี {DATA_PATH} - ต้องรัน ⑦ (fetch_trends_worldwide_serpapi.py) มาก่อน "
+        raise SystemExit(f"❌ ไม่มี {DATA_PATH} - ต้องรัน ⑦ (forecast_google_trends.py) มาก่อน "
                           f"อย่างน้อย 1 ครั้งเพื่อได้ไฟล์ feature จริง")
 
     print("=" * 70)

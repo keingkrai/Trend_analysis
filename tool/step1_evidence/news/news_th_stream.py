@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Phase 2 — สายข่าวต่างประเทศ (News-Intl)
-ดู workspace/phase2_three_streams/README.md และ
+Phase 2 — สายข่าวไทย (News-Thai)
+ดู tool/history/phase2_three_streams.md และ
 Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
 
-เป้าหมาย: แยกสายข่าวออกจาก Paper (ที่เคยปนกันใน config/rss_feeds.json) เป็นสายของตัวเอง
-ฝั่งต่างประเทศ - ใช้ RSS ที่เป็นอังกฤษ/สากลอยู่แล้วโดยธรรมชาติ (B2B_Industry + B2C_Review + Mintel
-จาก Market) ไม่รวม Scientific_Papers (เป็นของสาย Paper แล้ว) และไม่รวม baramizilab.co.th/
-brandinside.asia (เป็นของสาย News-Thai แทน)
+เป้าหมาย: คู่กับ news_intl_stream.py - ใช้ RSS + Google News ที่เป็นไทยจริงๆ (baramizilab.co.th,
+brandinside.asia จากกลุ่ม Market เดิม + Google News domain-targeted เฉพาะโดเมนไทย) locale ไทย
+(hl=th&gl=TH) ตามที่ควรเป็นจริงๆ สำหรับเนื้อหาไทย - ต่างจากสาย Paper/News-Intl ที่ locale ไทยเคย
+พิสูจน์แล้วว่าบล็อกเนื้อหาสากล แต่ที่นี่เนื้อหา "เป็นไทย" อยู่แล้วโดยธรรมชาติ locale ไทยจึงเหมาะสม
+(ไม่ใช่ตัวบล็อกเหมือนกรณี MDPI)
 
-หลักการเดียวกับที่ทำให้ Paper stream ใช้ locale hl=en&gl=US แทน hl=th&gl=TH - Google News
-domain-targeted search ของสาย Paper พิสูจน์แล้วว่า locale ไทย (ที่ pipeline หลัก hardcode ไว้ทุกจุด)
-บล็อกเนื้อหาสากลจนเหลือ 0 ผลลัพธ์ - ข่าวอุตสาหกรรมความงามสากลก็มีความเสี่ยงแบบเดียวกัน จึงใช้
-locale อังกฤษที่นี่ด้วย (ไม่ใช้ domain-targeted search เลย เพราะ RSS 11 แหล่งครอบคลุมพอแล้ว
-ใช้ Google News แบบ general search เสริมแทน)
-
-**ใช้ฟังก์ชันเดิมจาก trend_final.py ทั้งหมด** (ผ่าน bootstrap) เหมือน paper_stream.py/social_stream.py
+ตัด mdpi.com ออกจาก google_news_domains เดิม (เป็นของสาย Paper แล้ว) เหลือแค่โดเมนข่าว/ไลฟ์สไตล์ไทย
 """
 import sys
 import urllib.parse
@@ -37,46 +32,31 @@ TOPIC = "beauty and personal care trends"  # default - ผู้ใช้พิ�
 N_QUERIES = 3
 YEARS_BACK = 2
 TOP_K_SCRAPE = 8
-CONTENT_CHAR_LIMIT = 6000  # ข่าวสั้นกว่าเปเปอร์วิชาการมาก ใช้ limit เดิมของ pipeline หลักพอ
+CONTENT_CHAR_LIMIT = 6000
 
-# RSS 11 แหล่งที่เป็นอังกฤษ/สากลอยู่แล้วโดยธรรมชาติ (ตัด Scientific_Papers ออก - เป็นของสาย Paper แล้ว
-# ตัด baramizilab.co.th/brandinside.asia ออก - เป็นของสาย News-Thai แทน)
-INTL_RSS_GROUPS = ("B2B_Industry", "B2C_Review")
-INTL_MARKET_URL = "https://www.mintel.com/insights/beauty-and-personal-care/feed/"
+TH_MARKET_URLS = ["https://baramizilab.co.th/trend-reports/feed/", "https://brandinside.asia/feed/"]
+# ตัด mdpi.com ออก (เป็นของสาย Paper แล้ว) เหลือโดเมนข่าว/ไลฟ์สไตล์ไทยล้วน
+TH_DOMAINS = ["vogue.co.th", "ellethailand.com", "wongnai.com", "thestandard.co", "brandinside.asia"]
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-SYSTEM_PROMPT_QUERIES = """You are a beauty industry trade journalist searching international
-industry news, market research, and consumer-review publications for coverage relevant to this topic.
+SYSTEM_PROMPT_QUERIES = """คุณคือนักข่าวสายอุตสาหกรรมความงามที่ค้นหาข่าว/บทความไทยเกี่ยวกับหัวข้อนี้
+สร้างคำค้นหาภาษาไทยที่นักข่าว/นักการตลาดไทยจริงๆ จะพิมพ์ค้น ไม่ใช่แปลคำอังกฤษตรงตัว
 
-IMPORTANT: International trade press does not write country-specific or future-year-specific
-coverage (nobody publishes an article titled "Thailand body wash trends 2030"). It covers global
-product/ingredient/format trends instead. Strip out any country name and any specific year from the
-topic - generate queries about the underlying PRODUCT CATEGORY and its trends only. The articles
-found will be evaluated afterward for relevance to the target market; they don't need to mention it
-themselves.
+กฎสำคัญ:
+- สั้น กระชับ 2-5 คำ แบบคำค้นจริง
+- ครอบคลุมมุมต่างกัน เช่น เทรนด์ตลาด, การเปิดตัวสินค้าใหม่, พฤติกรรมผู้บริโภคไทย
 
-Generate search queries a trade journalist would actually type - industry/market-research language,
-not consumer slang and not scientific-paper language.
-
-Rules:
-- 2-5 words, like a real search query
-- NEVER include a country name or a specific/future year
-- Cover different angles: market trends, product launches, ingredient movements, consumer sentiment
-
-Example: topic "Trend Body Wash Thailand 2030" -> queries about "body wash" / "shower gel" /
-"personal cleansing" trends in general, NOT "body wash Thailand 2030".
-
-Answer JSON only: {"queries": ["query 1", "query 2", ...]}
+ตอบเป็น JSON เท่านั้น: {"queries": ["คำค้น 1", "คำค้น 2", ...]}
 """
 
 
-def generate_intl_queries(topic, n):
+def generate_th_queries(topic, n):
     try:
         response = tf.client.chat.completions.create(
             model=tf.MODEL_NAME_META,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT_QUERIES},
-                {"role": "user", "content": f"Topic: '{topic}'\nGenerate {n} queries."},
+                {"role": "user", "content": f"หัวข้อ: '{topic}'\nสร้างคำค้น {n} คำ"},
             ],
             temperature=0.3,
             max_tokens=800,  # 🆕 กันเผื่อโมเดลที่มี thinking ฝัง (ดู Backlog ข้อ 29) - เดิมไม่มี
@@ -89,15 +69,12 @@ def generate_intl_queries(topic, n):
         return []
 
 
-def fetch_news_intl_pool(queries, years_back=YEARS_BACK):
+def fetch_news_th_pool(queries, years_back=YEARS_BACK):
     all_news = []
     seen_links = set()
 
-    # 1. RSS ตรงจาก B2B_Industry + B2C_Review + Mintel
-    print("  📡 ดึง RSS (B2B_Industry + B2C_Review + Mintel)...")
-    rss_groups, _ = tf.load_feed_config()
-    urls = [u for g in INTL_RSS_GROUPS for u in rss_groups.get(g, [])] + [INTL_MARKET_URL]
-    for url in urls:
+    print("  📡 ดึง RSS (baramizilab.co.th + brandinside.asia)...")
+    for url in TH_MARKET_URLS:
         try:
             feed = feedparser.parse(url)
             n = 0
@@ -106,21 +83,21 @@ def fetch_news_intl_pool(queries, years_back=YEARS_BACK):
                 if link and link not in seen_links:
                     seen_links.add(link)
                     all_news.append({"title": entry.get("title", "No Title"), "link": link,
-                                      "source": "Intl RSS"})
+                                      "source": "Thai RSS"})
                     n += 1
             print(f"     {url} -> {n} รายการ")
         except Exception as e:
             print(f"     ⚠️ ดึง {url} ไม่ได้: {e}")
 
-    # 2. Google News แบบ general search, locale อังกฤษ (ไม่จำกัดโดเมน - RSS ครอบคลุมพอแล้ว)
     base_url = "https://news.google.com/rss/search"
     current_year = datetime.now().year
+    domain_filter = " OR ".join(f"site:{d}" for d in TH_DOMAINS)
     for q in queries:
-        print(f"  🔍 ค้น Google News (Intl) สำหรับ: '{q}'...")
+        print(f"  🔍 ค้น Google News (Thai domains) สำหรับ: '{q}'...")
         for i in range(years_back):
             start_year, end_year = current_year - i - 1, current_year - i
-            time_query = f"{q} after:{start_year}-01-01 before:{end_year}-01-01"
-            url = f"{base_url}?q={urllib.parse.quote(time_query)}&hl=en&gl=US&ceid=US:en"
+            time_query = f"({q}) ({domain_filter}) after:{start_year}-01-01 before:{end_year}-01-01"
+            url = f"{base_url}?q={urllib.parse.quote(time_query)}&hl=th&gl=TH&ceid=TH:th"
             try:
                 resp = requests.get(url, headers=HEADERS, timeout=30)
                 feed = feedparser.parse(resp.content)
@@ -128,7 +105,7 @@ def fetch_news_intl_pool(queries, years_back=YEARS_BACK):
                     if entry.link not in seen_links:
                         seen_links.add(entry.link)
                         all_news.append({"title": entry.title, "link": entry.link,
-                                          "source": "Google News (Intl)"})
+                                          "source": "Google News (Thai)"})
             except Exception as e:
                 print(f"     ⚠️ {e}")
 
@@ -136,20 +113,32 @@ def fetch_news_intl_pool(queries, years_back=YEARS_BACK):
     return all_news
 
 
-def run_news_intl_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
+def run_news_th_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
     print(f"หัวข้อ: {topic}")
-    queries = generate_intl_queries(topic, n_queries)
+    queries = generate_th_queries(topic, n_queries)
     print(f"คำค้นที่สร้าง: {queries}")
     if not queries:
         print("❌ สร้างคำค้นไม่สำเร็จ")
         return None
 
-    pool = fetch_news_intl_pool(queries)
+    pool = fetch_news_th_pool(queries)
     if not pool:
         print("❌ ไม่เจอข่าวเลย")
         return None
 
-    top_news = select_top_news(topic, pool, top_k=top_k, kind="news")
+    # 🆕 (2026-09-08, Backlog ข้อ 7) พบระหว่างตรวจโค้ด (ยังไม่เคยรัน News-Thai เต็มสักครั้ง): ตัวกรอง
+    # คำหลักใน select_top_news() (ชั้น ①, deterministic) ใช้ 'topic.lower().split()' เทียบกับ title -
+    # แต่ topic ที่ส่งเข้ามาเป็นภาษาอังกฤษ ("Trend Body Wash Thailand 2030") ส่วน title ในสายนี้เป็น
+    # ภาษาไทยล้วน จึงแทบไม่มีทางตรงกันเลย (ทดสอบแล้ว - รอดแค่ตัวเลข "2030" ที่บังเอิญเหมือนกันข้ามภาษา)
+    # ลองสลับไปใช้ 'queries' (คำค้นภาษาไทยที่สร้างไว้ข้างบน) แทนก็ไม่ช่วย เพราะ .split() แบ่งคำแบบ
+    # อังกฤษ (เว้นวรรค) ไม่ได้ผลกับภาษาไทยที่ไม่มีช่องว่างระหว่างคำเลย (ต้องใช้ตัวตัดคำไทยจริง เช่น
+    # pythainlp ถึงจะแก้ตรงจุดได้ - นอกขอบเขตงานเล็กๆ นี้) สรุป: การกรองคำหลักแบบ substring จะไม่ให้
+    # สัญญาณที่เชื่อถือได้กับเนื้อหาไทยเลยไม่ว่า topic จะเป็นภาษาไหน - ให้ตัดชั้น ① (pre-filter) ทิ้งไป
+    # เลยสำหรับสายนี้โดยเฉพาะ (ตัด pool เหลือ 30 ตรงๆ ก่อนส่งเข้า select_top_news แทน ให้ len<=30 เข้า
+    # เงื่อนไข skip ตัวกรองในตัวอยู่แล้ว) แล้วให้ชั้น ② (LLM, เข้าใจความหมายภาษาไทยจริง ไม่ใช่ substring)
+    # เป็นตัวกรองความเกี่ยวข้องเพียงชั้นเดียว - พฤติกรรมนี้ตรงกับ fallback ที่ select_top_news() ทำอยู่
+    # แล้วเวลาตัวกรองคำหลักได้ 0 ผล เพียงแต่ทำให้เป็นพฤติกรรมที่ตั้งใจและโปร่งใส ไม่ใช่เผลอ fallback
+    top_news = select_top_news(topic, pool[:30], top_k=top_k, kind="news")
     print(f"  🧠 เลือกมา {len(top_news)} รายการสำหรับ scrape")
 
     scraped_data = []
@@ -164,7 +153,7 @@ def run_news_intl_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
             continue
         try:
             print(f"  🌐 [SCRAPE] {article['title'][:60]}")
-            raw_text, decoded_url = scrape_article(link)  # bootstrap: แก้บั๊ก Apify Run object แล้ว
+            raw_text, decoded_url = scrape_article(link)
             text_clean = tf.process_and_clean_content(raw_text)
             if len(text_clean) > 150:
                 text_clean = text_clean[:CONTENT_CHAR_LIMIT]
@@ -178,7 +167,7 @@ def run_news_intl_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
             print(f"     ⚠️ scrape ล้มเหลว: {e}")
 
     if not scraped_data:
-        print("❌ scrape ไม่ได้เลยสักบทความ")
+        print("❌ scrape ไม่ได้เลยสักบทความ - ตัวกรอง Thai อาจแคบเกินไป (แค่ 2 RSS + 5 โดเมน)")
         return None
     tf.save_scrape_cache(tf.url_cache)
 
@@ -214,16 +203,16 @@ def run_news_intl_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
 
 
 if __name__ == "__main__":
-    # ⚠️ ปกติรันผ่าน news_stream.py (สายรวม 3 สาย) - ไฟล์นี้เก็บไว้ debug ฝั่งสากลเดี่ยวๆ
+    # ⚠️ ปกติรันผ่าน news_stream.py (สายรวม 3 สาย) - ไฟล์นี้เก็บไว้ debug ฝั่งไทยเดี่ยวๆ
     topic, _ = prompt_run_config(default_topic=TOPIC, ask_years=False)
     from common.bootstrap import use_bedrock
     with use_bedrock():  # 🆕 (2026-09-15) เปลี่ยนจาก NVIDIA nemotron-ultra -> AWS Bedrock
-        result = run_news_intl_stream(topic=topic)
+        result = run_news_th_stream(topic=topic)
 
     if result is None:
         raise SystemExit(1)
 
-    out_path = OUTPUTS / "phase2_news_intl_stream_result.json"
+    out_path = OUTPUTS / "phase2_news_th_stream_result.json"
     import json
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({

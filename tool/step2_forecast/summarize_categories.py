@@ -3,7 +3,7 @@
 Phase 2 — เชื่อม ⑧ ชั้น 3-4 (aggregate_forecast.py) กับข้อมูลจริงครั้งแรก (2026-09-11)
 ดู Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md ส่วน "⑧ พยากรณ์ไล่ขึ้นเป็นชั้นๆ"
 
-ปัญหาที่ต้องแก้ก่อน: `fetch_trends_worldwide_serpapi.py`'s `build_trend_keyword_mapping()` รวม
+ปัญหาที่ต้องแก้ก่อน: `forecast_google_trends.py`'s `build_trend_keyword_mapping()` รวม
 คีย์เวิร์ดจาก 3 สายเป็น dict เดียว (key = trend_name, ไม่ติด tag สาย) ก่อนยิง SerpAPI ครั้งเดียว -
 `master_report` ที่ได้ (บันทึกใน phase2_paper_social_z_delta_result.json) จึงเป็น "14 คลัสเตอร์รวม"
 ไม่ใช่ per-stream แบบที่ aggregate_to_category_level() ต้องการ (dict {stream: master_report_df})
@@ -35,7 +35,7 @@ STREAM_FILES = {
 }
 
 # คอลัมน์ตรงลำดับเป๊ะกับ generate_master_trend_report() ใน trend_final_v2.py (ดูที่มาใน
-# fetch_trends_worldwide_serpapi.py's __main__ - master_report เป็น list of list ไม่ใช่ DataFrame)
+# forecast_google_trends.py's __main__ - master_report เป็น list of list ไม่ใช่ DataFrame)
 MASTER_REPORT_COLS = ["cluster_id", "Cluster", "Model", "Status", "Current_Z", "Forecast_Avg_Z",
                       "Z_Delta", "Peak_Month", "Keywords", "Context", "Data_Quality",
                       "Pct_Months_With_Data"]
@@ -43,7 +43,7 @@ MASTER_REPORT_COLS = ["cluster_id", "Cluster", "Model", "Status", "Current_Z", "
 
 def build_trend_stream_attribution():
     """{trend_name: set(stream_name)} จาก "Trend Name" จริงในผลลัพธ์ทั้ง 3 สาย - ตัวตนเดียวกับที่
-    rank_trends.py ใช้นับ Stream_Count และที่ fetch_trends_worldwide_serpapi.py ใช้เป็น key ตอนรวม
+    rank_trends.py ใช้นับ Stream_Count และที่ forecast_google_trends.py ใช้เป็น key ตอนรวม
     คีย์เวิร์ด (ดังนั้นชื่อที่ตรงกันเป๊ะข้ามสาย = ยืนยันข้ามสายจริงแบบเดียวกันทั้งระบบ ไม่ใช่นิยามใหม่)"""
     attribution = {}
     missing = []
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     zd_path = OUTPUTS / "phase2_paper_social_z_delta_result.json"
     if not zd_path.exists():
-        print(f"❌ ไม่มี {zd_path.name} - ต้องรัน fetch_trends_worldwide_serpapi.py ก่อน")
+        print(f"❌ ไม่มี {zd_path.name} - ต้องรัน forecast_google_trends.py ก่อน")
         sys.exit(1)
     with open(zd_path, encoding="utf-8") as f:
         zd_data = json.load(f)
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     out_path = OUTPUTS / "phase2_category_overall_result.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
-            "_note": "⑧ ชั้น 3-4 เชื่อมข้อมูลจริงครั้งแรก - ดู run_category_aggregation.py",
+            "_note": "⑧ ชั้น 3-4 เชื่อมข้อมูลจริงครั้งแรก - ดู summarize_categories.py",
             "_source": str(zd_path.name),
             "_unmatched_clusters": unmatched,
             "category_level": df_category.to_dict(orient="records"),

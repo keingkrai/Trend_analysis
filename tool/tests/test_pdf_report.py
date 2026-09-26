@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-เทสของ ⑯ PDF Report (tool/phase6_pdf_report/) - ไม่ยิง API และไม่เปิด Chromium
+เทสของ ⑯ PDF Report (tool/step5_pdf/) - ไม่ยิง API และไม่เปิด Chromium
 ใช้โฟลเดอร์รอบปลอมใน tmp_path: ตรวจว่าไฟล์ขาดแล้วรายงานยังประกอบได้ (แค่จดไว้ใน missing), ข้อความไทยที่เป็นค่าตายตัว
 ถูกแปลงเป็นอังกฤษ, cache ของ LLM ใช้ซ้ำได้จริง และเทมเพลตได้จำนวนหน้าตรงตามข้อมูล
 
@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase6_pdf_report"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step5_pdf"))
 
 from datetime import datetime  # noqa: E402
 

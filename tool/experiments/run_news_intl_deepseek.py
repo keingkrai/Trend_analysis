@@ -29,7 +29,7 @@ from common import bootstrap
 from common.bootstrap import OUTPUTS, use_deepseek_nvidia, generate_trend_report_with_retry, \
     verify_report_against_source
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "step1_evidence" / "news"))  # news_intl_stream.py
 from news_intl_stream import run_news_intl_stream
 
 tf = bootstrap.tf
