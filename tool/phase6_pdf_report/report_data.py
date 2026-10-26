@@ -73,6 +73,8 @@ _TOOL_DIR = str(Path(__file__).resolve().parents[1])
 if _TOOL_DIR not in sys.path:
     sys.path.insert(0, _TOOL_DIR)
 from common.horizons import LONG_YEAR, SHORT_YEAR, YEARS  # noqa: E402,F401
+# 🆕 (2026-10-26, รวมจากอีกสายพัฒนา) อ่านคำตอบ STEPIC ได้ไม่ว่า LLM จะห่อ/ตั้งชื่อช่องแบบไหน - ไฟล์เล็กไม่ import bootstrap
+from common.stepic_shape import as_text, normalize_personas, normalize_stepic  # noqa: E402
 # 🆕 (2026-10-01) ข้อมูล Google Trends แบบไม่ระบุหมวดกระโดดขึ้นทุกคีย์เวิร์ดตั้งแต่ ส.ค. 2025 (แต่ละคำไม่เท่ากัน) ตัวเลข
 # "12 เดือนที่ผ่านมา" / "6 เดือนล่าสุด" จึงสูงเกินจริงจนกว่าข้อมูลถึงเดือนนี้ (ทั้งสองช่วงที่เทียบพ้นจุดกระโดด) - เทมเพลต
 # ติด * และหมายเหตุ past_note ค่าต้องตรงกับ growth_score.MOMENTUM_CLEAN_FROM
@@ -736,6 +738,9 @@ def _stepic_tiles(raw):
         return []
     # 🆕 (2026-10-01) LLM ตอบโครงไม่คงที่ระหว่างรอบ: technology/creativity/industry บางรอบซ้อนอยู่ใน analysis /
     # creativity_analysis / industry บางรอบแบน (run_stepic_report.normalize_stepic_raw แปลงเป็นแบบแบนแล้ว) - อ่านได้ทั้งสองแบบ
+    # 🆕 (2026-10-26) ห่อ "trend_analysis" (รอบ 111455 ก่อนแก้ที่ต้นทาง) แกะด้วย common/stepic_shape ก่อน - ได้ครบ 6 ช่อง
+    raw = {**raw, **{dim: fields for dim, fields in normalize_stepic(raw).items() if fields}}
+
     def flat(dim, inner):
         d = raw.get(dim) or {}
         return {**d, **d[inner]} if isinstance(d.get(inner), dict) else d
@@ -748,8 +753,9 @@ def _stepic_tiles(raw):
         ("Technology", tech.get("core_technology"), [tech.get("innovation_driver"), tech.get("commercialization_signal")]),
         ("Environment", env.get("environmental_factor"), [env.get("sustainability_opportunity"), env.get("ESG_driver")]),
         ("Policy", pol.get("regulatory_trend"), [pol.get("business_impact"), pol.get("legal_barrier_or_support")]),
-        ("Industry", ind.get("concept"),
-         [sp.get("winning_strategy") if isinstance(sp, dict) else sp, ind.get("information")]),
+        ("Industry", ind.get("concept") or as_text(ind.get("market_structure")),
+         [sp.get("winning_strategy") if isinstance(sp, dict) else sp, ind.get("information"), as_text(sp),
+          as_text(ind.get("competitive_landscape"))]),
         ("Creativity", creat.get("brand_expression"), [creat.get("product_innovation"), creat.get("differentiation_strategy")]),
     ]
     tiles = []
@@ -762,6 +768,15 @@ def _stepic_tiles(raw):
     return tiles
 
 
+def _personas(items):
+    """🆕 (2026-10-26) persona ที่ LLM เรียกช่อง value driver / ช่องทางต่างกัน (motivations ฯลฯ) -> ช่องมาตรฐานของเทมเพลต
+    ช่องอื่นของ persona คงไว้ตามเดิม"""
+    out = []
+    for p, norm in zip([p for p in items or [] if isinstance(p, dict)], normalize_personas(items)):
+        out.append({**p, **{k: v for k, v in norm.items() if v}})
+    return out
+
+
 def _signals(items):
     """🆕 (2026-10-01) สัญญาณข้ามมิติ -> {dimensions: "SOCIETY + INDUSTRY", signal, implication} - บางรอบ LLM ตอบ
     {signal_type, dimensions: [...], insight} (ดู run_stepic_report.normalize_stepic_final)"""
@@ -769,7 +784,7 @@ def _signals(items):
     for s in items or []:
         if not isinstance(s, dict):
             continue
-        dims = s.get("dimensions")
+        dims = s.get("dimensions") or s.get("convergence_pattern")   # รอบ 111455 ตั้งชื่อช่องนี้ (ดู common/stepic_shape.py)
         out.append({**s,
                     "dimensions": " + ".join(str(d).upper() for d in dims if d) if isinstance(dims, list) else dims or "",
                     "signal": s.get("signal") or s.get("insight") or s.get("description") or "",
@@ -1011,7 +1026,7 @@ def build_context(run_dir, catalog_path=None, top_products=5):
             "key_risk": stepic_final.get("key_risk", ""),
         },
         "stepic": _stepic_tiles(stepic_raw),
-        "personas": stepic_final.get("emerging_personas") or [],
+        "personas": _personas(stepic_final.get("emerging_personas")),
         "signals": _signals(stepic_final.get("cross_dimensional_signals")),
         "trends": trends,
         "growth": growth_pages,

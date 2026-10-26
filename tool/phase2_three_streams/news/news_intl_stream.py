@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Phase 2 — สายข่าวต่างประเทศ (News-Intl)
-ดู workspace/phase2_three_streams/README.md และ
+ดู tool/phase2_three_streams/README.md และ
 Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
 
 เป้าหมาย: แยกสายข่าวออกจาก Paper (ที่เคยปนกันใน config/rss_feeds.json) เป็นสายของตัวเอง

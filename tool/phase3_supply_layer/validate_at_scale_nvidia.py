@@ -34,7 +34,7 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-from common.bootstrap import PROJECT_ROOT, TOOL_DIR, OUTPUTS, CHECKPOINTS, tf, use_bedrock, refresh_source_dir
+from common.bootstrap import ENV_FILE, PROJECT_ROOT, TOOL_DIR, OUTPUTS, CHECKPOINTS, tf, use_bedrock, refresh_source_dir
 from category_breakdown import category_breakdown
 from l2_market_map import MAP_FILE, build_table, trend_entry, write_map
 from unit_price_tiers import market_tiers
@@ -43,10 +43,12 @@ from product.euromonitor_mapping import BEAUTY_L1, load_catalog
 from match_supply import build_trend_matchable_text, cosine_similarity
 from validate_at_scale import build_product_text
 
-load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
+load_dotenv(dotenv_path=ENV_FILE, override=True)
 from openai import OpenAI
 
-client = OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=os.getenv("NVIDIA_API"))
+# 🆕 (2026-09-26) NVIDIA_EMBED_API_KEY ก่อน - .env ของ GI_CH มี NVIDIA_API อีกตัวที่ไม่มีสิทธิ์ใช้โมเดล embedding นี้ (ได้ 403)
+client = OpenAI(base_url="https://integrate.api.nvidia.com/v1",
+                api_key=os.getenv("NVIDIA_EMBED_API_KEY") or os.getenv("NVIDIA_API"))
 MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
 
 # 🆕 (2026-09-11) เดิม hardcode "workspace"/"outputs" ตรงๆ (ชื่อก่อนเปลี่ยนเป็น tool/+output/) พังไปตอน

@@ -7,7 +7,7 @@ aggregate_forecast (aggregate_to_category_level/aggregate_to_overall_level), com
 ทำหน้าที่ "คำนวณคะแนนจาก verdict ที่ตัดสินไว้แล้ว" ซึ่งเป็นหลักการหลักของโปรเจกต์นี้ (LLM ให้ verdict,
 โค้ดคำนวณคะแนน ไม่ให้ LLM คิดเลขเอง) - จึงสำคัญที่สุดที่ต้องเทสได้แบบไม่ต้องยิง API
 
-รัน: pytest main/tool/tests/test_pure_functions.py -v
+รัน: pytest tool/tests/test_pure_functions.py -v
 """
 import sys
 from pathlib import Path
@@ -19,6 +19,7 @@ for _p in Path(__file__).resolve().parents:
 sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams")))
 sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams" / "social")))
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -1671,3 +1672,62 @@ def test_write_trend_analysis_prompt_retry_and_failure(monkeypatch):
     seen.clear()
     monkeypatch.setattr(rsr.tf2, "client", fake("not json"))
     assert rsr.write_trend_analysis(facts, "beauty") == {} and len(seen) == 2
+
+
+# ---------------------------------------------------------------------------
+# STEPIC: LLM ตอบคนละโครงแต่ละรอบ (common/stepic_shape.py) - 🆕 (2026-09-26)
+# ---------------------------------------------------------------------------
+
+# โครงจริงของ 2 รอบ (ตัดข้อความให้สั้น)
+STEPIC_082438 = {
+    "technology": {"dimension": "TECHNOLOGY", "analysis": {"core_technology": "Bio delivery", "innovation_driver": "Stability",
+                                                           "adoption_stage": "Early"}},
+    "industry": {"concept": "Bio-Convergent", "information": "info", "strategic_positioning": {"winning_strategy": "Clinical"},
+                 "market_structure": {"transformation": "t", "channel_shift": "c"}},
+    "creativity": {"creativity_analysis": {"brand_expression": "Bio-Vector", "product_innovation": "NADES"}},
+}
+STEPIC_111455 = {
+    "technology": {"trend_analysis": {"focus_trend": "bpc", "dimension": "TECHNOLOGY",
+                                      "analysis": {"core_technology": "Transdermal", "innovation_driver": "Barrier",
+                                                   "adoption_stage": "Growth"}}},
+    "industry": {"market_structure": {"concept": "Convergence", "information": "channels"},
+                 "strategic_positioning": {"concept": "Science-Backed", "information": "safety"},
+                 "investment_signal": {"concept": "Capital", "information": "delivery tech"}},
+    "creativity": {"concept": "c", "brand_expression": "Visible science", "product_innovation": "Sensory"},
+}
+
+
+@pytest.mark.parametrize("raw, core", [(STEPIC_082438, "Bio delivery"), (STEPIC_111455, "Transdermal")])
+def test_stepic_technology_is_found_however_it_is_wrapped(raw, core):
+    from common.stepic_shape import normalize_stepic, stepic_for_report
+    assert normalize_stepic(raw)["technology"]["core_technology"] == core
+    report = stepic_for_report(raw)
+    assert report["technology"]["core_technology"] == core and report["technology"]["adoption_stage"]
+    assert "society" not in report  # มิติที่ไม่มีไม่ใส่ (ตัวเขียนรายงานข้ามมิติที่ว่างอยู่แล้ว)
+
+
+def test_stepic_report_fields_are_text_not_dicts():
+    from common.stepic_shape import stepic_for_report
+    industry = stepic_for_report(STEPIC_111455)["industry"]
+    assert industry["market_structure"] == "Convergence: channels"
+    assert industry["strategic_positioning"] == "Science-Backed: safety"
+    assert stepic_for_report(STEPIC_082438)["industry"]["market_structure"] == "transformation: t; channel shift: c"
+    assert stepic_for_report(STEPIC_082438)["creativity"]["brand_expression"] == "Bio-Vector"
+
+
+def test_stepic_shape_ignores_missing_or_bad_input():
+    from common.stepic_shape import as_text, normalize_stepic
+    assert normalize_stepic(None)["technology"] == {} and normalize_stepic({"policy": "text"})["policy"] == {}
+    assert as_text(None) == "" and as_text(["a", "", {"concept": "b"}]) == "a; b"
+
+
+def test_signals_and_personas_read_either_field_name():
+    from common.stepic_shape import normalize_personas, normalize_signals
+    assert normalize_signals([{"dimensions": "SOCIETY + INDUSTRY", "signal": "s", "implication": "i"},
+                              {"convergence_pattern": "SOCIETY x TECHNOLOGY", "signal": "s2"}, "junk"]) == [
+        {"dimensions": "SOCIETY + INDUSTRY", "signal": "s", "implication": "i"},
+        {"dimensions": "SOCIETY x TECHNOLOGY", "signal": "s2", "implication": ""}]
+    got = normalize_personas([{"name": "A", "description": "d", "motivations": ["Fortify", "Transparency"]},
+                              {"name": "B", "value_driver": "v", "channel_preference": "TikTok"}])
+    assert got[0]["value_driver"] == "Fortify; Transparency" and got[0]["channel_preference"] == ""
+    assert got[1] == {"name": "B", "description": "", "value_driver": "v", "channel_preference": "TikTok"}

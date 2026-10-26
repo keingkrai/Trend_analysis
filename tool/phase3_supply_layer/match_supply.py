@@ -280,9 +280,9 @@ if __name__ == "__main__":
         if (_p / "common" / "bootstrap.py").exists():
             sys.path.insert(0, str(_p))
             break
-    from common.bootstrap import PROJECT_ROOT
+    from common.bootstrap import ENV_FILE, PROJECT_ROOT
 
-    load_dotenv(dotenv_path=PROJECT_ROOT / ".env", override=True)
+    load_dotenv(dotenv_path=ENV_FILE, override=True)
     from openai import OpenAI
     client = OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                      api_key=os.getenv("GEMINI_KEY"))

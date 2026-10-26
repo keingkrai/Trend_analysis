@@ -46,6 +46,7 @@ from common.bootstrap import OUTPUTS, PROJECT_ROOT, prompt_run_config, record_mo
 from common import trend_final_v2_subset as tf2  # noqa: E402
 from common import market_overview as mo  # noqa: E402
 from common import trend_analysis as ta  # noqa: E402
+from common.stepic_shape import stepic_for_report  # noqa: E402
 
 from openai import OpenAI  # noqa: E402
 
@@ -682,7 +683,9 @@ if __name__ == "__main__":
         llm_forecast_analysis=llm_forecast_analysis,
         product_results=product_results,
         final_stepic_insight=final_stepic_insight,
-        stepic_raw_analysis=stepic_raw_analysis,
+        # 🆕 (2026-09-26) จัดรูปคำตอบ STEPIC ก่อน - LLM ตอบคนละโครงแต่ละรอบ ตัวเขียนรายงานเลยได้ "N/A" (ดู common/stepic_shape.py)
+        # (ไฟล์ phase4_stepic_raw_analysis.json เก็บแบบแบนจาก normalize_stepic_raw ด้านบน ส่วนตรงนี้เป็นข้อความล้วนให้ตัวเขียนรายงาน)
+        stepic_raw_analysis=stepic_for_report(stepic_raw_analysis),
         master_report_dict=None,
     )
 

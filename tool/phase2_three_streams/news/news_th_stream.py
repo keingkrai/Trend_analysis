@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Phase 2 — สายข่าวไทย (News-Thai)
-ดู workspace/phase2_three_streams/README.md และ
+ดู tool/phase2_three_streams/README.md และ
 Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
 
 เป้าหมาย: คู่กับ news_intl_stream.py - ใช้ RSS + Google News ที่เป็นไทยจริงๆ (baramizilab.co.th,

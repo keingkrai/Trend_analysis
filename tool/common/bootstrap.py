@@ -96,9 +96,30 @@ CHECKPOINTS.mkdir(parents=True, exist_ok=True)
 # (เดิมเดินขึ้นไปหา - ดู docstring ด้านบน) ต้นฉบับไม่ถูกแก้ ย้ายไปเก็บใน _archive/ แล้ว
 PROJECT_ROOT = TOOL_DIR.parent
 
-# โหลด .env ของ main/
+def _find_env_file():
+    """🆕 (2026-09-26) .env ไฟล์เดียวที่ใช้: TREND_ENV_FILE (backend ของ GI_CH ตั้งให้ตอนเรียกไปป์ไลน์) > .env ของ repo นี้
+    > .env ของโฟลเดอร์แม่ - repo นี้วางอยู่ที่ GI_CH/trend_pipeline/ และใช้ .env ของ GI_CH ร่วมกัน จึงไม่ต้องมี .env
+    ของตัวเอง ส่วนคนที่ clone ไปใช้เดี่ยวๆ ยังวาง .env ไว้ที่ repo นี้ได้เหมือนเดิม"""
+    explicit = os.environ.get("TREND_ENV_FILE")
+    if explicit:
+        return Path(explicit)
+    for candidate in (PROJECT_ROOT / ".env", PROJECT_ROOT.parent / ".env"):
+        if candidate.exists():
+            return candidate
+    return PROJECT_ROOT / ".env"
+
+
+ENV_FILE = _find_env_file()
 from dotenv import load_dotenv  # noqa: E402
-load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+load_dotenv(dotenv_path=ENV_FILE)
+
+
+# SERPAPI_KEY หลายคีย์ไม่ได้จัดการที่นี่ - common/serpapi_keys.py อ่านรายการทั้งหมดจาก ENV_FILE แล้วสลับคีย์เองเมื่อโควตาหมด
+# (ตอน merge 2026-10-26 ตัดโค้ด "เลือกคีย์ quota มากสุดแล้วตั้ง SERPAPI_KEY เป็นคีย์เดียว" ของอีกสายพัฒนาออก เพราะจะทับรายการคีย์ที่นั่น)
+# .env ของ GI_CH ใช้ชื่อ APIFY_KEY - ไปป์ไลน์อ่าน APIFY_API_KEY (ไม่ตั้งชื่อนี้ใน .env ของ GI_CH เพราะโค้ด HC ของ GI_CH
+# อ่าน APIFY_API_KEY ก่อน APIFY_KEY ถ้าตั้งจะไปเปลี่ยนคีย์ที่ GI_CH ใช้)
+if not os.environ.get("APIFY_API_KEY") and os.environ.get("APIFY_KEY"):
+    os.environ["APIFY_API_KEY"] = os.environ["APIFY_KEY"]
 
 # ส่วนที่ใช้จริงของ trend_final.py คัดลอกตรงตัวไว้ที่ common/trend_final_subset.py - ชื่อ `tf` เหมือนเดิม
 # โค้ดที่เรียก tf.xxx จึงไม่ต้องแก้ (ต้อง import หลัง load_dotenv เสมอ)

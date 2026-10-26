@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Phase 2 — สาย Social (Pantip + Reddit รวมกัน)
-ดู workspace/phase2_three_streams/README.md และ
+ดู tool/phase2_three_streams/README.md และ
 Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
 
 เป้าหมาย: รวมเนื้อหาจาก Pantip (ไทย) + Reddit (สากล) + YouTube (ไทย) เป็นสายเดียว → สกัด triplet +

@@ -5,6 +5,17 @@
 > ชื่อไฟล์/โฟลเดอร์ในรายการเก่าเป็นตามที่เป็น ณ วันนั้น - `backtest.ipynb` ย้ายไปอยู่ที่ `notebooks/backtest.ipynb`
 > และ `workflow_*.svg` ไปอยู่ที่ `docs/` เมื่อ 2026-10-26
 
+- **2026-10-26** — **รวมงานจากอีกสายพัฒนาบน GitHub (6 commit ลงวันที่ 2026-09-26/27 ทำคู่ขนานสำหรับ backend GI_CH) เข้ากับสายนี้** -
+  **ใช้ชื่อโฟลเดอร์ `phase*` ของสายนี้ต่อ** (อีกสายเปลี่ยน `tool/phase1-5` เป็น `step1_evidence` … `step5_pdf`, ย้ายสคริปต์ที่ `main.py` ไม่เรียกไป `experiments/`
+  และ `history/` และเปลี่ยนชื่อสคริปต์ เช่น `run_brand_coverage.py` → `brand_coverage.py` - ไม่นำมาใช้ ประวัติของ commit เหล่านั้นยังอยู่ใน git) ·
+  **รับมาแล้ว**: `common/bootstrap.ENV_FILE` (`TREND_ENV_FILE` > `.env` ของ repo > `.env` ของโฟลเดอร์แม่; `serpapi_keys.py` และสคริปต์ที่โหลด `.env` ซ้ำใช้ไฟล์เดียวกัน),
+  `NVIDIA_EMBED_API_KEY` ก่อน `NVIDIA_API` สำหรับ embedding, `APIFY_KEY` สำรองของ `APIFY_API_KEY`, `main.py --run-id`, `common/stepic_shape.py`
+  (จัดรูปคำตอบ STEPIC ก่อนเขียน Master Report; ⑯ อ่านห่อ `trend_analysis`, สัญญาณ `convergence_pattern`, persona `motivations`) + เทสต์ 5 ตัว ·
+  **ไม่รับ**: ⑬ `--products <csv>` (แบรนด์นอกแคตตาล็อก + `compute_coverage()`; ⑬ ของสายนี้เขียนใหม่เป็นเกรดตามหมวด L2 x ยอดขาย Konvy ซึ่งสินค้านอกแคตตาล็อกไม่มีข้อมูลให้คิด),
+  การเลือก SerpAPI คีย์ที่ quota เหลือมากสุดแล้วตั้ง `SERPAPI_KEY` เป็นคีย์เดียว (ทับรายการคีย์ของ `serpapi_keys.py` ที่สลับเองเมื่อโควตาหมด), `Plot_trend_map.py` + กราฟสรุป (เลิกใช้ 2026-09-30),
+  รายงาน PDF รุ่นแรกใน `step5_pdf/` (สายนี้มี `phase6_pdf_report/` รุ่นใหม่กว่า) ·
+  ข้อมูลที่ scrape ของสาย Paper ตรงกันทั้งสองสาย (232 บทความ)
+
 - **2026-10-21** — **กติกา Excellent ใหม่: ต้องตรงเทรนด์ top 1% ของหมวด และขายดี (top 20% ของหมวดด้านยอดขาย) ทั้งคู่ - ไม่ขายดีได้สูงสุด Good** (เจ้าของงานสั่ง) -
   แก้ที่ต้นทางเดียว `brand_data.adjust_level` จึงตามไปทั้ง **⑰** (หน้า 1-2 ต่อเทรนด์, หน้าสรุป, ภาพรวม, ตารางเทียบคู่แข่ง, หน้า 3 สีพื้นช่อง, ภาคผนวก),
   **Excel ของ ⑬** (คอลัมน์ "ยอดขายปรับเกรด" มีค่าใหม่ "จำกัดที่ Good") และ **หน้าสีพื้นของ ⑯** (ช่องปานกลาง x Excellent เป็นสี Good) : ขายดี = คง Excellent และดึง Average ขึ้น Good ·

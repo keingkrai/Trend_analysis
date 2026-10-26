@@ -954,7 +954,7 @@ def localize(ctx, lang):
                 if f in item:
                     item[f] = _pick(item_th.get(f), item[f])
             if key == "signals":
-                item["dimensions"] = dimensions(item.get("dimensions"), lang)
+                item["dimensions"] = dimensions(item.get("dimensions") or "", lang)  # ไม่มีป้าย = ว่าง ไม่ใช่ "None"
 
     for t in out["trends"]:
         text_th = t.get("text_th") or {}

@@ -27,7 +27,19 @@ import re
 import urllib.request
 from pathlib import Path
 
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env"   # main/.env
+def _env_path():
+    """ไฟล์ .env ที่เก็บ SERPAPI_KEY - ลำดับเดียวกับ common.bootstrap.ENV_FILE: TREND_ENV_FILE > .env ของ repo > .env ของโฟลเดอร์แม่"""
+    explicit = os.environ.get("TREND_ENV_FILE")
+    if explicit:
+        return Path(explicit)
+    root = Path(__file__).resolve().parents[2]
+    for candidate in (root / ".env", root.parent / ".env"):
+        if candidate.exists():
+            return candidate
+    return root / ".env"
+
+
+ENV_PATH = _env_path()
 ENV_NAME = "SERPAPI_KEY"
 ROTATE_MARKERS = ("run out of searches", "out of searches", "searches for the month", "quota", "exceeded",
                   "limit", "invalid api key", "api key is invalid", "account is disabled", "suspended")

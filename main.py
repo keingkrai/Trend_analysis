@@ -309,7 +309,12 @@ def run_mode_full_pipeline(args):
         top_n_raw = input(f"ใช้กี่เทรนด์อันดับแรกหลังพยากรณ์ (Enter = {DEFAULT_TOP_N}): ").strip()
         top_n = max(1, int(top_n_raw)) if top_n_raw else DEFAULT_TOP_N
 
-    run_id = f"{slugify(topic)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    # 🆕 (2026-09-26) --run-id: ผู้เรียก (backend ของ GI_CH) ตั้งชื่อรอบเองเพื่อรู้ว่าผลจะลงโฟลเดอร์ไหน
+    run_id = args.run_id or f"{slugify(topic)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_dir = OUTPUT_ROOT / run_id
+    if run_dir.exists() and any(run_dir.iterdir()):
+        print(f"❌ มีโฟลเดอร์รอบ {run_id} ที่มีไฟล์อยู่แล้ว - ใช้ชื่อรอบอื่น (ไม่เขียนทับรอบเดิม)")
+        sys.exit(1)
 
     run_vars = {"TREND_RUN_ID": run_id, "TREND_TOPIC": topic, "TREND_YEARS": str(years), "TREND_TOP_N": str(top_n)}
     env = _pipeline_env(**run_vars)
@@ -510,6 +515,9 @@ def main():
                         help="ไม่สร้างรายงาน PDF: ⑯ รายงานเทรนด์ท้ายไปป์ไลน์ ⑰ รายงานแบรนด์หลังค้นหาแต่ละแบรนด์")
     # 🆕 (2026-09-30) เลิกวาด Plot_bump_chart / Plot_trend_map (ใช้ค่าพยากรณ์ z-score / Z_Delta) - รับ flag ไว้ไม่ให้คำสั่งเดิมพัง
     parser.add_argument("--skip-plots", action="store_true", help="(ไม่มีผลแล้ว - เลิกวาดกราฟ Z_Delta ตั้งแต่ 2026-09-30)")
+    # 🆕 (2026-09-26) --run-id: ผู้เรียก (backend ของ GI_CH) ตั้งชื่อรอบเองเพื่อรู้ว่าผลจะลงโฟลเดอร์ไหน (โหมด 1 เท่านั้น)
+    parser.add_argument("--run-id", default=None,
+                        help="ชื่อโฟลเดอร์รอบใน output/ (ไม่ใส่ = <หัวข้อ>_<วันเวลา>) - ต้องยังไม่มีหรือว่างอยู่")
     # 🆕 (2026-10-07) โหมด 3 แบบไม่โต้ตอบ (เช่น ตั้งเวลาอัปเดตรายเดือน)
     parser.add_argument("--refresh", default=None, metavar="RUN",
                         help="อัปเดตรอบเดิม (ชื่อโฟลเดอร์ใน output/) ด้วย Google Trends ล่าสุด - ผลลงรอบใหม่ ใช้หัวข้อ/ปี/Top N ของรอบเดิม")
