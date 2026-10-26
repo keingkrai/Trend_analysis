@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-16T01:25:16+00:00",
+  "generated_at": "2026-09-25T04:15:36+00:00",
   "source": {
     "site": "https://pmc.ncbi.nlm.nih.gov",
     "method": "NCBI E-utilities: esearch db=pmc + efetch JATS full text",
@@ -10,37 +10,45 @@
   },
   "run": {
     "keywords": [
-      "surfactant skin barrier disruption",
-      "cosmetic formulation microbiome modulation",
-      "ceramide lipid barrier restoration"
+      "surfactant skin barrier irritation",
+      "cosmetic formulation microbiome",
+      "ceramide lipid barrier repair"
     ],
-    "since": "2023-09-17",
-    "until": "2026-11-15",
+    "since": "2023-09-26",
+    "until": "2026-11-24",
     "date_field": "pdat",
     "sort": "pub_date",
     "match": "none",
     "midpoint_month": "2025-04",
     "api_calls": 4,
-    "seconds": 5.5
+    "seconds": 15.4
   },
   "totals": {
-    "papers": 188,
-    "with_full_text": 178,
+    "papers": 232,
+    "with_full_text": 220,
     "by_content_source": {
-      "jats": 178,
-      "abstract": 10
+      "jats": 220,
+      "abstract": 12
     },
     "failed": 0,
-    "months": 14
+    "months": 22
   },
   "facets": {
     "author_keywords": [
+      {
+        "value": "oxidative stress",
+        "papers": 6
+      },
       {
         "value": "wound healing",
         "papers": 6
       },
       {
-        "value": "oxidative stress",
+        "value": "extracellular vesicles",
+        "papers": 5
+      },
+      {
+        "value": "drug delivery",
         "papers": 5
       },
       {
@@ -48,11 +56,11 @@
         "papers": 5
       },
       {
-        "value": "inflammation",
+        "value": "flexible electronics",
         "papers": 4
       },
       {
-        "value": "drug delivery",
+        "value": "inflammation",
         "papers": 4
       },
       {
@@ -64,10 +72,6 @@
         "papers": 4
       },
       {
-        "value": "extracellular vesicles",
-        "papers": 4
-      },
-      {
         "value": "Alzheimer’s disease",
         "papers": 4
       },
@@ -76,8 +80,32 @@
         "papers": 4
       },
       {
+        "value": "bioavailability",
+        "papers": 4
+      },
+      {
         "value": "neurodegeneration",
         "papers": 4
+      },
+      {
+        "value": "anti‐aging",
+        "papers": 3
+      },
+      {
+        "value": "delivery systems",
+        "papers": 3
+      },
+      {
+        "value": "exosomes",
+        "papers": 3
+      },
+      {
+        "value": "nanomedicine",
+        "papers": 3
+      },
+      {
+        "value": "Staphylococcus aureus",
+        "papers": 3
       },
       {
         "value": "Neurodegeneration",
@@ -88,7 +116,15 @@
         "papers": 3
       },
       {
-        "value": "flexible electronics",
+        "value": "lipid metabolism",
+        "papers": 3
+      },
+      {
+        "value": "extracellular matrix",
+        "papers": 3
+      },
+      {
+        "value": "gut microbiota",
         "papers": 3
       },
       {
@@ -116,7 +152,19 @@
         "papers": 3
       },
       {
+        "value": "bioactive compounds",
+        "papers": 3
+      },
+      {
+        "value": "drug delivery systems",
+        "papers": 3
+      },
+      {
         "value": "chitosan",
+        "papers": 3
+      },
+      {
+        "value": "Biofilm",
         "papers": 3
       },
       {
@@ -128,6 +176,10 @@
         "papers": 3
       },
       {
+        "value": "Lipid metabolism",
+        "papers": 3
+      },
+      {
         "value": "regenerative medicine",
         "papers": 3
       },
@@ -136,12 +188,32 @@
         "papers": 3
       },
       {
-        "value": "bioavailability",
+        "value": "neuroinflammation",
         "papers": 3
       },
       {
-        "value": "neuroinflammation",
-        "papers": 3
+        "value": "artificial intelligence",
+        "papers": 2
+      },
+      {
+        "value": "skin aging",
+        "papers": 2
+      },
+      {
+        "value": "immune evasion",
+        "papers": 2
+      },
+      {
+        "value": "nanotechnology",
+        "papers": 2
+      },
+      {
+        "value": "antimicrobial activity",
+        "papers": 2
+      },
+      {
+        "value": "cellular senescence",
+        "papers": 2
       },
       {
         "value": "psoriasis",
@@ -162,131 +234,67 @@
       {
         "value": "functional foods",
         "papers": 2
-      },
-      {
-        "value": "tissue repair",
-        "papers": 2
-      },
-      {
-        "value": "Atopic dermatitis",
-        "papers": 2
-      },
-      {
-        "value": "Extracellular vesicles",
-        "papers": 2
-      },
-      {
-        "value": "Immunomodulation",
-        "papers": 2
-      },
-      {
-        "value": "mitochondria",
-        "papers": 2
-      },
-      {
-        "value": "natural products",
-        "papers": 2
-      },
-      {
-        "value": "Therapy",
-        "papers": 2
-      },
-      {
-        "value": "ROS",
-        "papers": 2
-      },
-      {
-        "value": "precision therapy",
-        "papers": 2
-      },
-      {
-        "value": "combined therapy",
-        "papers": 2
-      },
-      {
-        "value": "skin barrier",
-        "papers": 2
-      },
-      {
-        "value": "PBPK",
-        "papers": 2
-      },
-      {
-        "value": "Biochemistry",
-        "papers": 2
-      },
-      {
-        "value": "anti‐aging",
-        "papers": 2
-      },
-      {
-        "value": "clinical trials",
-        "papers": 2
-      },
-      {
-        "value": "flavonoids",
-        "papers": 2
-      },
-      {
-        "value": "microplastics",
-        "papers": 2
-      },
-      {
-        "value": "nanoplastics",
-        "papers": 2
       }
     ],
     "sections": [
       {
         "value": "Introduction",
-        "papers": 125
+        "papers": 164
       },
       {
         "value": "Conclusion",
-        "papers": 64
+        "papers": 83
       },
       {
         "value": "Discussion",
-        "papers": 39
+        "papers": 54
+      },
+      {
+        "value": "Results",
+        "papers": 46
       },
       {
         "value": "1. Introduction",
         "papers": 36
       },
       {
-        "value": "Results",
-        "papers": 33
+        "value": "Conclusions",
+        "papers": 32
       },
       {
         "value": "Conflicts of Interest",
-        "papers": 26
+        "papers": 30
       },
       {
         "value": "Author Contributions",
-        "papers": 25
-      },
-      {
-        "value": "Conclusions",
-        "papers": 25
-      },
-      {
-        "value": "Funding",
-        "papers": 20
-      },
-      {
-        "value": "Supporting information",
-        "papers": 17
+        "papers": 29
       },
       {
         "value": "Materials and methods",
-        "papers": 17
+        "papers": 24
+      },
+      {
+        "value": "Funding",
+        "papers": 22
+      },
+      {
+        "value": "Supporting information",
+        "papers": 18
+      },
+      {
+        "value": "Methods",
+        "papers": 14
+      },
+      {
+        "value": "Ethics Statement",
+        "papers": 12
       },
       {
         "value": "2. Materials and Methods",
         "papers": 12
       },
       {
-        "value": "Methods",
+        "value": "Supplementary Information",
         "papers": 12
       },
       {
@@ -294,12 +302,16 @@
         "papers": 12
       },
       {
-        "value": "Ethics Statement",
-        "papers": 11
-      },
-      {
         "value": "Declaration of competing interest",
         "papers": 10
+      },
+      {
+        "value": "Materials and Methods",
+        "papers": 9
+      },
+      {
+        "value": "Supplementary Material",
+        "papers": 9
       },
       {
         "value": "4. Conclusions",
@@ -314,11 +326,11 @@
         "papers": 7
       },
       {
-        "value": "Materials and Methods",
+        "value": "Consent",
         "papers": 6
       },
       {
-        "value": "Supplementary Material",
+        "value": "Author contributions",
         "papers": 6
       },
       {
@@ -326,15 +338,23 @@
         "papers": 6
       },
       {
+        "value": "Results and Discussion",
+        "papers": 6
+      },
+      {
         "value": "4. Discussion",
         "papers": 5
       },
       {
-        "value": "Consent",
+        "value": "Limitations",
         "papers": 5
       },
       {
-        "value": "Supplementary Information",
+        "value": "DISCUSSION",
+        "papers": 5
+      },
+      {
+        "value": "INTRODUCTION",
         "papers": 5
       },
       {
@@ -342,11 +362,7 @@
         "papers": 5
       },
       {
-        "value": "Results and Discussion",
-        "papers": 5
-      },
-      {
-        "value": "Limitations",
+        "value": "Material and methods",
         "papers": 4
       },
       {
@@ -362,12 +378,16 @@
         "papers": 4
       },
       {
-        "value": "Author contributions",
+        "value": "Methodology",
         "papers": 4
       },
       {
         "value": "Search Strategy",
         "papers": 4
+      },
+      {
+        "value": "Conclusion and Outlook",
+        "papers": 3
       },
       {
         "value": "Disclosure",
@@ -378,7 +398,7 @@
         "papers": 3
       },
       {
-        "value": "DISCUSSION",
+        "value": "RESULTS",
         "papers": 3
       },
       {
@@ -386,11 +406,11 @@
         "papers": 3
       },
       {
-        "value": "INTRODUCTION",
+        "value": "Supplementary information",
         "papers": 3
       },
       {
-        "value": "Methodology",
+        "value": "MATERIALS AND METHODS",
         "papers": 3
       },
       {
@@ -406,45 +426,45 @@
         "papers": 3
       },
       {
-        "value": "Supporting Information",
+        "value": "Challenges and Future Directions",
         "papers": 2
       },
       {
-        "value": "Future Directions",
+        "value": "Conclusion and Future Perspectives",
         "papers": 2
       },
       {
-        "value": "Challenges and Prospects",
-        "papers": 2
-      },
-      {
-        "value": "Conclusions and Perspectives",
-        "papers": 2
-      },
-      {
-        "value": "Material and methods",
-        "papers": 2
-      },
-      {
-        "value": "Conclusion and Outlook",
-        "papers": 2
-      },
-      {
-        "value": "AUTHOR CONTRIBUTIONS",
-        "papers": 2
-      },
-      {
-        "value": "CONFLICT OF INTEREST STATEMENT",
+        "value": "Key References",
         "papers": 2
       }
     ],
     "authors": [
+      {
+        "value": "Siyu Chen",
+        "papers": 2
+      },
+      {
+        "value": "Tao Liu",
+        "papers": 2
+      },
+      {
+        "value": "Thomas Hartung",
+        "papers": 2
+      },
       {
         "value": "Jing Zhang",
         "papers": 2
       },
       {
         "value": "Xiang Li",
+        "papers": 2
+      },
+      {
+        "value": "Dong-Geol Lee",
+        "papers": 2
+      },
+      {
+        "value": "Chun Ho Park",
         "papers": 2
       },
       {
@@ -472,178 +492,166 @@
         "papers": 2
       },
       {
-        "value": "Sarah Adriana Scuderi",
+        "value": "Chi Ma",
         "papers": 1
       },
       {
-        "value": "Marika Lanza",
+        "value": "Yukang Ma",
         "papers": 1
       },
       {
-        "value": "Anna Paola Capra",
+        "value": "Xiangling Xing",
         "papers": 1
       },
       {
-        "value": "Antonio Catalfamo",
+        "value": "Chengxi Sun",
         "papers": 1
       },
       {
-        "value": "Emanuela Esposito",
+        "value": "Li Guan",
         "papers": 1
       },
       {
-        "value": "Alessio Ardizzone",
+        "value": "Helgi B. Schiöth",
         "papers": 1
       },
       {
-        "value": "Mahmoud Osanloo",
+        "value": "Wancheng Liu",
         "papers": 1
       },
       {
-        "value": "Ali Taghinezhad",
+        "value": "Yufei Lu",
         "papers": 1
       },
       {
-        "value": "Mohabbat Ansari",
+        "value": "Siyu Liang",
         "papers": 1
       },
       {
-        "value": "Fatemeh Noorbakhsh",
+        "value": "Jingyi Niu",
         "papers": 1
       },
       {
-        "value": "Najmeh Namdar",
+        "value": "Jie Chen",
         "papers": 1
       },
       {
-        "value": "Elham Zarenezhad",
+        "value": "Shuo Zhang",
         "papers": 1
       },
       {
-        "value": "Siyuan Huang",
+        "value": "Hongjian Zhang",
         "papers": 1
       },
       {
-        "value": "Jiangbo Fan",
+        "value": "Dongsheng Jia",
         "papers": 1
       },
       {
-        "value": "Wenyi Liu",
+        "value": "Wei Huang",
         "papers": 1
       },
       {
-        "value": "Di Liu",
+        "value": "Sanyin Chen",
         "papers": 1
       },
       {
-        "value": "Rui Wang",
+        "value": "Yi Yang",
         "papers": 1
       },
       {
-        "value": "Yuanyang Wang",
+        "value": "Xiaohua Pan",
         "papers": 1
       },
       {
-        "value": "Jianhui Sun",
+        "value": "Yu Pan",
         "papers": 1
       },
       {
-        "value": "Huacai Zhang",
+        "value": "Sa Cai",
         "papers": 1
       },
       {
-        "value": "Qingli Cai",
+        "value": "Mohamed El-Tanani",
         "papers": 1
       },
       {
-        "value": "Zhe Xu",
+        "value": "Syed Arman Rabbani",
         "papers": 1
       },
       {
-        "value": "Fang Xu",
+        "value": "Adil Farooq Wali",
         "papers": 1
       },
       {
-        "value": "Jianxin Jiang",
+        "value": "Yahia El-Tanani",
         "papers": 1
       },
       {
-        "value": "Zhen Wang",
+        "value": "Zainab Zakaraya",
         "papers": 1
       },
       {
-        "value": "Ling Zeng",
+        "value": "Rakesh Kumar",
         "papers": 1
       },
       {
-        "value": "Ina Hanninger",
+        "value": "Shrestha Sharma",
         "papers": 1
       },
       {
-        "value": "Andrej Krafčík",
+        "value": "Qian Tang",
         "papers": 1
       },
       {
-        "value": "Eylem Levelt",
+        "value": "Shihan Sun",
         "papers": 1
       },
       {
-        "value": "Jennifer J Rayner",
+        "value": "Xiqian Chen",
         "papers": 1
       },
       {
-        "value": "Chistopher T Rodgers",
+        "value": "Jixiang Xu",
         "papers": 1
       },
       {
-        "value": "Stefan Neubauer",
+        "value": "Yongmei Liao",
         "papers": 1
       },
       {
-        "value": "Vicente Grau",
+        "value": "Changqiang Li",
         "papers": 1
       },
       {
-        "value": "Oliver J Rider",
+        "value": "Tingting Wang",
         "papers": 1
       },
       {
-        "value": "Ladislav Valkovič",
+        "value": "Zongjunlin Liu",
         "papers": 1
       },
       {
-        "value": "Muhuang Zeng",
+        "value": "Tamba Buffa",
         "papers": 1
       },
       {
-        "value": "Qianlan Yuan",
-        "papers": 1
-      },
-      {
-        "value": "Shuojia Huang",
-        "papers": 1
-      },
-      {
-        "value": "Xiaofei Lu",
-        "papers": 1
-      },
-      {
-        "value": "Nasim Gholizadeh",
-        "papers": 1
-      },
-      {
-        "value": "Ghasem Rahmatpour Rokni",
-        "papers": 1
-      },
-      {
-        "value": "Maryam Sahafi",
+        "value": "Abdulai Kanu",
         "papers": 1
       }
     ],
     "journals": [
       {
+        "value": "Appl Microbiol Biotechnol",
+        "papers": 18
+      },
+      {
         "value": "Int J Nanomedicine",
-        "papers": 9
+        "papers": 11
+      },
+      {
+        "value": "Adv Sci (Weinh)",
+        "papers": 8
       },
       {
         "value": "Molecules",
@@ -654,16 +662,16 @@
         "papers": 8
       },
       {
-        "value": "Adv Sci (Weinh)",
-        "papers": 7
-      },
-      {
         "value": "Foods",
         "papers": 6
       },
       {
         "value": "Polymers (Basel)",
         "papers": 6
+      },
+      {
+        "value": "J Cosmet Dermatol",
+        "papers": 5
       },
       {
         "value": "ACS Omega",
@@ -674,7 +682,7 @@
         "papers": 5
       },
       {
-        "value": "J Cosmet Dermatol",
+        "value": "Front Nutr",
         "papers": 4
       },
       {
@@ -686,7 +694,19 @@
         "papers": 4
       },
       {
+        "value": "Cureus",
+        "papers": 4
+      },
+      {
+        "value": "Int J Gen Med",
+        "papers": 3
+      },
+      {
         "value": "Clin Rev Allergy Immunol",
+        "papers": 3
+      },
+      {
+        "value": "Front Pharmacol",
         "papers": 3
       },
       {
@@ -702,10 +722,6 @@
         "papers": 3
       },
       {
-        "value": "Cureus",
-        "papers": 3
-      },
-      {
         "value": "Food Sci Nutr",
         "papers": 2
       },
@@ -718,11 +734,15 @@
         "papers": 2
       },
       {
-        "value": "Int J Gen Med",
+        "value": "Bioact Mater",
         "papers": 2
       },
       {
-        "value": "Bioact Mater",
+        "value": "RSC Adv",
+        "papers": 2
+      },
+      {
+        "value": "mSystems",
         "papers": 2
       },
       {
@@ -734,15 +754,15 @@
         "papers": 2
       },
       {
-        "value": "Front Nutr",
-        "papers": 2
-      },
-      {
         "value": "ACS Nano",
         "papers": 2
       },
       {
         "value": "Cells",
+        "papers": 2
+      },
+      {
+        "value": "Adv Healthc Mater",
         "papers": 2
       },
       {
@@ -752,6 +772,22 @@
       {
         "value": "Pharmaceutics",
         "papers": 2
+      },
+      {
+        "value": "Cancer Commun (Lond)",
+        "papers": 1
+      },
+      {
+        "value": "J Cell Mol Med",
+        "papers": 1
+      },
+      {
+        "value": "Infect Drug Resist",
+        "papers": 1
+      },
+      {
+        "value": "Curr Neurol Neurosci Rep",
+        "papers": 1
       },
       {
         "value": "Mediators Inflamm",
@@ -804,77 +840,57 @@
       {
         "value": "J R Soc Interface",
         "papers": 1
-      },
-      {
-        "value": "Microbiologyopen",
-        "papers": 1
-      },
-      {
-        "value": "Wound Repair Regen",
-        "papers": 1
-      },
-      {
-        "value": "Bioeng Transl Med",
-        "papers": 1
-      },
-      {
-        "value": "Biomed Microdevices",
-        "papers": 1
-      },
-      {
-        "value": "J Int Med Res",
-        "papers": 1
-      },
-      {
-        "value": "Biology (Basel)",
-        "papers": 1
-      },
-      {
-        "value": "Drug Des Devel Ther",
-        "papers": 1
-      },
-      {
-        "value": "Signal Transduct Target Ther",
-        "papers": 1
-      },
-      {
-        "value": "Int J Mol Med",
-        "papers": 1
       }
     ],
     "years": [
       {
         "value": "2026",
-        "papers": 180
+        "papers": 211
       },
       {
         "value": "2025",
-        "papers": 8
+        "papers": 11
+      },
+      {
+        "value": "2024",
+        "papers": 10
       }
     ],
     "months": [
       {
         "value": "2026-08",
-        "papers": 89
+        "papers": 94
       },
       {
         "value": "2026-09",
-        "papers": 60
+        "papers": 75
       },
       {
         "value": "2026-07",
-        "papers": 15
+        "papers": 19
       },
       {
         "value": "2026-06",
-        "papers": 9
-      },
-      {
-        "value": "2026-05",
-        "papers": 2
+        "papers": 10
       },
       {
         "value": "2026-01",
+        "papers": 5
+      },
+      {
+        "value": "2026-05",
+        "papers": 4
+      },
+      {
+        "value": "2025-09",
+        "papers": 3
+      },
+      {
+        "value": "2024-02",
+        "papers": 3
+      },
+      {
+        "value": "2026-03",
         "papers": 2
       },
       {
@@ -882,11 +898,15 @@
         "papers": 2
       },
       {
-        "value": "2025-09",
+        "value": "2025-08",
         "papers": 2
       },
       {
-        "value": "2025-08",
+        "value": "2024-12",
+        "papers": 2
+      },
+      {
+        "value": "2024-01",
         "papers": 2
       },
       {
@@ -894,11 +914,11 @@
         "papers": 1
       },
       {
-        "value": "2026-03",
+        "value": "2026-02",
         "papers": 1
       },
       {
-        "value": "2026-02",
+        "value": "2025-11",
         "papers": 1
       },
       {
@@ -908,20 +928,36 @@
       {
         "value": "2025-06",
         "papers": 1
+      },
+      {
+        "value": "2025-01",
+        "papers": 1
+      },
+      {
+        "value": "2024-10",
+        "papers": 1
+      },
+      {
+        "value": "2024-05",
+        "papers": 1
+      },
+      {
+        "value": "2024-03",
+        "papers": 1
       }
     ],
     "countries": [
       {
         "value": "China",
-        "papers": 36
+        "papers": 45
       },
       {
         "value": "People’s Republic of China",
-        "papers": 10
+        "papers": 12
       },
       {
         "value": "Italy",
-        "papers": 7
+        "papers": 10
       },
       {
         "value": "Brazil",
@@ -933,22 +969,34 @@
       },
       {
         "value": "Egypt",
-        "papers": 4
+        "papers": 6
       },
       {
         "value": "United States",
-        "papers": 4
+        "papers": 5
       },
       {
         "value": "Poland",
-        "papers": 3
+        "papers": 4
       },
       {
         "value": "Germany",
-        "papers": 3
+        "papers": 4
+      },
+      {
+        "value": "Republic of Korea",
+        "papers": 4
+      },
+      {
+        "value": "India",
+        "papers": 4
       },
       {
         "value": "Japan",
+        "papers": 3
+      },
+      {
+        "value": "Indonesia",
         "papers": 3
       },
       {
@@ -956,19 +1004,15 @@
         "papers": 3
       },
       {
-        "value": "Republic of Korea",
-        "papers": 3
-      },
-      {
-        "value": "India",
-        "papers": 3
+        "value": "P R China",
+        "papers": 2
       },
       {
         "value": "Taiwan",
         "papers": 2
       },
       {
-        "value": "Indonesia",
+        "value": "UK",
         "papers": 2
       },
       {
@@ -980,8 +1024,40 @@
         "papers": 2
       },
       {
+        "value": "Tunisia",
+        "papers": 2
+      },
+      {
         "value": "Türkiye",
         "papers": 2
+      },
+      {
+        "value": "IND",
+        "papers": 2
+      },
+      {
+        "value": "School of Flexible Electronics (SoFE) and Henan Institute of Flexible Electronics (HIFE) Henan University Zhengzhou China",
+        "papers": 1
+      },
+      {
+        "value": "Shenzhen University Shenzhen China",
+        "papers": 1
+      },
+      {
+        "value": "United Arab Emirates",
+        "papers": 1
+      },
+      {
+        "value": "Sierra Leone",
+        "papers": 1
+      },
+      {
+        "value": "L'Oreal Research and Innovation Shanghai China",
+        "papers": 1
+      },
+      {
+        "value": "CT USA",
+        "papers": 1
       },
       {
         "value": "fums ac ir",
@@ -1036,10 +1112,6 @@
         "papers": 1
       },
       {
-        "value": "UK",
-        "papers": 1
-      },
-      {
         "value": "College of Health Adelaide University Adelaide South Australia Australia",
         "papers": 1
       },
@@ -1074,58 +1146,22 @@
       {
         "value": "Inc San Diego California USA",
         "papers": 1
-      },
-      {
-        "value": "Center for Molecular Metabolism Nanjing University of Science & Technology Nanjing People's Republic of China",
-        "papers": 1
-      },
-      {
-        "value": "Spain; pballester@ucam edu (P B -N ); amgarcia @ucam edu (A M G -M ); mpzafrilla@ucam edu (P Z )",
-        "papers": 1
-      },
-      {
-        "value": "China; xyyx_lu@ com",
-        "papers": 1
-      },
-      {
-        "value": "Brazil; mariana amaral@unifesp br (M A d A ); matheusoliveiraicb@usp br (M F d O ); niels@icb usp br (N O S C )",
-        "papers": 1
-      },
-      {
-        "value": "China; vd @dal ca (L J ); cr @dal ca (Z W ); wentingzhang @hotmail com (W Z ); tfzhang @ com (T Z ); qingping @ com (Q L )",
-        "papers": 1
-      },
-      {
-        "value": "P R China",
-        "papers": 1
-      },
-      {
-        "value": "United Kingdom",
-        "papers": 1
-      },
-      {
-        "value": "Serbia; jelenarlatinovic@gmail com (J L ); madjarev@uns ac rs (S P ); nevena krkic@uns ac rs (N H ); suncicat@uns ac rs (S K -T )",
-        "papers": 1
-      },
-      {
-        "value": "fimmu com",
-        "papers": 1
       }
     ],
     "content_source": [
       {
         "value": "jats",
-        "papers": 178
+        "papers": 220
       },
       {
         "value": "abstract",
-        "papers": 10
+        "papers": 12
       }
     ],
     "publication_state": [
       {
         "value": "published article",
-        "papers": 188
+        "papers": 232
       }
     ]
   }

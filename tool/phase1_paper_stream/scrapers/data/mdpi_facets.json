@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-16T01:25:01+00:00",
+  "generated_at": "2026-09-25T04:15:12+00:00",
   "source": {
     "site": "https://www.mdpi.com",
     "method": "search keywords + scrape every result page + article pages",
@@ -7,8 +7,8 @@
     "note": "MDPI robots.txt carries Disallow: /search*; article pages are allowed. Fetched with a headed browser - the site returns 403 to plain HTTP clients and to headless Chromium."
   },
   "window": {
-    "since": "2023-09-17",
-    "until": "2026-11-15",
+    "since": "2023-09-26",
+    "until": "2026-11-24",
     "momentum_split": "2025-04"
   },
   "settings": {
@@ -19,9 +19,9 @@
     "deep_scraped": false
   },
   "keywords": [
-    "surfactant skin barrier disruption",
-    "cosmetic formulation microbiome modulation",
-    "ceramide lipid barrier restoration"
+    "surfactant skin barrier irritation",
+    "cosmetic formulation microbiome",
+    "ceramide lipid barrier repair"
   ],
   "papers": 107,
   "facets": {
