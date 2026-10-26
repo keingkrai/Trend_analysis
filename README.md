@@ -17,7 +17,7 @@
 
 ## 📰 อัปเดตล่าสุด
 
-ประวัติการเปลี่ยนแปลงทั้งหมดอยู่ที่ **[CHANGELOG.md](CHANGELOG.md)** (23 รายการ) — ล่าสุด 2026-10-21: กติกา Excellent ใหม่: ต้องตรงเทรนด์ top 1% ของหมวด และขายดี (top 20% ของหมวดด้านยอดขาย) ทั้งคู่ - ไม่ขายดีได้สูงสุด Good
+ประวัติการเปลี่ยนแปลงทั้งหมดอยู่ที่ **[CHANGELOG.md](CHANGELOG.md)** (25 รายการ) — ล่าสุด 2026-10-21: กติกา Excellent ใหม่: ต้องตรงเทรนด์ top 1% ของหมวด และขายดี (top 20% ของหมวดด้านยอดขาย) ทั้งคู่ - ไม่ขายดีได้สูงสุด Good
 
 > [!NOTE]
 > ผลของระบบเป็น **เครื่องมือช่วยตัดสินใจ** ไม่ใช่คำตอบสุดท้าย ส่วนที่ใช้ LLM ให้ผลต่างกันได้ในแต่ละรอบ และการจับคู่สินค้า
@@ -253,6 +253,22 @@ python tool/phase7_market_report/build_market_report.py             # PDF อั
 pytest tool/tests/test_market_facts.py tool/tests/test_market_questions.py tool/tests/test_market_search.py tool/tests/test_market_synthesis.py tool/tests/test_market_report.py -v
 ```
 
+### ส่งออกให้ LLM (⑳) — 🆕 2026-10-26
+
+ส่งต่อผลของรอบให้ LLM ทำงานอื่นนอกจากรายงาน (เขียนอีเมลเสนอขาย สรุปให้ทีม ถามตอบ จัดกลุ่มลูกค้า) - **อ่านไฟล์ของรอบอย่างเดียว ไม่แตะรายงาน ไม่เรียก LLM/API** รันซ้ำได้ (ผลเดิมถูกเขียนทับ)
+**`main.py` รันให้อัตโนมัติ 1 ครั้งหลัง ⑰ ของทุกแบรนด์ในรอบ** (โหมด 1/2/3 ; ข้ามเมื่อไม่ได้รัน ⑰ คือไม่มีแบรนด์หรือใช้ `--skip-pdf` ; ไม่บังคับ พังแล้วไปต่อ) หรือรันเองตามคำสั่งด้านล่าง
+ต้องมี `phase6_report_context.json` (⑯) และ `phase6_brand_context_<แบรนด์>.json` (⑰ ของแต่ละแบรนด์) ; ไม่มีผลแบรนด์ = ได้เฉพาะตารางเทรนด์ (รันเอง)
+
+ผลลัพธ์ที่ `<รอบ>/llm_export/`: `meta.json` (นิยามเกรด คำอธิบายทุกคอลัมน์ ข้อควรระวังความน่าเชื่อถือของพยากรณ์ - ให้ LLM อ่านก่อน) ·
+`briefs/<แบรนด์>.json` (สรุปต่อลูกค้า อ่านจบในตัว ใส่ใน prompt ได้ตรงๆ ราว 20 KB; ช่องไม่มีค่าถูกตัดออก) ·
+ตารางรวม `trends.csv` (เทรนด์กลาง ใช้ร่วมทุกลูกค้า), `trend_top_products.csv`, `customers.csv`, `customer_trends.csv` (ลูกค้า x เทรนด์) และ `llm_export.sqlite` (ตารางเดียวกัน + `glossary` + `run_info`
+ให้ LLM ใช้เครื่องมือ SQL ถามข้ามลูกค้า) · เกรด/ตัวเลขดึงจากไฟล์รายงานโดยตรง ไม่คำนวณใหม่ จึงตรงกับ PDF ; เปลี่ยนเกณฑ์เกรดแล้วต้องรัน ⑰ ก่อน
+
+```powershell
+python tool/phase8_llm_export/export_llm_data.py --run <รอบ>   # ไม่ใส่ --run = TREND_RUN_ID หรือรอบล่าสุดที่มี phase6_report_context.json
+pytest tool/tests/test_llm_export.py -v
+```
+
 ### ช่วงราคาตลาดของ ⑯/⑰/⑱: ราคาต่อปริมาณ (🆕 2026-10-12)
 
 ช่วง ต่ำ / กลาง / สูง ของหน้าสินค้า ⑯ (⑫) และเกรด ⑰/⑱/Excel (⑬) แบ่งจาก **ราคาต่อปริมาณ** (฿ ต่อ ml, g หรือชิ้น) เทียบ**ภายในชนิดสินค้า (L4) เดียวกัน**
@@ -456,6 +472,7 @@ python main.py --refresh beauty_and_personal_care_20260916_082438
 | (ถาม) | ⑬ ค้นหาแบรนด์ 🤖 | `phase3_supply_layer/run_brand_coverage.py` | `phase3_brand_coverage_<แบรนด์>.json` / `.xlsx` (ตั้งแต่ 2026-10-05: ลิงก์สินค้าบน Konvy ทุกชิ้น และชีต "รายเทรนด์" จัดตามกลุ่มราคาแบบรายงาน ⑱: ต่อเทรนด์ -> หมวดหลัก (L2) -> กลุ่มราคาของแบรนด์ -> top 5 ของกลุ่ม + สินค้าที่ดีที่สุดของแบรนด์พร้อมอันดับในกลุ่ม (ผลรอบเก่าที่ยังไม่มี price_tiers ใช้ top 5 ตลาดทั้งหมด) - ภาพรวม 1 แถว/เทรนด์ย้ายไปชีต "สรุปรายเทรนด์"; Excel ของรอบเก่าสร้างใหม่ด้วย `--excel-only` ไม่เรียก API) และต่อท้ายหัวข้อแบรนด์ใน `phase4_master_trend_report.md` |
 | (ถาม) ต่อจาก ⑬ แต่ละแบรนด์ | ⑰ รายงานแบรนด์ PDF 🤖 | `phase6_pdf_report/build_brand_report.py` | `phase6_brand_report_<แบรนด์>.pdf` / `_TH.pdf`, `phase6_brand_context_<แบรนด์>.json`, `phase6_brand_enrichment_<แบรนด์>_TH.json` |
 | (เลิกแยก 2026-10-14 - รวมเข้า ⑰) | ⑱ รายงานหมวด x ระดับราคา PDF | `phase6_pdf_report/build_brand_category_report.py` | `phase6_brand_category_report_<แบรนด์>.pdf` / `_TH.pdf`, `phase6_brand_category_context_<แบรนด์>.json` (ข้อมูลมาจากช่อง `price_tiers` ในไฟล์ ⑬) |
+| (ถาม) 1 ครั้งหลัง ⑰ ของทุกแบรนด์ - `main.py` รันให้เอง | ⑳ ส่งออกให้ LLM (ไม่เรียก LLM) | `phase8_llm_export/export_llm_data.py` | `llm_export/` (`meta.json`, `briefs/<แบรนด์>.json`, `trends.csv`, `trend_top_products.csv`, `customers.csv`, `customer_trends.csv`, `llm_export.sqlite`) |
 | ท้ายสุด (ไม่จำเป็น) | ⑯ รายงาน PDF 🤖 | `phase6_pdf_report/build_pdf_report.py` | `phase6_trend_report.pdf` (อังกฤษ), `phase6_trend_report_TH.pdf` (ไทย), `phase6_report_context.json`, `phase6_report_enrichment.json` / `_TH.json` |
 
 ### กราฟสรุปของรอบ (เลิกใช้แล้ว)
@@ -645,6 +662,7 @@ Trend_analysis/
     ├── phase5_report/                ⑭-⑮
     ├── phase6_pdf_report/            ⑯ รายงานเทรนด์ PDF + ⑰ รายงานแบรนด์ x เทรนด์ (EN/TH)
     ├── phase7_market_report/         ⑲ รายงานภาพรวม/ส่วนแบ่งตลาด (EN/TH)
+    ├── phase8_llm_export/            ⑳ ส่งออกผลเทรนด์ + ผลลูกค้าเป็นไฟล์สำหรับ LLM (brief/CSV/SQLite)
     ├── product/                      โค้ดสร้างแคตตาล็อกสินค้า + จัดหมวด + product_category.csv ;
     │                                 ไฟล์ข้อมูลใหญ่ (konvy/eveandboy/market_product, Euromonitor, FDA) ไม่อยู่ใน repo — ดู tool/product/README.md
     └── tests/                        เทสต์ทั้งหมด (pytest, ไม่เรียก API) ; เทสที่ต้องใช้ไฟล์ข้อมูลจะข้ามเองถ้าไม่มีไฟล์

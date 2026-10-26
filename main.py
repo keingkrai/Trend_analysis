@@ -46,6 +46,10 @@ Thin orchestrator — รันไปป์ไลน์ v2 ทั้งชุด
 รอบเดิม, ⑪ ใช้จุดเด่นเดิม และ ⑫ ใช้เหตุผลจับคู่สินค้าเดิม (env TREND_REFRESH_FROM) รายงานจึงต่างแค่ส่วนที่มาจาก Google Trends
 ต่อด้วย ⑬ ⑰ ของแบรนด์ที่รอบเดิมมีผลอยู่ ไม่มีหน้าเทียบกับรอบเดิม (เจ้าของงานเลือก: ได้ไฟล์ชุดใหม่แบบรันปกติ)
 
+🆕 (2026-10-26) ⑳ ส่งออกผลของรอบให้ LLM (brief ต่อลูกค้า + ตารางรวมลูกค้า/เทรนด์ CSV + SQLite) รันอัตโนมัติ **ครั้งเดียว** หลัง ⑰ ของทุกแบรนด์ในรอบ
+ทั้งโหมด 1/2/3 (ส่งออกทุกแบรนด์ที่มีผล ⑰ ในโฟลเดอร์รอบ จึงไม่รันต่อแบรนด์) - ข้ามเมื่อไม่ได้รัน ⑰ (ไม่มีแบรนด์ / --skip-pdf) ; ไม่เรียก API ไม่บังคับ /
+รันเองด้วย `python tool/phase8_llm_export/export_llm_data.py --run <ชื่อรอบ>`
+
 Usage:
     python main.py                    # เจอเมนูเลือกโหมด 1/2/3 ก่อน
     python main.py --skip-discovery   # ข้าม ⑩ ไปเลย ไม่ถาม (โหมด 1 อัตโนมัติ)
@@ -99,6 +103,8 @@ BRAND_STAGE = "phase3_supply_layer/run_brand_coverage.py"  # ⑬ - แยกไ�
 BRAND_REPORT_STAGE = "phase6_pdf_report/build_brand_report.py"
 # 🆕 (2026-10-14) ⑱ รายงานหมวด x ระดับราคา รวมเข้า ⑰ แล้ว (หน้าสินค้าต่อเทรนด์ของ ⑰ = หน้าเทรนด์ของ ⑱ เดิม) - ไม่รัน ⑱ แยกอีก
 # (สคริปต์ phase6_pdf_report/build_brand_category_report.py ยังอยู่ ใช้สร้าง ⑱ แยกเองได้ถ้าต้องการ)
+# 🆕 (2026-10-26) ⑳ ส่งออกให้ LLM - รันครั้งเดียวหลัง ⑰ ของทุกแบรนด์ในรอบ (run_llm_export) ไม่บังคับ: พังแล้วผล ⑯ ⑰ ยังอยู่ครบ
+LLM_EXPORT_STAGE = ("⑳ ส่งออกให้ LLM (brief ต่อลูกค้า + ตารางรวม)", "phase8_llm_export/export_llm_data.py", False)
 # 🆕 (2026-09-25) ⑯ รายงาน PDF - ไม่อยู่ใน STAGES เพราะไม่บังคับ (ไม่เกี่ยวกับ ⑬ แบรนด์):
 # PDF พังต้องไม่ทำให้รอบรันเป็นชั่วโมงเสีย (ผลทุกขั้นยังอยู่ครบ สร้าง PDF ใหม่ทีหลังได้ด้วยคำสั่งเดี่ยว)
 PDF_STAGE = ("⑯ รายงาน PDF (อังกฤษ + ไทย)", "phase6_pdf_report/build_pdf_report.py", False)
@@ -262,6 +268,13 @@ def run_brand(env, brand, make_pdf=True):
                   extra_args=["--brand", brand])
 
 
+def run_llm_export(env, n_brands, make_pdf=True):
+    """🆕 (2026-10-26) ⑳ ส่งออกให้ LLM หลัง ⑬ ⑰ ของแบรนด์ทั้งหมดในรอบจบแล้ว - เรียกครั้งเดียวต่อรอบ เพราะ ⑳ ส่งออกทุกแบรนด์ที่มีผล ⑰ ในโฟลเดอร์รอบ
+    ข้ามเมื่อไม่ได้รัน ⑰ (n_brands = 0 หรือ make_pdf = False) - ⑳ อ่านผลของ ⑯ ⑰ จึงไม่มีอะไรให้ส่งออกถ้าไม่ได้สร้างรายงาน"""
+    if make_pdf and n_brands:
+        run_stage(*LLM_EXPORT_STAGE, env)
+
+
 def run_mode_brand_lookup():
     """🆕 (2026-09-15) โหมด 2 — ค้นหาแบรนด์สินค้าในเทรนด์จากรอบที่มีอยู่แล้ว ไม่ต้องรันเทรนด์ใหม่เลย
     (⑬ ไม่เคยพึ่งการรันเทรนด์ใหม่จริงๆ - ใช้ embedding checkpoint ที่แคชไว้จาก ⑫ + trend profile ของ
@@ -281,7 +294,7 @@ def run_mode_brand_lookup():
 
     env = _pipeline_env(TREND_RUN_ID=run_id)
 
-    run_brand_lookup_loop(env)
+    run_llm_export(env, run_brand_lookup_loop(env))
 
     print("\n" + "=" * 70)
     print("🏁 จบ - เช็คแบรนด์เสร็จแล้ว")
@@ -340,7 +353,8 @@ def run_mode_full_pipeline(args):
         run_stage(*PDF_STAGE, env)
 
     if not args.skip_brand:
-        run_brand_lookup_loop(env, make_pdf=not args.skip_pdf)
+        n_brands = run_brand_lookup_loop(env, make_pdf=not args.skip_pdf)
+        run_llm_export(env, n_brands, make_pdf=not args.skip_pdf)
 
     print("\n" + "=" * 70)
     print(f"🏁 จบไปป์ไลน์ — ผลทั้งหมดอยู่ที่ {PROJECT_ROOT / 'output' / run_id}")
@@ -493,10 +507,12 @@ def run_mode_refresh(args):
     if not args.skip_pdf:
         run_stage(*PDF_STAGE, env)
 
+    n_brands = len(brands)
     for brand in brands:
         run_brand(env, brand, make_pdf=not args.skip_pdf)
     if not args.skip_brand and not args.refresh:
-        run_brand_lookup_loop(env, make_pdf=not args.skip_pdf)
+        n_brands += run_brand_lookup_loop(env, make_pdf=not args.skip_pdf)
+    run_llm_export(env, n_brands, make_pdf=not args.skip_pdf)
 
     print("\n" + "=" * 70)
     print(f"🏁 จบการอัปเดต — ผลทั้งหมดอยู่ที่ {OUTPUT_ROOT / run_id} (รอบเดิม {source_id} ไม่ถูกแตะ)")
@@ -512,7 +528,7 @@ def main():
     parser.add_argument("--skip-discovery", action="store_true", help="ข้าม ⑩ ไปเลย ไม่ถาม")
     parser.add_argument("--skip-brand", action="store_true", help="ข้าม ⑬ (จับคู่แบรนด์) ไปเลย ไม่ถาม")
     parser.add_argument("--skip-pdf", action="store_true",
-                        help="ไม่สร้างรายงาน PDF: ⑯ รายงานเทรนด์ท้ายไปป์ไลน์ ⑰ รายงานแบรนด์หลังค้นหาแต่ละแบรนด์")
+                        help="ไม่สร้างรายงาน PDF: ⑯ รายงานเทรนด์ท้ายไปป์ไลน์ ⑰ รายงานแบรนด์หลังค้นหาแต่ละแบรนด์ (⑳ ส่งออกให้ LLM ก็ข้ามด้วย เพราะใช้ผลของ ⑯ ⑰)")
     # 🆕 (2026-09-30) เลิกวาด Plot_bump_chart / Plot_trend_map (ใช้ค่าพยากรณ์ z-score / Z_Delta) - รับ flag ไว้ไม่ให้คำสั่งเดิมพัง
     parser.add_argument("--skip-plots", action="store_true", help="(ไม่มีผลแล้ว - เลิกวาดกราฟ Z_Delta ตั้งแต่ 2026-09-30)")
     # 🆕 (2026-09-26) --run-id: ผู้เรียก (backend ของ GI_CH) ตั้งชื่อรอบเองเพื่อรู้ว่าผลจะลงโฟลเดอร์ไหน (โหมด 1 เท่านั้น)

@@ -11,6 +11,7 @@
 | `phase5_report/` | ⑭-⑮ STEPIC → Master Report |
 | `phase6_pdf_report/` | ⑯ รายงานเทรนด์ PDF และ ⑰ รายงานแบรนด์ x เทรนด์ PDF - อังกฤษ + ไทย (Jinja2 → Playwright Chromium) |
 | `phase7_market_report/` | ⑲ รายงานภาพรวม/ส่วนแบ่งตลาด PDF - อังกฤษ + ไทย (Euromonitor + อย. + ข่าว) |
+| `phase8_llm_export/` | ⑳ ส่งออกผลของรอบให้ LLM ใช้ต่อ (brief ต่อลูกค้า + ตารางรวมลูกค้า/เทรนด์ CSV + SQLite) - อ่านไฟล์ของรอบอย่างเดียว ไม่เรียก API |
 | `product/` | โค้ดสร้างแคตตาล็อกสินค้า (`build_konvy_catalog.py`, `build_eve_catalog.py`, `build_market_catalog.py`), จัดหมวด (`euromonitor_mapping.py`, `classify_products_llm.py`) และ `product_category.csv` (taxonomy 4 ระดับของ Euromonitor) ; **ไฟล์ข้อมูลใหญ่ไม่อยู่ใน repo** — ดู [product/README.md](product/README.md) |
 | `tests/` | เทสต์ทั้งหมดของโปรเจกต์ (pytest) — `python -m pytest tool/tests -q` จากโฟลเดอร์บนสุด ไม่เรียก API ; เทสที่ต้องใช้ไฟล์ข้อมูลใน `product/` ข้ามเองถ้าไม่มีไฟล์ |
 | `phase4_discovery_round/` | มีแค่ README (โค้ดของ ⑩ อยู่ใน `phase2_three_streams/`) |
