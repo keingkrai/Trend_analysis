@@ -225,6 +225,9 @@ if __name__ == "__main__":
     payload["_elapsed_seconds"] = round(elapsed, 1)
     payload["trends"] = result["df_trends"].to_dict(orient="records")
     payload["keywords"] = result["df_keywords"].to_dict(orient="records")
+    # 🆕 (2026-10-14) รายการเอกสารต้นทาง (หัวข้อ/แหล่ง/ลิงก์) ไว้ทำหน้ารายการแหล่งข้อมูลของรายงาน ⑯
+    payload["documents"] = [{"title": a.get("title"), "source": a.get("source"), "link": a.get("link")}
+                            for a in result.get("scraped_data") or []]
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 

@@ -17,7 +17,6 @@ Free Plan 250/เดือน, ใช้ไปแล้ว 152, เหลือ 
 """
 import json
 import sys
-import urllib.request
 from pathlib import Path
 
 for _p in Path(__file__).resolve().parents:
@@ -66,12 +65,11 @@ def build_trend_keyword_mapping():
 
 
 def check_quota():
-    key = tf2.SERPAPI_KEY
-    url = f"https://serpapi.com/account.json?api_key={key}"
-    with urllib.request.urlopen(url, timeout=15) as r:
-        data = json.load(r)
-    left = data.get("plan_searches_left", data.get("total_searches_left"))
-    print(f"  SerpAPI quota เหลือ: {left} search (แผน {data.get('plan_name')})")
+    """🆕 (2026-10-12) โควตาที่เหลือรวมทุกคีย์ใน SERPAPI_KEY (account.json ฟรี) - คีย์ที่หมดแล้วถูกข้ามตั้งแต่ต้น
+    ระหว่างรันคีย์ไหนหมด GoogleSearch ของ tf2 เปลี่ยนไปคีย์ถัดไปเอง (common/serpapi_keys.py)"""
+    left, per_key = tf2.SERPAPI_POOL.refresh_quota()
+    detail = ", ".join(f"{k}={'?' if v is None else v}" for k, v in per_key.items())
+    print(f"  SerpAPI quota เหลือรวม: {left} search จาก {len(per_key)} คีย์ ({detail})")
     return left
 
 

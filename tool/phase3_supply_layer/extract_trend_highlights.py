@@ -19,8 +19,9 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-from common.bootstrap import (OUTPUTS, tf, use_bedrock, safe_json_parse, get_top_n_trends,  # noqa: E402
-                              load_ranked_trends, collect_top_n_with_matchable_data)
+from common.bootstrap import (OUTPUTS, GROWTH_LINE, LONG_YEAR, SHORT_YEAR, TOP_K_PER_HORIZON, tf, use_bedrock,  # noqa: E402
+                              safe_json_parse, get_top_n_trends, load_ranked_trends, collect_detail_and_top_k,
+                              refresh_source_dir)
 from match_supply import build_trend_matchable_text  # noqa: E402  (ตัวตรวจเดียวกับที่ ⑫ ใช้ตอน embed)
 
 # 🆕 (2026-09-16) ค่าที่ trend_type ตอบได้ (ต้องตรงกับพรอมต์ด้านล่างทุกตัวอักษร ไม่นับช่องว่าง) - นับเข้า Top N
@@ -28,6 +29,12 @@ from match_supply import build_trend_matchable_text  # noqa: E402  (ตัวต
 TREND_TYPE_PRODUCT = "สินค้า"
 TREND_TYPE_CHANNEL = "ช่องทาง/พฤติกรรมการซื้อ"
 TREND_TYPES = (TREND_TYPE_PRODUCT, TREND_TYPE_CHANNEL)
+# เหตุผลที่ไม่นับเข้า Top N (บันทึกใน excluded_trends / checked_trends) - 🆕 (2026-10-07) โหมดอัปเดตใช้จับคู่ผลตัดสินของรอบเดิม
+REASON_CHANNEL = "เทรนด์ประเภทช่องทาง/พฤติกรรมการซื้อ - ไม่มีคุณสมบัติสินค้าให้จับคู่"
+REASON_NO_TEXT = "ข้อมูลไม่พอทุกช่องที่ใช้จับคู่สินค้า"
+NO_INFO = "ข้อมูลไม่พอ"
+PROFILE_FIELDS = ("attribute", "functional_consequence", "psychosocial_consequence", "job_to_be_done",
+                  "point_of_difference", "point_of_parity")
 
 STREAM_FILES = {
     "Paper": "phase1_paper_stream_result.json",
@@ -131,6 +138,33 @@ def export_top_n_forecast(selected, forecast_dir):
     return dst
 
 
+HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
+
+
+def load_reusable_profiles(source_dir):
+    """🆕 (2026-10-07) โหมดอัปเดตรอบเดิม: ผลตัดสินที่ ⑪ ของรอบต้นทางทำไว้แล้ว -> {(stream, trend): profile}
+    ข้อมูลเทรนด์เป็นสำเนาของรอบต้นทางทุกตัวอักษร จึงใช้ซ้ำแทนเรียก LLM ใหม่ (⑫ ได้สินค้าชุดเดิม รายงานต่างแค่ส่วนที่มาจาก
+    Google Trends และ LLM ตอบต่างไม่ทำให้เทรนด์หลุด/เข้า Top N เอง):
+      - จับคู่ได้ = profile เดิม (profiles + extra_profiles)
+      - จับคู่ไม่ได้ (รอบต้นทางไม่ได้เก็บ profile) = profile แทนที่ให้ exclusion_reason ได้เหตุผลเดิม: ประเภทช่องทาง หรือ
+        "ข้อมูลไม่พอ" ทุกช่อง - เหตุผลอื่นที่ไม่รู้จัก ไม่ใช้ซ้ำ (เรียก LLM)
+    เทรนด์ที่รอบต้นทางไม่เคยตรวจยังเรียก LLM ตามปกติ / source_dir None หรือไม่มีไฟล์ = {}"""
+    path = source_dir / HIGHLIGHTS_FILE if source_dir else None
+    if not path or not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    reusable = {(p.get("stream"), p["trend"]): p
+                for p in (data.get("profiles") or []) + (data.get("extra_profiles") or [])}
+    stub_type = {REASON_CHANNEL: TREND_TYPE_CHANNEL, REASON_NO_TEXT: TREND_TYPE_PRODUCT}
+    for e in (data.get("checked_trends") or []) + (data.get("excluded_trends") or []):
+        key = (e.get("stream"), e.get("trend"))
+        if key not in reusable and not e.get("matchable") and e.get("reason") in stub_type:
+            reusable[key] = {"trend": e["trend"], "stream": e["stream"], "trend_type": stub_type[e["reason"]],
+                             **{field: NO_INFO for field in PROFILE_FIELDS}}
+    return reusable
+
+
 def extract_highlight(cluster):
     """ยิง Typhoon 1 ครั้งต่อคลัสเตอร์ - เหมือน pattern เดิมทุกจุดในโปรเจกต์นี้ (json_object)"""
     user_content = (
@@ -156,7 +190,8 @@ def extract_highlight(cluster):
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("Phase 3 ⑪ — สกัดจุดเด่นเทรนด์ผ่าน LLM (AWS Bedrock) - Top N ตาม Rank Score ของ ⑥ ที่มีข้อมูลให้จับคู่สินค้า")
+    print("Phase 3 ⑪ — สกัดจุดเด่นเทรนด์ผ่าน LLM (AWS Bedrock) - เทรนด์เหนือค่ากลางตลาดตาม Rank Score ของ ⑥ "
+          "ที่มีข้อมูลให้จับคู่สินค้า")
     print("=" * 70)
 
     all_clusters = load_all_clusters()
@@ -176,14 +211,29 @@ if __name__ == "__main__":
         # ⑥ กับไฟล์สายมาจากคนละรอบ (ชื่อเทรนด์ไม่ตรงกัน) - หยุดดีกว่าได้จุดเด่นไม่ครบโดยไม่รู้ตัว
         print(f"❌ หาเทรนด์จากผล ⑥ ไม่เจอในไฟล์สาย: {not_found} - ⑥ กับ ①-⑤ มาจากคนละรอบหรือเปล่า")
         sys.exit(1)
-    print(f"ไล่ตามอันดับ Rank Score (⑥) จนได้ {top_n} เทรนด์ที่มีข้อมูลให้จับคู่สินค้า "
-          f"(ข้ามตัวที่ข้อมูลไม่พอแล้วเลื่อนอันดับถัดไปขึ้นมา)")
+    # 🆕 (2026-09-30) หน้ารายละเอียดเฉพาะเทรนด์ที่คะแนนการเติบโตปีที่ 1 ถึงค่ากลางตลาด + ตัดสินเพิ่มเฉพาะเทรนด์ที่ต้องใช้
+    # ในหน้า Top 5 ระยะสั้น/ระยะยาว (ดู bootstrap.collect_detail_and_top_k)
+    print(f"ไล่ตามอันดับ Rank Score (⑥) เฉพาะเทรนด์ที่คะแนนปีที่ {SHORT_YEAR} ถึง {GROWTH_LINE} จนได้ {top_n} เทรนด์ที่มีข้อมูลให้"
+          f"จับคู่สินค้า แล้วตัดสินเพิ่มจนรู้ Top {TOP_K_PER_HORIZON} ที่จับคู่ได้ของปีที่ {SHORT_YEAR} และปีที่ {LONG_YEAR}")
+    # 🆕 (2026-10-07) โหมดอัปเดตรอบเดิม - ใช้จุดเด่นของรอบต้นทางซ้ำ (ดู load_reusable_profiles)
+    source_dir = refresh_source_dir()
+    reusable = load_reusable_profiles(source_dir)
+    n_reused = 0
+    if source_dir:
+        print(f"โหมดอัปเดตรอบเดิม: ใช้ผล ⑪ เดิมของรอบ {source_dir.name} ได้ {len(reusable)} เทรนด์ (จุดเด่น + ผลตัดสินว่าจับคู่ได้ไหม - ตัวอื่นเรียก LLM ตามปกติ)")
 
     def make_profile(item):
+        global n_reused
         cluster = cluster_by_key[(item["stream"], item["trend"])]
         print()
         print(f"[อันดับ {item['overall_rank']}] {item['stream']} — {item['trend']}  "
-              f"(Rank Score={item['rank_score']}, Z_Delta={item['z_delta']})")
+              f"(Rank Score={item['rank_score']}, ปีที่ {SHORT_YEAR}={item.get('growth_short')}, "
+              f"ปีที่ {LONG_YEAR}={item.get('growth_long')})")
+        reused = reusable.get((item["stream"], item["trend"]))
+        if reused:
+            n_reused += 1
+            print(f"   ↺ ใช้ผล ⑪ เดิมจากรอบ {source_dir.name} (ไม่เรียก LLM)")
+            return {**reused, "stream": item["stream"], "trend": item["trend"]}
         try:
             profile = extract_highlight(cluster)
             if not profile or not profile.get("functional_consequence"):
@@ -206,38 +256,50 @@ if __name__ == "__main__":
 
     def exclusion_reason(profile):
         if profile["trend_type"] == TREND_TYPE_CHANNEL:
-            reason = "เทรนด์ประเภทช่องทาง/พฤติกรรมการซื้อ - ไม่มีคุณสมบัติสินค้าให้จับคู่"
+            reason = REASON_CHANNEL
         elif not build_trend_matchable_text(profile).strip():
-            reason = "ข้อมูลไม่พอทุกช่องที่ใช้จับคู่สินค้า"
+            reason = REASON_NO_TEXT
         else:
             reason = None
-        print("   ✅ นับเข้า Top N" if reason is None else f"   ⏭️ ไม่นับเข้า Top N: {reason}")
+        print("   ✅ จับคู่สินค้าได้" if reason is None else f"   ⏭️ จับคู่สินค้าไม่ได้: {reason}")
         return reason
 
-    selected, profiles, excluded, failed = collect_top_n_with_matchable_data(
-        ranked, make_profile, exclusion_reason, top_n)
+    picked = collect_detail_and_top_k(ranked, make_profile, exclusion_reason, top_n)
+    selected, profiles, excluded, failed = picked["selected"], picked["profiles"], picked["excluded"], picked["failed"]
 
     print()
     print("=" * 70)
-    print(f"สรุป: ได้ {len(selected)}/{top_n} เทรนด์ที่มีข้อมูลให้จับคู่สินค้า - อันดับที่ใช้แสดงผลเป็น 1-{len(selected)} "
+    print(f"สรุป: หน้ารายละเอียด {len(selected)}/{top_n} เทรนด์ - อันดับที่ใช้แสดงผลเป็น 1-{len(selected)} "
           f"(อันดับเดิมจาก ⑥: {', '.join(str(s['overall_rank']) for s in selected)})")
+    if source_dir:
+        print(f"   ใช้ผล ⑪ เดิมจากรอบ {source_dir.name}: {n_reused} เทรนด์ (ไม่เรียก LLM)")
+    if picked["extra_profiles"]:
+        print(f"   จับคู่ได้แต่อยู่ใต้เส้น (ใช้ในหน้า Top 5 เท่านั้น) {len(picked['extra_profiles'])}: "
+              + ", ".join(p["trend"] for p in picked["extra_profiles"]))
     if excluded:
-        print(f"   ข้ามเพราะข้อมูลไม่พอ {len(excluded)}: "
+        print(f"   จับคู่สินค้าไม่ได้ {len(excluded)}: "
               + ", ".join(f"#{x['overall_rank']} {x['trend']}" for x in excluded))
     if failed:
         print(f"   ❌ ล้มเหลวทางเทคนิค {len(failed)}: " + ", ".join(f"#{x['overall_rank']} {x['trend']}" for x in failed))
     if len(selected) < top_n and not failed:
-        print(f"   ⚠️ เทรนด์ที่มีข้อมูลให้จับคู่มีไม่ถึง {top_n} ตัว - ใช้ {len(selected)} ตัวที่มี")
+        print(f"   ℹ️ เทรนด์เหนือเส้นที่จับคู่สินค้าได้มี {len(selected)} ตัว (ไม่ถึง {top_n}) - ใช้เท่าที่มี")
 
-    out_path = OUTPUTS / "phase3_trend_highlights_result.json"
+    out_path = OUTPUTS / HIGHLIGHTS_FILE
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "_note": "⑪ จุดเด่นเทรนด์ผ่าน LLM - แทนที่ match_supply.py's TREND_PROFILES ที่เคยทำ manual ทั้งหมด",
             "profiles": profiles, "failed": [x["trend"] for x in failed],
             # 🆕 (2026-09-16) ชุด Top N (Rank Score ของ ⑥ + มีข้อมูลให้จับคู่) - รายงานและ notebook อ่านตรงนี้
+            # 🆕 (2026-09-30) Top N = เฉพาะเทรนด์เหนือค่ากลางตลาด (growth_line) ไม่เกิน N ตัว
             "top_n": len(selected), "requested_top_n": top_n, "n_trends_total": len(all_clusters),
+            "growth_line": GROWTH_LINE,
             "selected_trends": selected, "excluded_trends": excluded,
             "failed_trends": failed,
+            # 🆕 (2026-09-30) ผลตัดสินทุกเทรนด์ที่ตรวจแล้ว (รวมตัวที่ตรวจเพิ่มเพื่อหน้า Top 5) - รายงาน ⑯ ใช้เลือก Top 5
+            # ระยะสั้น/ระยะยาวจากทุกเทรนด์ที่จับคู่ได้ / extra_profiles ไม่ส่งต่อให้ ⑫ ⑬ (อ่านแค่ profiles)
+            "checked_trends": picked["checked"], "extra_profiles": picked["extra_profiles"],
+            # 🆕 (2026-10-07) โหมดอัปเดตรอบเดิม: รอบต้นทาง + จำนวนเทรนด์ที่ใช้ผลเดิม (รวมตัวที่จับคู่ไม่ได้) (None = รันปกติ)
+            "reused_from": source_dir.name if source_dir else None, "n_reused_profiles": n_reused,
         }, f, ensure_ascii=False, indent=2)
     print(f"✅ Saved -> {out_path}")
 

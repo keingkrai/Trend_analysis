@@ -1,9 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Phase 2 — Rank Score: จัดอันดับเทรนด์ด้วยตัวเลขเดียว รวม 3 สัญญาณ
+Phase 2 — Rank Score: จัดอันดับเทรนด์ด้วยตัวเลขเดียว
 
 ตอบคำถาม "ทำไมเทรนด์นี้เป็นอันดับ 1" ด้วยตัวเลขที่อธิบายได้ (ไม่ใช่แค่ลำดับที่ Louvain/LLM จัดมาให้
 โดยบังเอิญ) — ดู Detail/05 งานที่ยังไม่ได้ทำ/Backlog และแนวทางต่อไป.md ข้อ 30
+
+🆕 (2026-09-30) เปลี่ยนเกณฑ์หลักจาก Z_Delta เป็นคะแนนการเติบโตของการค้นหาปีที่ 1 (growth_score.py) - backtest
+พบว่าอันดับ Z_Delta สวนทางกับการโตจริงในปีถัดไป (Spearman −0.20) ส่วนคะแนนการเติบโต (ผสม momentum กับโมเดล
+พยากรณ์การเติบโต) ได้ +0.49 ดูที่มาใน growth_score.py
+
+    โหมด final:        Rank Score = คะแนนการเติบโตปีที่ RANK_YEAR (0-1, 0.5 = ค่ากลางตลาด) ไม่มีโบนัสจำนวนสาย
+                       🆕 (2026-10-02) ปีที่ 2 แทนปีที่ 1 - เจ้าของงานกำหนดระยะสั้น = 2 ปี (ระยะยาว = ปีที่ 5)
+                       🆕 (2026-10-19) ปีที่ 3 (ระยะสั้น = 3 ปี) - ค่าอยู่ที่ common/horizons.py · rerank_rows() / --rerank จัดอันดับใหม่จากไฟล์ผลเดิม
+    โหมด preliminary:  Rank Score = ขนาดคลัสเตอร์ normalize × (1 + 0.2 × (จำนวนสาย - 1)) (ไม่มีข้อมูล Google Trends)
+
+ทำไมตัดโบนัสจำนวนสายออกจากโหมด final: รายงานขีดเส้นแบ่งที่ค่ากลางตลาด (0.5) และทำหน้ารายละเอียดเฉพาะเทรนด์เหนือเส้น
+ถ้าคูณโบนัสเข้าไป เทรนด์ที่โตช้ากว่าตลาดแต่เจอ 2 สายจะได้อันดับเหนือเทรนด์ที่โตเร็วกว่าตลาด ลำดับกับเส้นแบ่งจะขัดกัน
+จำนวนสาย (Stream_Count) ยังเก็บไว้แสดงในรายงานและใช้ตัดสินกรณีคะแนนเท่ากัน
+
+เนื้อหาด้านล่างเป็นคำอธิบายรุ่นเดิม (Z_Delta) เก็บไว้เป็นประวัติ - ตัวเลขที่ใช้จริงดูตามย่อหน้าบน
 
     Rank Score = f(Z_Delta, จำนวนสายที่เจอคีย์เวิร์ดนี้, ขนาดคลัสเตอร์)
 
@@ -90,30 +105,28 @@ def normalize_cluster_size(cluster_size, all_cluster_sizes_same_stream):
     return cluster_size / max_size
 
 
-def compute_rank_score(cluster_size, all_cluster_sizes_same_stream, stream_count, z_delta=None):
-    """คำนวณ Rank Score เดียวจาก 3 สัญญาณ - ดูสูตรเต็มใน docstring บนสุดของไฟล์
+def compute_rank_score(cluster_size, all_cluster_sizes_same_stream, stream_count, growth=None):
+    """คำนวณ Rank Score เดียว - ดูสูตรเต็มใน docstring บนสุดของไฟล์
+
+    growth = คะแนนการเติบโตปีที่ 1 ของเทรนด์ (growth_score.py, 0-1) หรือ None ถ้ายังไม่มีข้อมูล Google Trends
 
     Returns:
-        dict {score, mode, z_delta, stream_count, cluster_size_normalized}
+        dict {score, mode, growth, stream_count, cluster_size_normalized}
     """
     normalized_size = normalize_cluster_size(cluster_size, all_cluster_sizes_same_stream)
-    if z_delta is not None:
-        # 🆕 (2026-09-12, audit M5) เดิม score = z_delta * bonus ตรงๆ - ทำให้เทรนด์ขาลงที่ยืนยันข้าม
-        # สายยิ่งติดลบมากขึ้น (เช่น -0.5 -> -0.6) ซึ่งดันอันดับลงต่ำกว่าเทรนด์ขาลงสายเดียว - ไม่มีประโยชน์
-        # กับจุดประสงค์ของรายงาน (หา "เทรนด์ไหนกำลังจะมา") เพราะทั้งคู่ถูกคัดออกจาก top-N เหมือนกันอยู่แล้ว
-        # ให้โบนัสยืนยันข้ามสายมีผลเฉพาะตอนสัญญาณเป็นบวก (ยิ่งมั่นใจว่ากำลังขึ้น) เท่านั้น
-        stream_bonus = 1 + 0.1 * (stream_count - 1)
-        score = z_delta * stream_bonus if z_delta > 0 else z_delta
-        mode = "final (Z_Delta)"
+    if growth is not None:
+        # 🆕 (2026-09-30) ใช้คะแนนการเติบโตตรงๆ ไม่คูณโบนัสจำนวนสาย (เหตุผลใน docstring บนสุดของไฟล์)
+        score = growth
+        mode = "final (growth)"
     else:
         stream_bonus = 1 + 0.2 * (stream_count - 1)
         score = normalized_size * stream_bonus
-        mode = "preliminary (cluster size - ยังไม่มี Z_Delta จริง)"
+        mode = "preliminary (cluster size - ยังไม่มีคะแนนการเติบโตจริง)"
 
     return {
         "score": round(float(score), 4),
         "mode": mode,
-        "z_delta": z_delta,
+        "growth": growth,
         "stream_count": stream_count,
         "cluster_size_normalized": round(float(normalized_size), 4),
     }
@@ -217,24 +230,37 @@ def apply_cross_source_confirmation(df_trends_by_stream, df_keywords_by_stream):
     return result
 
 
-def rank_trends_across_streams(df_trends_by_stream, df_keywords_by_stream, z_delta_lookup=None):
+# 🆕 (2026-10-02) ปีของคะแนนการเติบโตที่บันทึก (ต้องตรงกับ growth_score.HORIZONS) และปีที่ใช้จัดอันดับหลัก
+# (= ระยะสั้นของรายงาน) · 🆕 (2026-10-19) อ่านจาก common/horizons.py ที่เดียว (เดิมเขียน 2 ตรงนี้แล้ว "ให้ตรงกับ" โมดูลอื่นด้วยคอมเมนต์)
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_TOOL_DIR = str(_Path(__file__).resolve().parents[1])
+if _TOOL_DIR not in _sys.path:
+    _sys.path.insert(0, _TOOL_DIR)
+from common.horizons import SHORT_YEAR as RANK_YEAR, YEARS as GROWTH_YEARS  # noqa: E402
+
+
+def rank_trends_across_streams(df_trends_by_stream, df_keywords_by_stream, growth_lookup=None):
     """ฟังก์ชันหลัก - รับผลลัพธ์ทุกสาย คืนตาราง Rank Score รวมทุกเทรนด์ทุกสายเรียงจากมากไปน้อย
 
     Args:
         df_trends_by_stream: dict {stream_name: df_trends} (output จาก summarize_trend_clusters
             ต้องมีคอลัมน์ "Cluster Size" - ดู Backlog ข้อ 30)
         df_keywords_by_stream: dict {stream_name: df_keywords} (output จาก extract_strategic_keywords)
-        z_delta_lookup: dict {(stream_name, trend_name): z_delta} หรือ None ถ้ายังไม่มีข้อมูล
-            Google Trends เลย (โหมด preliminary ทั้งหมด)
+        growth_lookup: dict {(stream_name, trend_name): แถวเทรนด์จาก growth_score.compute_growth_scores()
+            ["clusters"]} หรือ None ถ้ายังไม่มีข้อมูล Google Trends (โหมด preliminary ทั้งหมด)
 
     Returns:
-        DataFrame เรียงจาก Rank Score มากไปน้อย คอลัมน์: Stream, Trend Name, Rank Score, Mode,
-        Z_Delta, Stream_Count, Cluster_Size, Cluster_Size_Normalized
+        DataFrame เรียงโหมด final ก่อน แล้วตาม Rank Score มากไปน้อย (เท่ากันใช้จำนวนสายตัดสิน) คอลัมน์:
+        Stream, Trend Name, Rank Score, Mode, Growth_Y1..Y5, Grade_Y1..Y5, Past_Growth_Pct,
+        Recent_Change_Pct, Recent_Decline, Stream_Count, Cluster_Size, Cluster_Size_Normalized
+        (🆕 2026-09-30 ไม่มีคอลัมน์ Z_Delta แล้ว - เจ้าของงานให้เอาออกจากทุกส่วนที่คนเห็น)
     """
     import pandas as pd
 
     keyword_index = build_keyword_stream_index(df_keywords_by_stream)
-    z_delta_lookup = z_delta_lookup or {}
+    growth_lookup = growth_lookup or {}
 
     rows = []
     for stream, df_trends in df_trends_by_stream.items():
@@ -255,27 +281,99 @@ def rank_trends_across_streams(df_trends_by_stream, df_keywords_by_stream, z_del
             trend_name = row["Trend Name"]
             cluster_size = row.get("Cluster Size", 1)
             stream_count = trend_stream_count(kw_by_trend.get(trend_name, ""), keyword_index)
-            z_delta = z_delta_lookup.get((stream, trend_name))
+            g = growth_lookup.get((stream, trend_name)) or {}
 
-            result = compute_rank_score(cluster_size, all_sizes, stream_count, z_delta)
+            result = compute_rank_score(cluster_size, all_sizes, stream_count, g.get(f"score_y{RANK_YEAR}"))
             rows.append({
                 "Stream": stream,
                 "Trend Name": trend_name,
                 "Rank Score": result["score"],
                 "Mode": result["mode"],
-                "Z_Delta": result["z_delta"],
+                **{f"Growth_Y{h}": g.get(f"score_y{h}") for h in GROWTH_YEARS},
+                **{f"Grade_Y{h}": g.get(f"grade_y{h}") for h in GROWTH_YEARS},
+                "Past_Growth_Pct": g.get("past_growth_pct"),
+                "Recent_Change_Pct": g.get("recent_change_pct"),
+                "Recent_Decline": g.get("recent_decline"),
                 "Stream_Count": result["stream_count"],
                 "Cluster_Size": cluster_size,
                 "Cluster_Size_Normalized": result["cluster_size_normalized"],
             })
 
-    df_result = pd.DataFrame(rows).sort_values("Rank Score", ascending=False).reset_index(drop=True)
-    if not df_result.empty:
-        df_result.insert(0, "Overall Rank", range(1, len(df_result) + 1))
+    df_result = pd.DataFrame(rows)
+    if df_result.empty:
+        return df_result
+    # โหมด final ก่อนเสมอ (คะแนนโหมด preliminary คนละสเกล เทียบกันตรงๆ ไม่ได้) แล้วตามคะแนน เท่ากันใช้จำนวนสาย
+    df_result["_final"] = df_result["Mode"].str.startswith("final")
+    df_result = (df_result.sort_values(["_final", "Rank Score", "Stream_Count", "Trend Name"],
+                                       ascending=[False, False, False, True])
+                 .drop(columns="_final").reset_index(drop=True))
+    df_result.insert(0, "Overall Rank", range(1, len(df_result) + 1))
     return df_result
 
 
+def rerank_rows(rows, year=RANK_YEAR):
+    """🆕 (2026-10-19) จัดอันดับใหม่จากแถวของไฟล์ผลที่บันทึกไว้แล้ว (list ของ dict - phase2_rank_score_final_mode_result.json) ด้วยคะแนนปีที่ `year`
+    โดยไม่ฝึกโมเดลพยากรณ์ซ้ำ - ใช้เมื่อเจ้าของงานเปลี่ยนปีระยะสั้น (common/horizons.py) กับรอบที่รันไปแล้ว: ไฟล์เก็บ Growth_Y1..Y5 ครบอยู่แล้ว
+    และโหมด final คือ Rank Score = Growth_Y{year} ปัด 4 ตำแหน่ง (compute_rank_score) จึงคิดซ้ำได้เหมือนรัน ⑥ ใหม่ทุกประการ
+    (เทสต์เทียบกับไฟล์จริงด้วย year เดิม) · แถวโหมด preliminary คงคะแนนเดิม · เรียงด้วยกฎเดียวกับ rank_trends_across_streams:
+    final ก่อน -> Rank Score มากไปน้อย -> Stream_Count มากไปน้อย -> ชื่อเทรนด์ · คืนสำเนาใหม่ ไม่แก้ rows เดิม"""
+    def is_final(r):
+        return str(r.get("Mode") or "").startswith("final")
+
+    out = []
+    for r in rows:
+        r = dict(r)
+        growth = r.get(f"Growth_Y{year}")
+        if is_final(r) and growth is not None:
+            r["Rank Score"] = round(float(growth), 4)
+        out.append(r)
+    out.sort(key=lambda r: (not is_final(r), -(r.get("Rank Score") or 0), -(r.get("Stream_Count") or 0), r.get("Trend Name") or ""))
+    for i, r in enumerate(out, 1):
+        r["Overall Rank"] = i
+    return out
+
+
+def _note_rerank_in_manifest(path):
+    """ไฟล์ผลเปลี่ยนหลัง ⑥ เขียนไว้ -> ขั้นถัดไปจะเตือน "hash ไม่ตรง" ทุกครั้ง: อัปเดต hash ของ ⑥ ใน _manifest.json ของรอบ + จดว่าจัดใหม่ด้วยปีไหน
+    (ไม่มี manifest / ไม่มีรายการ rank_trends = ไม่ทำอะไร)"""
+    import hashlib
+    import json as _json
+    from datetime import datetime
+
+    manifest = path.parent / "_manifest.json"
+    if not manifest.exists():
+        return
+    data = _json.loads(manifest.read_text(encoding="utf-8"))
+    entry = data.get("rank_trends")
+    if not isinstance(entry, dict):
+        return
+    entry.setdefault("output_hashes", {})[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    entry["reranked"] = {"year": RANK_YEAR, "timestamp": datetime.now().isoformat(timespec="seconds")}
+    manifest.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _rerank_file_cli(path):
+    """python rank_trends.py --rerank <phase2_rank_score_final_mode_result.json> - เขียนทับไฟล์ (สำรองก่อนเอง) แล้วพิมพ์ว่าอันดับไหนขยับ"""
+    import json as _json
+    import pandas as pd
+
+    path = _Path(path)
+    rows = _json.loads(path.read_text(encoding="utf-8"))
+    before = {(r["Stream"], r["Trend Name"]): r["Overall Rank"] for r in rows}
+    new_rows = rerank_rows(rows)
+    pd.DataFrame(new_rows).to_json(path, orient="records", force_ascii=False, indent=2)
+    moved = [(r["Overall Rank"], before[(r["Stream"], r["Trend Name"])], r["Trend Name"]) for r in new_rows
+             if before[(r["Stream"], r["Trend Name"])] != r["Overall Rank"]]
+    _note_rerank_in_manifest(path)
+    print(f"✅ จัดอันดับใหม่ด้วยคะแนนปีที่ {RANK_YEAR}: {len(new_rows)} เทรนด์ -> {path}")
+    print(f"   อันดับขยับ {len(moved)} เทรนด์" + ("" if not moved else ": " + ", ".join(f"{b}->{a} {n}" for a, b, n in moved)))
+
+
 if __name__ == "__main__":
+    if "--rerank" in _sys.argv:
+        _rerank_file_cli(_sys.argv[_sys.argv.index("--rerank") + 1])
+        _sys.exit(0)
+
     # ทดสอบด้วยข้อมูลจริงเท่าที่มี (Paper + Social) ผสมกับข้อมูลสังเคราะห์เฉพาะส่วนที่ยังไม่มีจริง
     # (Cluster Size - ข้อมูลเก่าก่อนแก้ข้อ 30 ไม่มีคอลัมน์นี้, Z_Delta - ยังไม่มีสายไหนยิง Google Trends)
     import sys
@@ -320,26 +418,24 @@ if __name__ == "__main__":
     else:
         print("✅ ทุกสายมี Cluster Size จริง")
 
-    # 🆕 (2026-09-11) โหลด Z_Delta จริงจาก fetch_trends_worldwide_serpapi.py ถ้ารันแล้ว - ยกระดับจาก
-    # โหมด preliminary (cluster size) เป็น final (Z_Delta) โดยอัตโนมัติ ไม่ต้องแก้โค้ดตอนมีข้อมูลจริง
-    # build_trend_keyword_mapping() (ในไฟล์นั้น) ผูก trend_name เป็น key เดียวข้ามทุกสาย (ไม่แยกสาย) จึง
-    # map ชื่อเทรนด์ -> Z_Delta ตัวเดียวใช้ได้กับทุกสายที่มีชื่อเทรนด์ตรงกันเป๊ะ
-    z_delta_lookup = None
-    z_delta_path = OUTPUTS / "phase2_paper_social_z_delta_result.json"
-    if z_delta_path.exists():
-        with open(z_delta_path, encoding="utf-8") as f:
-            zd_data = json.load(f)
-        name_to_zdelta = {row[1]: row[6] for row in (zd_data.get("master_report") or [])}
-        z_delta_lookup = {}
-        for stream, dt in trends_by_stream.items():
-            for trend_name in dt["Trend Name"]:
-                if trend_name in name_to_zdelta:
-                    z_delta_lookup[(stream, trend_name)] = name_to_zdelta[trend_name]
-        n_final = len(z_delta_lookup)
-        n_total = sum(len(dt) for dt in trends_by_stream.values())
-        print(f"✅ พบ {z_delta_path.name} - ได้ Z_Delta จริง {n_final}/{n_total} แถว (โหมด final)")
+    # 🆕 (2026-09-30) คะแนนการเติบโต (growth_score.py) จากค่าการค้นหารายเดือนของ ⑦ - ใช้จัดอันดับแทน Z_Delta
+    # (Z_Delta ไม่ถูกอ่าน/บันทึกในขั้นนี้แล้ว) ชื่อคลัสเตอร์ของ ⑦ = ชื่อเทรนด์ (ไม่ซ้ำข้ามสาย) จึงผูกกับ
+    # (สาย, ชื่อเทรนด์) ด้วยชื่ออย่างเดียวได้
+    from growth_score import FORECAST_DIR_NAME, MONTHLY_FILE, compute_growth_scores, save_growth_scores
+    growth_lookup = None
+    forecast_dir = OUTPUTS / FORECAST_DIR_NAME
+    n_total = sum(len(dt) for dt in trends_by_stream.values())
+    if (forecast_dir / MONTHLY_FILE).exists():
+        growth = compute_growth_scores(forecast_dir)
+        growth_path = save_growth_scores(growth, OUTPUTS)
+        by_name = {c["trend"]: c for c in growth["clusters"] if c.get(f"score_y{RANK_YEAR}") is not None}
+        growth_lookup = {(stream, name): by_name[name]
+                         for stream, dt in trends_by_stream.items() for name in dt["Trend Name"] if name in by_name}
+        print(f"✅ คะแนนการเติบโต ณ {growth['as_of']} (ฝึกด้วยข้อมูลถึง {growth['method']['last_trusted_month']}, "
+              f"ตัวอย่างฝึก {growth['method']['n_train']}) - ได้ {len(growth_lookup)}/{n_total} เทรนด์ (โหมด final)")
+        print(f"💾 บันทึกคะแนนการเติบโต: {growth_path}")
     else:
-        print(f"  ⏭️  ไม่มี {z_delta_path.name} - รันแบบ preliminary ทั้งหมด (cluster size)")
+        print(f"  ⏭️  ไม่มี {FORECAST_DIR_NAME}/{MONTHLY_FILE} (ยังไม่ได้รัน ⑦) - รันแบบ preliminary ทั้งหมด (cluster size)")
     print("=" * 70)
 
     # 🆕 (2026-09-12, audit M1) apply_cross_source_confirmation() ถูกเขียนไว้ตั้งแต่ Backlog ข้อ 33 แต่
@@ -349,17 +445,18 @@ if __name__ == "__main__":
 
     df_result = rank_trends_across_streams(
         trends_by_stream, kw_by_stream,
-        z_delta_lookup=z_delta_lookup,
+        growth_lookup=growth_lookup,
     )
-    print(df_result.to_string(index=False))
+    print(df_result[["Overall Rank", "Stream", "Trend Name", "Rank Score",
+                     *dict.fromkeys(["Growth_Y1", f"Growth_Y{RANK_YEAR}", "Growth_Y5"]),
+                     "Past_Growth_Pct", "Recent_Decline", "Stream_Count"]].to_string(index=False))
     print()
-    print("จุดที่ยืนยันด้วยข้อมูลจริง: Stream_Count > 1 หมายถึงคีย์เวิร์ดของเทรนด์นี้เจอในอีกสายจริง")
-    boosted = df_result[df_result["Stream_Count"] > 1]
-    if not boosted.empty:
-        print(boosted[["Stream", "Trend Name", "Stream_Count"]].to_string(index=False))
+    print("Stream_Count > 1 = คีย์เวิร์ดของเทรนด์นี้เจอในอีกสายจริง (ใช้ตัดสินกรณีคะแนนเท่ากัน ไม่เป็นโบนัสแล้ว)")
+    confirmed = df_result[df_result["Stream_Count"] > 1]
+    if not confirmed.empty:
+        print(confirmed[["Stream", "Trend Name", "Stream_Count"]].to_string(index=False))
     else:
-        print("(ไม่มีเทรนด์ไหนได้โบนัสจำนวนสายรอบนี้ - overlap คีย์เวิร์ดจริงระหว่าง Paper/Social มีแค่ "
-              "1/50 คำ ตามที่วัดไว้ก่อนหน้า และคำนั้นอาจไม่ได้อยู่ใน Rank 1 ของทั้งสองสาย)")
+        print("(ไม่มีเทรนด์ไหนเจอคีย์เวิร์ดซ้ำข้ามสายรอบนี้)")
 
     # 🆕 (2026-09-12, audit M5) เดิมสคริปต์นี้พิมพ์ผลออกจอเฉยๆ ไม่เซฟไฟล์เลย - เซฟทั้ง 2 อย่าง:
     # (1) ตาราง Rank Score รวมทุกสาย (2) Longevity ที่แก้ D2 แล้วต่อสาย ให้ขั้นถัดไปอ่านได้

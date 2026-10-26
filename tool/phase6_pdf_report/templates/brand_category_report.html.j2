@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+{% include "brand.css" %}
+{% include "brand_category.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{#- ⑱ รายงานหมวด × ระดับราคา - 1 ไฟล์ต่อ 1 แบรนด์ (รายงานคู่กับ ⑰) ใช้หน้าตา/สไตล์ชุดเดียวกับ ⑰ (style.css + brand.css) + brand_category.css
+    ข้อความตายตัวมาจาก L (= brand_category_i18n.category_strings(lang)) / b = category context (brand_category_data.build_category_context)
+    ชื่อ "brand" ในเทมเพลตนี้คือ branding ของผู้จัดทำ (S&J) ส่วนแบรนด์ลูกค้าคือ b.brand
+    macro ด้านล่าง (logo/footer/bar_header/img_or_ph/pname/epct) ซ้ำกับ brand_report.html.j2 โดยตั้งใจ - Jinja macro ที่ import ต่างไฟล์
+    เข้าถึง brand/L ไม่ได้ถ้าไม่ส่ง context ทั้งหมด จึงคัดลอกมา (ไม่แตะเทมเพลตของ ⑰) -#}
+{%- set meta = ctx.meta -%}
+{%- set n_market = "{:,}".format(b.n_market or 0) -%}
+
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro epct(v) -%}
+  {%- if v is number %}{% set r = v | round | int %}{{ "0%" if r == 0 else "{:+d}%".format(r) }}{% else %}{{ L.na }}{% endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro img_or_ph(p, label) -%}
+  {%- if p and p.image -%}<img src="{{ p.image }}" alt="">{%- else -%}<div class="ph">{{ label }}</div>{%- endif -%}
+{%- endmacro %}
+
+{#- ชื่อสินค้าในแคตตาล็อกมักขึ้นต้นด้วยชื่อแบรนด์อยู่แล้ว - ทำแบรนด์ตัวหนา ไม่พิมพ์ซ้ำสองรอบ -#}
+{% macro pname(brand, name) -%}
+  {%- set br = brand or "" -%}
+  {%- if br and name.lower().startswith(br.lower()) and name[br | length:br | length + 1] in ["", " "] -%}<span class="rk-brand">{{ name[:br | length] }}</span>{{ name[br | length:] }}
+  {%- else -%}{% if br %}<span class="rk-brand">{{ br }}</span> {% endif %}{{ name }}{%- endif -%}
+{%- endmacro %}
+
+{% macro n(v) -%}{{ "{:,}".format(v) if v is number else "-" }}{%- endmacro %}
+
+{#- ช่วงราคา "THB 39-198" - ราคาเดียว (แบรนด์มีสินค้าในหมวดน้อย ราคาเท่ากัน) แสดงเป็น "THB 199" -#}
+{% macro price_range(a, c) -%}{% if a == c %}{{ L.thb.format(v="{:,}".format(a)) }}{% else %}{{ L.tier_range.format(a="{:,}".format(a), b="{:,}".format(c)) }}{% endif %}{%- endmacro %}
+
+{#- 🆕 (2026-10-12) ช่วงของกลุ่ม: ราคาต่อปริมาณ (b.tier_basis == "unit_price") ไม่มีช่วงบาทเดียว -> ว่าง; ช่วงราคาขายของสินค้าในพอร์ต ใช้ price_range ตรงๆ -#}
+{% macro tier_range(a, c) -%}{% if b.tier_basis != "unit_price" and a is not none %}{{ price_range(a, c) }}{% endif %}{%- endmacro %}
+
+{% macro level_tag(level) -%}
+  {%- if level -%}<span class="fit-tag"><span class="fit-dot fit-{{ level }}"></span>{{ L[level] }}</span>
+  {%- else -%}<span class="fit-tag muted">-</span>{%- endif -%}
+{%- endmacro %}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.report_kind }}{% if meta.forecast_end %}{{ L.cover_outlook.format(end=meta.forecast_end) }}{% endif %}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.prepared_for.format(brand=b.brand, company=brand.company_name) }}</div>
+  </div>
+  <div class="cover-strip">
+    {% for r in b.rows[:5] %}
+    <div class="cover-tile">{{ img_or_ph(r.pages[0].best if r.pages else none, r.rank) }}<div class="cap">{{ r.display_name or r.name }}</div></div>
+    {% endfor %}
+  </div>
+</section>
+
+{#- ======================= 2. สรุปผู้บริหาร ======================= -#}
+{%- set pf = b.portfolio -%}
+{%- set hs = b.highlights -%}
+<section class="page" data-label="Executive Summary">
+  {{ bar_header(L.cat_summary_header ~ " | " ~ b.brand) }}
+  <div class="ex-left">
+    <div class="ex-title">{{ L.on_retailer.format(brand=b.brand) }}</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">{{ L.skus }}</div><div class="val">{{ b.n_skus or pf.n_skus }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.cat_compared }}</div><div class="val">{{ b.n_ok }}<span class="of"> / {{ b.rows | length }}</span></div></div>
+    </div>
+    <div class="ex-subcats">
+      <div class="lbl">{{ L.cat_in_portfolio.format(brand=b.brand) }}</div>
+      {% for c in pf.categories %}<div class="subcat"><span>{{ c.name }}{% if c.price_min is number %} <span class="muted">· {{ price_range(c.price_min | int, c.price_max | int) }}</span>{% endif %}</span><b>{{ c.n }}</b></div>{% endfor %}
+    </div>
+  </div>
+  <div class="ex-right">
+    <div class="ex-title">{{ L.cat_how }}</div>
+    <div class="how-box fit" data-name="how it works">{{ L.cat_how_body.format(brand=b.brand) }}</div>
+    <div class="ex-title" style="margin-top:14px">{{ L.key_messages }}</div>
+    <ol class="msgs cat fit" data-name="key messages">
+      {%- if hs.strongest %}{% set s = hs.strongest %}
+      <li>{{ L.msg_strongest.format(trend=(s.display_name or s.name), category=s.category, price=(L["tier_" ~ s.tier_label] ~ ((" " ~ price_range(s.price_from, s.price_to)) if b.tier_basis != "unit_price" else "")),
+                                    product=s.product, rank="{:,}".format(s.rank_in_tier), level=L[s.level]) }}</li>{% endif %}
+      {%- if b.n_ok or hs.no_brand %}
+      <li>{% if hs.no_brand %}{{ L.msg_no_brand.format(brand=b.brand, trends=hs.no_brand | join(", ")) }}{% else %}{{ L.msg_all_have.format(brand=b.brand) }}{% endif %}</li>{% endif %}
+      {%- if b.missing_tiers %}<li>{{ L.msg_missing.format(trends=b.missing_tiers | join(", ")) }}</li>{% endif %}
+      {%- if not (hs.strongest or hs.no_brand or b.missing_tiers) %}<li>{{ L.msg_none }}</li>{% endif %}
+    </ol>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. ตารางภาพรวม (เทรนด์ x หมวดสำคัญ) ======================= -#}
+{#- 🆕 (2026-10-07) 1 แถว = เทรนด์ x หมวดสำคัญ - หลายเทรนด์มีหลายหมวดสำคัญ แถวจึงแบ่งหน้าละไม่เกิน 10 แถว (b.overview) -#}
+{%- set ov_pages = b.overview | batch(10) | list -%}
+{% for chunk in ov_pages %}
+<section class="page" data-label="Category Overview{% if ov_pages | length > 1 %} {{ loop.index }}{% endif %}">
+  {{ bar_header(L.cat_overview_header.format(n=b.rows | length)) }}
+  <div class="fx-wrap fit" data-name="overview table">
+    <table class="fx catov">
+      <colgroup><col style="width:3%"><col style="width:19%"><col style="width:16%"><col style="width:8%"><col style="width:18%"><col style="width:18%"><col style="width:18%"></colgroup>
+      <thead><tr><th>#</th><th>{{ L.col_trend }}</th><th>{{ L.col_category }}</th><th class="num">{{ L.col_in_cat }}</th>
+        <th>{{ L.tier_low }}</th><th>{{ L.tier_mid }}</th><th>{{ L.tier_high }}</th></tr></thead>
+      <tbody>
+      {% for o in chunk %}
+        {% if not o.page %}
+        <tr class="na"><td class="num">{{ o.rank }}</td><td>{{ o.display_name or o.name }}</td><td colspan="5">{{ L.no_tiers_row if o.status == "no_tiers" else L.not_checked_row }}</td></tr>
+        {% else %}
+        {%- set pg = o.page -%}
+        <tr>
+          <td class="num">{{ o.rank if (o.first or loop.first) else "" }}</td>
+          <td>{{ (o.display_name or o.name) if (o.first or loop.first) else "" }}</td>
+          <td>{{ pg.category }}</td>
+          <td class="num">{{ pg.brand_n }}</td>
+          {% for lab in ["low", "mid", "high"] %}
+            {%- set hit = pg.tiers | selectattr("label", "equalto", lab) | list -%}
+            {%- set tr = hit[0] if hit else none -%}
+            <td>{% if tr and tr.brand_best %}<b>#{{ n(tr.brand_best.rank_in_tier) }}</b> {{ level_tag(tr.brand_best.level) }}{%- if b.tier_basis != "unit_price" %}<div class="sub">{{ price_range(tr.price_from, tr.price_to) }}</div>{% endif %}
+                {%- elif tr %}<span class="muted">-</span>{% if b.tier_basis != "unit_price" %}<div class="sub">{{ price_range(tr.price_from, tr.price_to) }}</div>{% endif %}{% else %}-{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 4+. เทรนด์ x หมวดสำคัญ ละ 1 หน้า ======================= -#}
+{% for r in b.rows %}
+{%- set t = r.trend -%}
+{% for v in (r.pages or [none]) %}
+<section class="page" data-label="Category Trend {{ r.rank }}{% if v and r.pages | length > 1 %} · {{ v.category }}{% endif %}">
+  <div class="t-head"><h2>{{ r.display_name or r.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub">{% if v %}<b>{{ v.category }}</b>{% if r.pages | length > 1 %} · {{ L.cat_page.format(i=loop.index, k=r.pages | length) }}{% endif %}{% else %}{{ t.text.headline }}{% endif %}</div>
+  <div class="bt-left">
+    <div class="bt-text fit" data-name="trend text"><b>{{ L.trend_label }}</b> {{ t.text.trend }}</div>
+    <div class="bt-stats kv">
+      <span class="k">{{ L.momentum }}</span><span class="v">{{ epct(r.expected_pct) }}</span>
+      <span class="k">{{ L.last_12m }}</span><span class="v">{{ "{:+.0f}%".format(r.past_growth_pct) if r.past_growth_pct is number else L.na }}</span>
+      {% if v %}
+      <span class="k">{{ L.cat_main }}</span><span class="v">{{ v.category }}</span>
+      <span class="k">{{ L.cat_your_products }}</span><span class="v">{{ v.brand_n }}</span>
+      <span class="k">{{ L.cat_your_best }}</span><span class="v">{% if v.best %}{{ level_tag(v.level) }} <span class="muted">{{ L["tier_" ~ v.best_tier.label] }}</span>{% else %}{{ L.na }}{% endif %}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="ct-right">
+    {% if not v %}
+    <div class="rk-msg">{{ L.no_tiers_row if r.status == "no_tiers" else L.not_checked_row }}</div>
+    {% else %}
+    {% if not v.brand_n %}<div class="rk-msg">{{ L.no_brand_category.format(brand=b.brand, category=v.category) }}</div>{% endif %}
+    <div class="tier-grid k{{ v.tiers | length }}">
+      {% for tr in v.tiers %}
+      {%- set bb = tr.brand_best -%}
+      <div class="tier">
+        <div class="tier-head">
+          <b>{{ L["tier_" ~ tr.label] }}{% if tr.price_from is not none and b.tier_basis != "unit_price" %} <span class="tier-range">{{ price_range(tr.price_from, tr.price_to) }}</span>{% endif %}</b>
+          <span class="tier-count">{{ L.tier_count.format(n=n(tr.n_total), b=tr.n_brand, brand=b.brand) }}</span>
+        </div>
+        <div class="tier-top">
+          {% for p in tr.top %}
+          <div class="tr{% if p.is_you %} is-you{% endif %}">
+            <span class="no">#{{ p.rank_in_tier }}</span>
+            <span class="nm">{{ pname(p.brand_label, p.name) }}{% if p.is_you %}<span class="rk-you">{{ L.your_tag }}</span>{% endif %}</span>
+            <span class="pr">{{ p.price_thb | thb }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="tier-you">
+          {% if bb %}
+          <div class="tier-you-h">{{ L.tier_you_best }}</div>
+          <div class="yc">
+            <div class="img">{{ img_or_ph(bb, "") }}</div>
+            <div class="info"><div class="nm">{{ pname(b.brand, bb.name) }}</div><div class="pr">{{ bb.price_thb | thb }}</div>
+              {%- if b.tier_basis == "unit_price" and (bb | ulabel) %}<div class="un">{{ bb | ulabel }}</div>{% endif %}</div>
+          </div>
+          <div class="yrank"><b>#{{ n(bb.rank_in_tier) }}</b>{{ level_tag(bb.level) }}</div>
+          <div class="ymkt">{{ L.top_pct.format(p=("%.1f" | format(bb.pct)) if bb.pct < 10 else (bb.pct | round | int)) }} · {{ L.market_rank.format(rank=n(bb.rank_in_market)) }}</div>
+          {% else %}
+          <div class="tier-none">{{ L.tier_none.format(brand=b.brand) }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div class="ev-note">{{ L.cat_note }}</div>
+  {{ footer() }}
+</section>
+{% endfor %}
+{% endfor %}
+
+{#- ======================= ภาคผนวก ======================= -#}
+<section class="page" data-label="Method">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid">
+    <div class="ap-box fit" data-name="method category"><h3>{{ L.m_cat_title }}</h3>{{ L.m_cat.format(n=n_market) }}</div>
+    <div class="ap-box fit" data-name="method tiers"><h3>{{ L.m_tier_title }}</h3>{{ L.m_tier.format(brand=b.brand) }}</div>
+    <div class="ap-box fit" data-name="method rank"><h3>{{ L.m_rank_title }}</h3>{{ L.m_rank.format(brand=b.brand, n=n_market, p1=b.top_pct.excellent, p2=b.top_pct.good, p3=b.top_pct.average) }}</div>
+    <div class="ap-box fit" data-name="method limits"><h3>{{ L.m_limits_title }}</h3>{{ L.m_limits }}</div>
+  </div>
+  <div class="ap-data">{{ L.cat_data.format(run_id=meta.run_id, brand=b.brand, skus=(b.n_skus or b.portfolio.n_skus), t=(b.rows | length), date=(run_date | date_long)) }}</div>
+  {{ footer() }}
+</section>
+
+<script>
+// เหมือนรายงานเทรนด์ (report.html.j2): ย่อฟอนต์กล่อง .fit จนพอดี แล้วคืนกล่องที่ยังล้นให้ Python เตือน
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,552 @@
+/* ⑯ PDF Report — 16:9 ตามไฟล์ตัวอย่าง Trend Hunter (10 x 5.625 นิ้ว = 960 x 540 CSS px ต่อหน้า)
+   ข้อความยาวจาก LLM อยู่ในกล่อง .fit ขนาดตายตัว - fitAll() ใน report.html.j2 ลดขนาดฟอนต์จนพอดีกล่อง
+   ขนาดตัวอักษรข้างใน .fit ต้องเป็นหน่วย em เพื่อให้ย่อตามกล่องแม่ได้ */
+@page { size: 10in 5.625in; margin: 0; }
+
+:root {
+  --accent: #E8611A;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #8a8983;
+  --card: #e8e8e6;
+  --line: #d6d5d0;
+  --series: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #ffffff; }
+body {
+  font-family: "Segoe UI", Calibri, "Leelawadee UI", Tahoma, sans-serif;
+  color: var(--ink);
+  counter-reset: page;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+@media screen {
+  body { background: #7a7a78; padding: 16px 0; }
+  .page { margin: 0 auto 16px; box-shadow: 0 2px 12px rgba(0, 0, 0, .35); }
+}
+
+.page {
+  width: 960px; height: 540px;
+  position: relative; overflow: hidden;
+  background: #ffffff;
+  break-after: page; page-break-after: always;
+  counter-increment: page;
+}
+.page:last-child { break-after: auto; page-break-after: auto; }
+
+b, strong { font-weight: 600; }
+.fit { overflow: hidden; }
+.muted { color: var(--ink-2); }
+
+/* ---------- โลโก้ / ชื่อบริษัท ---------- */
+.logo-img { height: 24px; max-width: 170px; object-fit: contain; display: block; }
+.logo-chip { background: #ffffff; border-radius: 4px; padding: 4px 8px; display: inline-flex; }
+.logo-chip.on-black { background: #000000; }  /* โลโก้ตัวหนังสือสีขาว (logo_for_dark_bg) บนหน้าพื้นขาว */
+.logo-chip .logo-img { height: 22px; }
+.wordmark { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; white-space: nowrap; }
+.on-dark .wordmark { color: #ffffff; }
+
+/* ---------- หัวหน้าแบบแถบดำ ---------- */
+.bar-header {
+  height: 58px; background: #000000; color: #ffffff;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px 0 24px;
+}
+.bar-header h2 { font-size: 23px; font-weight: 300; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.footer-copy { position: absolute; right: 20px; bottom: 9px; font-size: 7px; color: var(--ink-2); text-align: right; }
+.page-no { position: absolute; left: 22px; bottom: 9px; font-size: 8px; color: var(--ink-3); }
+.page-no::after { content: counter(page); }
+
+/* ---------- ปก ---------- */
+.cover-top { position: absolute; inset: 0 0 150px 0; background: #000000; color: #ffffff; padding: 0 46px; }
+.cover-logo { position: absolute; top: 34px; right: 30px; }
+.cover-top h1 { position: absolute; left: 46px; right: 46px; top: 178px; font-size: 40px; font-weight: 600; line-height: 1.12; }
+.cover-sub { position: absolute; left: 46px; top: 244px; font-size: 25px; font-weight: 300; }
+.cover-date { position: absolute; left: 46px; top: 292px; font-size: 21px; letter-spacing: .12em; font-family: Consolas, "Segoe UI", monospace; }
+.cover-sources { position: absolute; left: 46px; top: 338px; font-size: 13px; font-weight: 300; letter-spacing: .02em; color: #c3c2b7; }
+.cover-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; display: flex; }
+.cover-tile { flex: 1; position: relative; background: #ffffff; overflow: hidden; }
+.cover-tile + .cover-tile { border-left: 2px solid #ffffff; }
+.cover-tile img { width: 100%; height: 100%; object-fit: contain; padding: 8px 8px 26px; }
+.cover-tile .cap {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 5px 10px;
+  background: rgba(0, 0, 0, .58); color: #ffffff; font-size: 10.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ภาพแทนเมื่อไม่มีรูปสินค้า */
+.ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #d9d9d6; color: var(--ink-2); font-weight: 600; font-size: 20px; }
+
+/* ---------- Report Summary ---------- */
+.brief { position: absolute; left: 24px; right: 24px; top: 78px; height: 100px; display: flex; gap: 22px; align-items: center; }
+.brief-logo { width: 120px; display: flex; justify-content: center; }
+.brief-logo .logo-img { height: 30px; max-width: 120px; }
+.brief-text { flex: 1; height: 100px; font-size: 15px; line-height: 1.45; }
+.brief-text p + p { margin-top: .45em; }
+.sec-label { position: absolute; left: 24px; font-size: 12px; font-weight: 700; }
+
+.insight-card { position: absolute; left: 22px; right: 22px; top: 214px; height: 88px; background: var(--card); display: flex; }
+.insight-card .thumb { width: 88px; height: 88px; flex: none; background: #ffffff; }
+.insight-card .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.insight-card .txt { flex: 1; padding: 6px 12px; font-size: 9.5px; line-height: 1.35; }
+.insight-card .txt .nm { font-size: 1.15em; }
+.insight-card .txt .hl { font-style: italic; }
+
+.micro-grid { position: absolute; left: 22px; right: 22px; top: 330px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.micro { height: 58px; background: var(--card); display: flex; overflow: hidden; }
+.micro .thumb { width: 58px; height: 58px; flex: none; background: #ffffff; }
+.micro .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.micro .txt { padding: 4px 8px; min-width: 0; }
+.micro .nm { font-size: 10px; font-weight: 700; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.micro .hl { font-size: 9px; font-style: italic; line-height: 1.25; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---------- ข้อความยาวทั้งหน้า (Takeaway ฯลฯ) ---------- */
+.prose { position: absolute; left: 24px; right: 24px; top: 80px; bottom: 34px; font-size: 13.5px; line-height: 1.5; }
+.prose h3 { font-size: 1.05em; font-weight: 700; margin-bottom: .7em; }
+.prose p + p { margin-top: .75em; }
+.prose .mega { font-size: 1.5em; font-weight: 300; margin-bottom: .35em; }
+
+/* ---------- Market Overview (🆕 2026-09-30 เอากราฟแท่งแรงส่งออก - 4 ช่องตัวเลขเต็มความกว้าง + บทสรุป) ---------- */
+.mo-stats { position: absolute; left: 24px; right: 24px; top: 80px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+/* 🆕 (2026-10-01) สูงขึ้นให้คำอธิบายใต้ตัวเลขขึ้นบรรทัดที่ 2 ได้ (ตัวเลขของเทรนด์ตรงกลางแทนป้ายคำ) */
+.stat { background: var(--card); padding: 9px 12px; height: 86px; }
+.stat .lbl { font-size: 10px; color: var(--ink-2); }
+.stat .val { font-size: 22px; font-weight: 600; line-height: 1.25; }
+.stat .sub { font-size: 9.5px; color: var(--ink-2); line-height: 1.35; }
+.mo-summary { position: absolute; left: 24px; right: 24px; top: 180px; bottom: 34px; font-size: 16px; line-height: 1.55; }
+.mo-summary h3 { font-size: 1em; font-weight: 700; margin-bottom: .45em; }
+
+/* ---------- STEPIC ---------- */
+.intro { position: absolute; left: 24px; right: 24px; top: 70px; font-size: 11px; color: var(--ink-2); }
+.stepic-grid { position: absolute; left: 22px; right: 22px; top: 94px; bottom: 32px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 6px; }
+.st-tile { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.st-head { color: #ffffff; padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* ข้อความในช่องถูกย่อเหลือหัวข้อ ~6 คำ + 1 ประโยค ~20 คำ (enrich.condense_report_texts) จึงใช้ตัวใหญ่ได้ */
+.st-body { flex: 1; padding: 12px 14px; font-size: 14.5px; line-height: 1.42; min-height: 0; }
+.st-body .hl { font-weight: 700; font-size: 1.2em; line-height: 1.25; margin-bottom: .45em; }
+.dim-society .st-head { background: #1c5cab; }
+.dim-technology .st-head { background: #b54a1c; }
+.dim-environment .st-head { background: #0b6e4f; }
+.dim-policy .st-head { background: #4a3aa7; }
+.dim-industry .st-head { background: #a3335f; }
+.dim-creativity .st-head { background: #8a5a00; }
+
+/* ---------- Personas ---------- */
+.persona-row { position: absolute; left: 22px; right: 22px; top: 80px; bottom: 34px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.persona { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.persona .p-head { background: #000000; color: #ffffff; padding: 10px 14px; font-size: 15px; font-weight: 300; }
+.persona .p-body { flex: 1; padding: 12px 16px; font-size: 13px; line-height: 1.42; min-height: 0; }
+.persona .p-body .k { font-weight: 700; margin-top: .7em; display: block; }
+
+/* ---------- Trend Drivers (heatmap เทรนด์ x แรงขับ STEPIC + persona) ---------- */
+/* สีเข้ม = เชื่อมโยงหลัก (ระดับ 2) สีอ่อน = เกี่ยวข้อง (ระดับ 1) - สีแรงขับชุดเดียวกับหัวช่องหน้า STEPIC */
+.hm { position: absolute; left: 24px; top: 88px; border-collapse: collapse; font-size: 10px; table-layout: fixed; width: 912px; }
+.hm th { font-weight: 400; color: var(--ink-2); font-size: 9px; padding: 0 3px 4px; vertical-align: bottom; line-height: 1.25; }
+.hm .grp th { font-size: 9.5px; font-weight: 700; color: var(--ink); text-align: center; border-bottom: 1.5px solid var(--ink); padding-bottom: 5px; }
+.hm .grp th:first-child, .hm .grp th.gap { border-bottom: 0; }
+.hm .cols th { text-align: center; padding-top: 6px; }
+.hm .cols th.f { font-weight: 700; letter-spacing: .02em; }
+.hm th.r, .hm td.r { text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.hm col.w-r { width: 24px; }
+.hm col.w-nm { width: 250px; }
+.hm col.w-f { width: 62px; }
+.hm col.w-gap { width: 14px; }
+.hm col.w-p { width: 84px; }
+.hm td { height: 27px; padding: 0 3px; border-bottom: 1px solid #ebeae6; }
+.hm td.nm { font-weight: 600; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm td.c { text-align: center; }
+.hm td.gap { border-bottom: 0; }
+.hm tfoot td { height: 24px; border-bottom: 0; border-top: 1.5px solid var(--ink); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hm tfoot td.nm { font-weight: 400; color: var(--ink-2); font-size: 9.5px; }
+.hm tfoot td.gap { border-top: 0; }
+.hm i, .hm-legend i { display: inline-block; width: 38px; height: 17px; vertical-align: middle; }
+.hm-legend i { width: 22px; height: 12px; }
+.dim-society { --c: #1c5cab; --t: #cddaf0; }
+.dim-technology { --c: #b54a1c; --t: #f1d5c8; }
+.dim-environment { --c: #0b6e4f; --t: #c6e3d9; }
+.dim-policy { --c: #4a3aa7; --t: #d7d2f0; }
+.dim-industry { --c: #a3335f; --t: #efd0dc; }
+.dim-creativity { --c: #8a5a00; --t: #ecdcbc; }
+.per { --c: #000000; --t: #cfcec9; }
+.lv2 { background: var(--c); }
+.lv1 { background: var(--t); }
+.lv0 { background: #ffffff; box-shadow: inset 0 0 0 1px #e0dfda; }
+.lvx { background: repeating-linear-gradient(45deg, #e8e8e6 0 3px, #ffffff 3px 6px); }
+.hm-legend { position: absolute; left: 24px; top: 472px; display: flex; gap: 18px; font-size: 9.5px; color: var(--ink-2); }
+.hm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- Signals ---------- */
+.sig-list { position: absolute; left: 24px; right: 24px; top: 78px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; }
+.sig { flex: 1; display: flex; gap: 14px; min-height: 0; border-top: 1px solid var(--line); padding-top: 6px; }
+/* สัญญาณละ ~22 คำ + ผลกระทบ ~12 คำ และแนวโน้ม ~35 คำ (enrich.condense_report_texts) จึงใช้ตัวใหญ่ได้ */
+.sig .dims { width: 170px; flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; padding-top: 2px; }
+.sig .body { flex: 1; font-size: 14px; line-height: 1.42; min-height: 0; }
+.sig .body .imp { font-style: italic; color: var(--ink-2); margin-top: .3em; }
+.outlook { background: var(--card); padding: 8px 12px; flex: 1.15 !important; }
+
+/* ---------- หน้าคั่น ---------- */
+.div-top { position: absolute; left: 0; right: 0; top: 0; height: 238px; background: #000000; color: #ffffff; padding: 0 24px; }
+.div-top .cover-logo { top: 16px; right: 22px; }
+.div-top h1 { position: absolute; left: 24px; bottom: 76px; font-size: 36px; font-weight: 300; }
+.div-top .sub { position: absolute; left: 24px; bottom: 26px; font-size: 21px; font-weight: 300; }
+.div-body { position: absolute; left: 24px; right: 24px; top: 262px; bottom: 34px; font-size: 13.5px; line-height: 1.5; }
+.div-body p + p { margin-top: .6em; }
+.div-body .legend { margin-top: .8em; display: grid; grid-template-columns: 110px 1fr; row-gap: .35em; font-size: .9em; }
+
+/* ---------- ส่วนร่วมของหน้าเทรนด์ ---------- */
+.dots { display: inline-flex; gap: 4px; vertical-align: middle; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--ink); display: block; }
+.dots i.on { background: var(--ink); }
+/* เกรด 4 ขั้น (Excellent / Good / Average / Below Average) ของ Longevity: แถบ 4 ช่องเติมตามระดับ */
+.grade { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; margin-left: 6px; }
+.grade .meter { display: inline-flex; gap: 1.5px; }
+.grade .meter i { display: block; width: 6px; height: 9px; background: #d6d5d0; }
+.grade .meter i.on { background: var(--ink); }
+.kpi .s .grade { color: var(--ink); font-size: 10.5px; font-weight: 600; }
+.insuf { font-style: italic; margin-left: 6px; }
+.chip { display: inline-block; border: 1px solid var(--line); border-radius: 9px; padding: 0 7px; margin: 0 3px 3px 0; white-space: nowrap; }
+
+/* ---------- Top 5 ระยะสั้น x ระยะยาว (🆕 2026-09-30 แทนหน้า Rank Trajectory) ---------- */
+/* 2 คอลัมน์กว้าง 410px + ช่องกลาง 92px สำหรับเส้นเชื่อม - แถวสูง 54px ตายตัว (SVG เส้นเชื่อมคำนวณตามนี้)
+   🆕 (2026-10-02) แถวเดิม 60px / คอลัมน์เริ่ม 94px - ขยับลงให้แถบไทม์ไลน์นิยามระยะสั้น/ระยะยาวใต้ intro */
+.t5-page .intro { top: 66px; }
+.t5-tl { position: absolute; left: 24px; right: 24px; top: 86px; display: grid; column-gap: 8px; }
+.t5-tl .g { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.t5-tl .lb { font-size: 9.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t5-tl .lb b { font-weight: 700; color: var(--tx); }
+.t5-tl .bars { display: flex; gap: 2px; height: 17px; }
+.t5-tl .bars span { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; font-size: 9px;
+  white-space: nowrap; background: var(--soft); color: var(--tx); }
+.t5-tl .bars span.rk { background: var(--c); color: #ffffff; font-weight: 600; }
+.t5-tl .base { --soft: #e7e6e2; --tx: var(--ink-2); }
+.t5-tl .short { --c: #E8611A; --soft: #fbe3d4; --tx: #b24a10; }
+.t5-tl .long { --c: #0b6e4f; --soft: #d6e9e1; --tx: #0b6e4f; }
+.t5-tl-key { position: absolute; left: 24px; right: 24px; top: 121px; height: 13px; font-size: 9px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+.t5-col { position: absolute; top: 140px; width: 410px; }
+.t5-col.t5-short { left: 24px; }
+.t5-col.t5-long { left: 526px; }
+.t5-ch { height: 34px; display: flex; align-items: baseline; gap: 10px; border-bottom: 1.5px solid var(--ink); padding-bottom: 6px; }
+.t5-ch .t { font-size: 21px; font-weight: 300; }
+.t5-ch .p { font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
+.t5-ch .sw { width: 10px; height: 10px; align-self: center; flex: none; }
+.t5-short .t5-ch .sw, .t5-short .t5-row.only { --side: #E8611A; }
+.t5-long .t5-ch .sw, .t5-long .t5-row.only { --side: #0b6e4f; }
+.t5-ch .sw { background: var(--side); }
+.t5-row { height: 54px; display: grid; grid-template-columns: 26px minmax(0, 1fr) 118px; column-gap: 8px; align-items: center;
+  border-bottom: 1px solid var(--line); padding: 0 6px 0 4px; }
+.t5-row.only { background: #f4f4f2; box-shadow: inset 3px 0 0 var(--side); }
+.t5-row .rk { font-size: 20px; font-weight: 300; color: var(--ink-3); text-align: right; font-variant-numeric: tabular-nums; }
+.t5-row .nm { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.t5-row .nm .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t5-row .nm .s { font-size: 9.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t5-row .nm .s b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.t5-row .badge { font-size: 9.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t5-row .badge.short-only, .t5-legend .c-short { color: #b24a10; }
+.t5-row .badge.long-only, .t5-legend .c-long { color: #0b6e4f; }
+.t5-row .gr { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.t5-row .gr span { font-size: 9.5px; color: var(--ink-2); white-space: nowrap; }
+/* 🆕 (2026-10-02) ด้านขวาของแถว = % ที่คาด (เดิมแถบ 4 ช่อง "เร็ว/ช้ากว่าตลาด") */
+.t5-row .gr.pc b { font-size: 20px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .s .warn { color: #9a6a00; }
+.t5-links { position: absolute; left: 434px; top: 174px; width: 92px; height: 270px; overflow: visible; }
+.t5-gut { position: absolute; left: 434px; width: 92px; top: 146px; text-align: center; font-size: 9px; color: var(--ink-3); line-height: 1.25; }
+.t5-legend, .ov-legend { position: absolute; left: 24px; right: 24px; display: flex; flex-wrap: wrap; gap: 3px 18px; font-size: 9.5px; color: var(--ink-2); }
+.t5-legend { top: 452px; }
+.t5-legend span, .ov-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.t5-note, .ov-note { position: absolute; left: 24px; right: 24px; font-size: 9px; line-height: 1.45; color: var(--ink-2); }
+.t5-note { top: 468px; height: 42px; }
+
+/* ---------- ภาพรวมทุกเทรนด์ (🆕 2026-09-30) ---------- */
+.ov { position: absolute; left: 24px; top: 84px; width: 912px; border-collapse: collapse; table-layout: fixed; font-size: 10.5px; }
+.ov col.c-r { width: 26px; }
+/* 🆕 (2026-10-02) 5 คอลัมน์ปี - แคบลงจาก 104px (3 ปี) ให้คอลัมน์หมายเหตุยังพอ */
+.ov col.c-nm { width: 235px; }
+.ov col.c-y { width: 82px; }
+.ov col.c-lr { width: 46px; }
+.ov col.c-pg { width: 34px; }
+.ov th { font-weight: 400; color: var(--ink-2); font-size: 9px; padding: 0 5px 3px; vertical-align: bottom; line-height: 1.25; text-align: left; white-space: nowrap; }
+.ov .grp th { font-size: 9.5px; font-weight: 700; color: var(--ink); text-align: center; border-bottom: 1.5px solid var(--ink); }
+.ov .grp th.blank { border-bottom: 0; }
+/* 🆕 (2026-10-01) ระยะสั้น = ปี 1 / ระยะยาว = ปี 2-3 - สีเดียวกับหน้า Top 5 (ส้ม/เขียว) เส้นคั่นอยู่ก่อนปี 1 และก่อนปี 2 */
+.ov .grp th.g-short { color: #b24a10; border-bottom: 2.5px solid #E8611A; }
+.ov .grp th.g-long { color: #0b6e4f; border-bottom: 2.5px solid #0b6e4f; }
+.ov th.b1, .ov td.b1 { border-left: 1px solid var(--line); }
+.ov th.b2, .ov td.b2 { border-left: 1.5px solid var(--ink-3); }
+.ov .cols th { border-bottom: 1.5px solid var(--ink); padding-top: 4px; }
+.ov .cols th.ctr { text-align: center; }
+.ov .cols th.wrap { white-space: normal; }
+.ov .cols th.num { text-align: right; }
+.ov td { padding: 0 5px; border-bottom: 1px solid #ebeae6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov td.r { text-align: right; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ov td.nm { font-weight: 600; }
+.ov td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 🆕 (2026-10-02) ช่องปีที่ 1-3 = แท่งกราฟ % ที่คาด (สเกลแยกต่อปี, report_data.overview_bars) แทนคำ "เร็ว/ช้า" ตามคำแนะนำ DA
+   ฟ้า = คะแนนถึงระดับตลาดโดยรวม, เทา = ต่ำกว่า - เส้นประ .mk = ระดับตลาดโดยรวม (td ตัดส่วนเกินให้ต่อกันเป็นเส้นเดียว)
+   เว้นขวา 30px ให้ตัวเลขท้ายแท่งยาวสุด - ตัวเลขมีพื้นขาวทับเส้นประ */
+.ov td.hb { padding: 0 4px; }
+.ov .bw { position: relative; height: 14px; margin-right: 28px; }
+.ov .bw .bar { position: absolute; top: 2px; height: 10px; border-radius: 2px; }
+.ov .bar.up, .ov-legend i.lg.up { background: #6a9fe0; }
+.ov .bar.dn, .ov-legend i.lg.dn { background: #c9c7c0; }
+.ov .bw .mk { position: absolute; z-index: 1; top: -4px; bottom: -4px; border-left: 1px dashed #5f5e5a; }
+.ov .bw .v { position: absolute; z-index: 2; top: 0; margin-left: 1px; padding: 0 2px; line-height: 14px; font-size: 9px; color: var(--ink-2); background: #ffffff; font-variant-numeric: tabular-nums; }
+.ov tr.above .bw .v { color: var(--ink); }
+.ov td.lr, .ov td.pg { text-align: center; font-variant-numeric: tabular-nums; }
+.ov td.lr { color: var(--ink-2); }
+.ov td.nt { font-size: 9px; color: var(--ink-2); }
+.ov td.nt .w, .ov-legend .c-warn { color: #9a6a00; font-weight: 600; }
+.ov tr.below td.nm, .ov tr.below td.num { color: var(--ink-2); font-weight: 400; }
+.ov tr.cut td { height: 20px; border-bottom: 0; border-top: 2px dashed var(--ink); font-size: 9.5px; color: var(--ink-2); }
+.ov tr.cut td b { color: var(--ink); }
+.ov tr.cut .bw .v { font-weight: 700; color: var(--ink); }
+.ov-legend { top: 440px; }
+.ov-legend i { display: inline-block; width: 18px; height: 10px; }
+.ov-legend i.sq { width: 10px; }
+.ov-legend i.lg.mk { width: 0; height: 12px; border-left: 1px dashed #8a8984; }
+.ov-legend i.sq.short { background: #E8611A; }
+.ov-legend i.sq.long { background: #0b6e4f; }
+.ov-legend span.sep { margin-right: 14px; }
+.ov-note { top: 472px; height: 38px; }
+
+/* ---------- 🆕 (2026-10-19) หน้ารวม CAGR + YoY (.ov.two) ----------
+   ปีที่ 1 ช่องเดียว 118px (CAGR = YoY) · ปีที่ 2-5 ปีละ CAGR 74px (แท่ง + ตัวเลข ใช้ .bw เดิม) + YoY 44px (ตัวเลข)
+   รวม 26 + 206 + 104 + 4 x (74 + 42) + 36 + 30 = 866px เหลือ 46px ให้คอลัมน์ ⚠ · หัวตารางมี 2 แถว (แถวหัวย่อย CAGR | YoY)
+   ชื่อ 206px เพราะฉบับไทยใช้ฟอนต์ที่กว้างกว่าสำหรับตัวอักษรอังกฤษ (180px ตัดชื่อเทรนด์ยาว ๆ ด้วย ...) */
+.ov.two col.c-nm { width: 206px; }
+.ov.two col.c-y1 { width: 104px; }
+.ov.two col.c-y { width: 74px; }
+.ov.two col.c-yo { width: 42px; }
+.ov.two col.c-lr { width: 36px; }
+.ov.two col.c-pg { width: 30px; }
+.ov.two .bw { margin-right: 26px; }
+.ov.two td.hb { border-left: 1px solid #ebeae6; }
+.ov.two td.b1 { border-left: 1px solid var(--line); }
+.ov.two td.b2 { border-left: 1.5px solid var(--ink-3); }
+.ov.two .cols th.yh { border-bottom: 1px solid var(--line); }
+.ov.two .cols th.wrap { white-space: normal; line-height: 1.15; }
+.ov.two .subcols th { font-size: 8.5px; padding: 2px 4px 3px; border-bottom: 1.5px solid var(--ink); }
+.ov td.yo { text-align: right; padding: 0 6px 0 2px; font-size: 9.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ov td.yo.lo, .yo-key.lo { color: var(--ink-3); }
+.ov tr.cut td.yo { font-weight: 700; color: var(--ink); }
+.yo-key { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ov-note.two { height: 46px; }
+
+/* ---------- 🆕 (2026-10-19) หน้ากราฟจุดกระจาย CAGR x YoY (.sc) ----------
+   กราฟ 2 อัน 450 x 268 ข้างกัน (ปีที่ 2 / ปีที่ 5) + legend + รายชื่อเทรนด์ตามเลข (CSS columns) + หมายเหตุ - เรียงในกล่อง flex แนวตั้ง */
+.sc-wrap { position: absolute; left: 24px; right: 24px; top: 90px; bottom: 34px; display: flex; flex-direction: column; gap: 5px; }
+.sc-row { display: flex; gap: 12px; flex: none; }
+.sc { flex: none; display: block; overflow: visible; }
+.sc .gr { stroke: #e8e7e2; stroke-width: 1; }
+.sc .zr { stroke: #b4b2a9; stroke-width: 1; }
+.sc .mk, .sc-legend i.mk { stroke: #5f5e5a; stroke-width: 1; stroke-dasharray: 4 3; }
+.sc circle.up, .sc-legend i.dot.up { fill: #4a8fe0; background: #4a8fe0; }
+.sc circle.dn, .sc-legend i.dot.dn { fill: #a9a7a0; background: #a9a7a0; }
+.sc circle { stroke: #ffffff; stroke-width: 1; }
+.sc .tk, .sc .ax { font-size: 9.5px; fill: var(--ink-2); }
+.sc .pn { font-size: 10.5px; font-weight: 700; fill: var(--ink); stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }   /* ขอบขาว = เลขอ่านได้แม้ทับเส้นประ */
+.sc .ttl { font-size: 11px; font-weight: 700; fill: var(--ink); }
+.sc .ttl.short { fill: #b24a10; }
+.sc .ttl.long { fill: #0b6e4f; }
+.sc-legend { flex: none; display: flex; flex-wrap: wrap; gap: 3px 18px; font-size: 9.5px; color: var(--ink-2); }
+.sc-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sc-legend i.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.sc-legend i.ln { display: inline-block; width: 0; height: 12px; border-left: 1px dashed #5f5e5a; }
+.sc-legend .c-warn { color: #9a6a00; font-weight: 600; }
+.sc-key { flex: 1; min-height: 0; column-gap: 18px; font-size: 10px; line-height: 14px; overflow: hidden; border-top: 1px solid var(--line); padding-top: 5px; }
+.sc-key div { break-inside: avoid; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.sc-key div.below { font-weight: 400; color: var(--ink-2); }
+.sc-key b { display: inline-block; width: 18px; margin-right: 6px; text-align: right; font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.sc-key .pg { font-weight: 400; color: var(--ink-3); }
+.sc-key .w { color: #9a6a00; font-weight: 600; }
+.sc-note { flex: none; height: 38px; font-size: 9px; line-height: 1.45; color: var(--ink-2); }
+
+/* ---------- หน้าเทรนด์ ---------- */
+.t-head { position: absolute; left: 24px; right: 22px; top: 18px; height: 38px; display: flex; align-items: center; gap: 12px; }
+.t-rank { background: #000000; color: #ffffff; font-size: 17px; font-weight: 600; padding: 2px 8px; flex: none; }
+.t-head h2 { font-size: 27px; font-weight: 300; white-space: nowrap; max-width: 680px; overflow: hidden; text-overflow: ellipsis; }
+.t-rule { flex: 1; border-top: 1.5px solid var(--ink); }
+.t-sub { position: absolute; left: 24px; right: 24px; top: 58px; height: 22px; font-size: 15px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.kpis { position: absolute; left: 24px; right: 24px; top: 84px; height: 66px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpi { background: var(--card); padding: 6px 12px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.kpi .l { font-size: 9.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .v { font-size: 20px; font-weight: 600; line-height: 1.2; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.kpi .v small { font-size: 10.5px; font-weight: 400; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { font-size: 9.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 🆕 (2026-10-01) หมายเหตุใต้ช่องตัวเลข: ตัวเลข 12/6 เดือนล่าสุดสูงเกินจริงจากการกระโดดของข้อมูล Google Trends */
+.kpi-note { position: absolute; left: 24px; right: 24px; top: 152px; font-size: 8.5px; line-height: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.t-row { position: absolute; left: 24px; right: 24px; top: 166px; height: 238px; display: flex; gap: 12px; }
+.t-chart { width: 548px; flex: none; border: 1px solid var(--card); padding: 4px 5px; display: flex; flex-direction: column; gap: 2px; }
+.t-chart .cap { display: flex; align-items: center; gap: 10px; font-size: 9px; padding: 0 2px; white-space: nowrap; overflow: hidden; }
+.t-chart .cap b { font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; }
+.t-chart .lg { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); flex: none; }
+.t-chart .lg i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--series); }
+.t-chart .lg i.cagr { border-top: 2px solid var(--series); }                                   /* 🆕 (2026-10-19) เส้น CAGR */
+.t-chart .lg i.yoy { border-top: 0; background: #d3d1c7; height: 8px; width: 12px; }           /* 🆕 แท่ง YoY */
+.t-chart .lg i.avg { border-top: 3px solid #1c5cab; }
+.t-chart .lg i.fc { border-top: 2px dashed #b54a1c; }
+.t-chart .lg i.band { border-top: 0; background: #fbe6d8; height: 8px; width: 12px; }
+.t-chart img { width: 536px; height: 188px; display: block; }
+.t-chart .kw { font-size: 9px; display: flex; align-items: center; gap: 3px; white-space: nowrap; overflow: hidden; padding: 0 2px; }
+.t-chart .kw .k { color: var(--ink-2); margin-right: 3px; }
+.t-chart .kw .chip { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.t-text { flex: 1; min-width: 0; background: var(--card); padding: 10px 14px; font-size: 11.5px; line-height: 1.42; }
+.t-text p + p { margin-top: .55em; }
+.t-text .tgt { border-bottom: 1px solid var(--line); padding-bottom: .5em; }
+.t-text .tgt .k { color: var(--ink-2); display: block; font-size: .85em; }
+/* Means-End 3 บรรทัด (แทนย่อหน้า Trend/Insight) - ขีดซ้ายไล่เข้มไปอ่อน: จุดต่าง -> ประโยชน์ -> ความรู้สึก */
+.t-text .ladder { display: flex; flex-direction: column; gap: .9em; margin-top: .8em; }
+.t-text .rung { display: grid; grid-template-columns: 7.6em 1fr; gap: .8em; align-items: baseline; }
+.t-text .rung .k { font-size: .82em; font-weight: 700; padding-left: .5em; border-left: 3px solid var(--ink); line-height: 1.5; }
+.t-text .rung.r-benefit .k { border-left-color: #6b6a66; }
+.t-text .rung.r-feeling .k { border-left-color: #b3b2ac; }
+.t-text .rung .v { font-size: 1.15em; line-height: 1.4; }
+
+/* คำถาม Workshop (เดิมอยู่หน้าเดี่ยว) */
+.ws { position: absolute; left: 24px; right: 24px; top: 414px; height: 72px; display: flex; background: var(--card); }
+.ws .k { width: 156px; flex: none; background: #000000; color: #ffffff; font-size: 11.5px; font-weight: 700; padding: 8px 12px; line-height: 1.3; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.ws .k span { font-weight: 400; font-size: 9px; opacity: .75; }
+.ws .q { flex: 1; padding: 8px 16px; font-size: 16px; font-weight: 300; line-height: 1.45; display: flex; align-items: center; }
+.t-facts { position: absolute; left: 60px; bottom: 9px; font-size: 7.5px; color: var(--ink-3); }
+
+/* ---------- Market Evidence ---------- */
+.prod-row { position: absolute; left: 24px; right: 24px; top: 92px; height: 380px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.prod { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.prod .img { height: 158px; background: #ffffff; border: 1px solid var(--card); display: flex; align-items: center; justify-content: center; }
+.prod .img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.prod .img .ph { font-size: 11px; padding: 10px; text-align: center; }
+.prod .info { padding: 7px 9px 8px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.prod .nm { font-size: 10.5px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.prod .br { font-size: 9.5px; color: var(--ink-2); margin-top: 2px; }
+.prod .meta { font-size: 9.5px; margin-top: 4px; display: flex; justify-content: space-between; }
+.prod .why { flex: 1; font-size: 9.5px; line-height: 1.35; margin-top: 6px; border-top: 1px solid var(--line); padding-top: 5px; min-height: 0; }
+.ev-note { position: absolute; left: 24px; right: 170px; bottom: 26px; font-size: 9px; line-height: 1.4; color: var(--ink-2); }
+
+/* ---------- Market Evidence แยกหมวด (⑫ by_category) ---------- */
+/* สีหมวดตามลำดับ (ชุดเดียวกับหัวช่อง STEPIC) - แถบสัดส่วนกับหัวคอลัมน์ใช้คลาสเดียวกัน */
+.cat-c0 { background: #1c5cab; }
+.cat-c1 { background: #b54a1c; }
+.cat-c2 { background: #0b6e4f; }
+.cat-c3 { background: #4a3aa7; }
+.cat-rest { background: #9d9c96; }
+.cat-other { background: #d6d5d0; }
+.cat-dist { position: absolute; left: 24px; right: 24px; top: 88px; }
+.cat-dist .h { font-size: 10.5px; font-weight: 700; margin-bottom: 4px; }
+.cat-dist .h span { font-weight: 400; color: var(--ink-2); }
+.cat-dist .bar { display: flex; height: 14px; gap: 1px; }
+.cat-dist .bar i { display: block; height: 100%; }
+.cat-dist .leg { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 5px; font-size: 9.5px; }
+.cat-dist .leg span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cat-dist .leg i { width: 9px; height: 9px; display: inline-block; }
+.cat-dist .leg b { font-variant-numeric: tabular-nums; }
+.cat-cols { position: absolute; left: 24px; right: 24px; top: 150px; height: 322px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cat-col { display: flex; flex-direction: column; min-width: 0; background: #f4f4f2; }
+.cat-col .ch { color: #ffffff; font-size: 11.5px; font-weight: 700; padding: 5px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-col .ch .pa { display: block; font-size: 8.5px; font-weight: 400; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; }
+.cat-col .cs { font-size: 9px; color: var(--ink-2); padding: 5px 10px 6px; line-height: 1.45; border-bottom: 1px solid #e0dfda; min-height: 52px; }   /* 3 บรรทัด (39px) + padding + เส้นขอบ (border-box) - ข้อความยาว (เช่น 2,273 SKU) ไม่ดันสินค้าให้ต่ำกว่าคอลัมน์อื่น */
+.cp { flex: 1; display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #e8e7e3; min-height: 0; }
+.cp:last-child { border-bottom: 0; }
+/* 🆕 (2026-10-07) แถวตามช่วงราคา: ป้ายช่วงราคาเต็มความกว้างด้านบน + รูปเล็กลงให้ 3 แถวพอดีคอลัมน์ */
+.cp.tiered { grid-template-columns: 48px 1fr; row-gap: 3px; padding: 5px 10px; align-content: center; }
+.cp.tiered .tl { grid-column: 1 / -1; font-size: 8.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp.tiered .tl b { color: var(--ink); }
+.cp.tiered .im { width: 48px; height: 48px; }
+.cp.tiered .none { color: var(--ink-2); font-size: 9px; }
+.cp .im { width: 64px; height: 64px; background: #ffffff; border: 1px solid var(--card); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cp .im img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cp .im .ph { font-size: 8px; padding: 4px; text-align: center; }
+.cp .inf { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cp .nm { font-size: 9.5px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cp .br { font-size: 9px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; }
+.cp .br span { overflow: hidden; text-overflow: ellipsis; }
+.cp .br b { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* 🆕 (2026-10-12) ช่วงราคาต่อปริมาณ: การ์ดมีบรรทัด "ขนาด · ฿ ต่อหน่วย" เพิ่ม - บีบระยะให้ 3 การ์ดยังอยู่ในความสูงคอลัมน์ */
+.cat-cols.unit .cp.tiered { padding: 3px 10px; row-gap: 1px; }
+.cat-cols.unit .cp .inf { gap: 1px; }
+.cat-cols.unit .cp .nm { line-height: 1.2; }
+.cat-cols.unit .cp.tiered .im { width: 44px; height: 44px; }
+.cat-cols.unit .cp.tiered { grid-template-columns: 44px 1fr; }
+.cp .un { font-size: 8.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 🆕 (2026-10-12) ขนาด · ฿ ต่อหน่วย */
+.cp .sim { display: flex; align-items: center; gap: 5px; font-size: 8.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cp .sim .tr { flex: 1; min-width: 20px; height: 5px; background: #e0dfda; position: relative; }
+.cp .sim .tr i { position: absolute; left: 0; top: 0; bottom: 0; }
+
+/* ---------- Appendix ---------- */
+.ap-grid { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 34px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+.ap-box { background: var(--card); padding: 12px 16px; font-size: 12.5px; line-height: 1.42; min-height: 0; }
+.ap-box h3 { font-size: 1.1em; font-weight: 700; margin-bottom: .35em; }
+.ap-box ul { padding-left: 1.1em; }
+.ap-box li + li { margin-top: .25em; }
+.ap-cols { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ap-cols .ap-box { height: 100%; }
+.kv2 { display: grid; grid-template-columns: 120px 1fr; row-gap: .3em; }
+.kv2 .k { color: var(--ink-2); }
+/* 🆕 (2026-10-14) หน้า Notes มีกล่องแหล่งที่มาของข้อมูลเต็มความกว้างใต้ 2 กล่องเดิม: แถวบน = พื้นที่ที่เหลือ, แถวล่าง = ตามเนื้อหา */
+.ap-cols.with-src { grid-template-rows: minmax(0, 1fr) auto; }
+.ap-cols.with-src .src-box { grid-column: 1 / -1; height: auto; }
+.src-grid { display: grid; grid-template-columns: 150px 1fr; row-gap: .3em; }
+.src-grid .k { color: var(--ink-2); }
+/* 🆕 (2026-10-14) หน้า "ไม่พบสินค้าในตลาด" ของเทรนด์ที่จับคู่สินค้าไม่ได้ */
+.np-box { position: absolute; left: 24px; right: 24px; top: 130px; background: var(--card); padding: 26px 30px; border-left: 4px solid var(--accent); }
+.np-h { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
+.np-b { font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+/* 🆕 (2026-10-14) หน้ารายการแหล่งข้อมูล: 2 คอลัมน์ไหลต่อกัน, ฟอนต์ย่อด้วย .fit (ลูกใช้ em) - ชื่อ 2 บรรทัด, URL บรรทัดเดียว (ลิงก์เต็มอยู่ใน href) */
+.doc-list { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 34px; background: var(--card); padding: 10px 14px;
+            font-size: 8.5px; line-height: 1.3; column-count: 2; column-gap: 18px; column-fill: auto; }
+.doc-group h3 { font-size: 1.15em; font-weight: 700; margin: .5em 0 .3em; break-after: avoid; }
+.doc-group:first-child h3 { margin-top: 0; }
+.doc { display: flex; gap: .5em; margin-bottom: .45em; break-inside: avoid; }
+.doc .n { flex: none; width: 1.7em; text-align: right; color: var(--ink-2); }
+.doc .b { min-width: 0; }
+.doc .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.doc .pf { color: var(--ink-2); font-weight: 600; }
+.doc .u { display: block; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; font-size: .92em; }
+
+/* ---------- ฉบับภาษาไทย (body.lang-th) ---------- */
+/* Leelawadee UI มีอักษรไทยครบและอ่านง่ายทั้งจอและพิมพ์ - ตัวละตินในฉบับไทย (ชื่อเทรนด์/แบรนด์) ใช้ฟอนต์เดียวกันให้กลมกลืน */
+.lang-th { font-family: "Leelawadee UI", "Segoe UI", Tahoma, sans-serif; }
+/* อักษรไทยไม่มีตัวเอน (เบราว์เซอร์เอียงรูปเองแล้วอ่านยาก) และ letter-spacing ทำให้สระ/วรรณยุกต์ลอยห่างจากตัวอักษร */
+.lang-th .hl, .lang-th .imp, .lang-th .insuf { font-style: normal; }
+.lang-th .sig .body .imp { font-style: normal; }  /* .sig .body .imp (italic) เฉพาะเจาะจงกว่าบรรทัดบน ต้องระบุซ้ำ */
+.lang-th .st-head, .lang-th .sig .dims, .lang-th .bar-header h2, .lang-th .hm .cols th.f { letter-spacing: 0; }
+/* บรรทัดภาษาไทยต้องสูงกว่า (สระบน + วรรณยุกต์ซ้อน) - ช่องที่ตัดด้วย line-clamp จะตัดหัวสระทิ้งถ้าบรรทัดเตี้ย */
+.lang-th .micro .hl { font-size: 8.5px; line-height: 1.4; }
+.lang-th .prod .nm, .lang-th .cp .nm { line-height: 1.4; }
+.lang-th .t-sub { height: 26px; }
+
+/* 🆕 (2026-10-21) หน้าสินค้าของเทรนด์ = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 (l2_map.py): คอลัมน์ = ความใกล้เทรนด์ 4 ระดับ, แถว = ยอดขาย
+   4 แถว, ช่อง = จำนวนสินค้า + สินค้าที่ใกล้เทรนด์ที่สุดในช่อง; สีพื้น = เกรดหลังยอดขายปรับ (ชุดสีเดียวกับระดับของ ⑰) */
+.l2-map { position: absolute; left: 24px; right: 24px; top: 92px; display: grid; grid-template-columns: 92px repeat(4, 1fr);
+          grid-template-rows: 40px 98px 98px 98px; gap: 3px; }
+.l2-corner { font-size: 8.3px; color: var(--ink-2); padding: 4px 4px 0 0; line-height: 1.25; }
+.l2-ch { position: relative; padding: 5px 6px 0; font-size: 11px; line-height: 1.2; min-width: 0; }
+.l2-ch i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.l2-ch span { display: block; font-size: 8.3px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-excellent { background: #1c5cab; }
+.lv-good { background: #3987e5; }
+.lv-average { background: #86b6ef; }
+.lv-below_average { background: #b4b2a9; }
+.l2-rh { display: flex; flex-direction: column; justify-content: center; font-size: 10.5px; line-height: 1.25; padding-right: 6px; }
+.l2-rh span { font-size: 8.5px; color: var(--ink-2); }
+.l2-cell { position: relative; padding: 6px 8px; display: flex; flex-direction: column; justify-content: center; min-width: 0; overflow: hidden; }
+.l2-cell .empty { font-size: 9px; color: var(--ink-3); }
+.tint-excellent { background: rgba(28,92,171,.22); }
+.tint-good { background: rgba(57,135,229,.16); }
+.tint-average { background: rgba(134,182,239,.22); }
+.tint-below_average { background: #f1f0ed; }
+.l2-cell .card { display: grid; grid-template-columns: 62px 1fr; column-gap: 7px; align-items: center; flex: 1; min-height: 0; }
+.l2-cell .card .im { width: 62px; height: 62px; background: #ffffff; border: 1px solid #e3e2de; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.l2-cell .card .im img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.l2-cell .card .im .ph { width: 100%; height: 100%; background: #efefec; }
+.l2-cell .card .tx { min-width: 0; }
+.l2-cell .card .nm { font-size: 9.2px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.l2-cell .card .mt { font-size: 8.2px; color: var(--ink-2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.l2-take { position: absolute; left: 24px; right: 24px; top: 446px; font-size: 11px; font-weight: 600; border-left: 3px solid var(--accent); padding: 3px 0 3px 8px; background: var(--card); line-height: 1.35; }
+.lang-th .l2-cell .card .nm { line-height: 1.4; }

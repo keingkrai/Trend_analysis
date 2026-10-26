@@ -162,9 +162,13 @@ STAGE_IO_MAP = {
         "outputs": ["phase2_category_overall_result.json"],
     },
     "rank_trends": {
-        "inputs": ["phase2_paper_social_z_delta_result.json", "phase1_paper_stream_result.json",
-                   "phase2_social_stream_result.json", "phase2_news_stream_result.json"],
-        "outputs": ["phase2_rank_score_final_mode_result.json", "phase2_longevity_cross_source_result.json"],
+        # 🆕 (2026-09-30) + ค่าการค้นหารายเดือนของ ⑦ ใช้คำนวณคะแนนการเติบโต (growth_score.py) แทน Z_Delta
+        "inputs": ["phase1_paper_stream_result.json",
+                   "phase2_social_stream_result.json", "phase2_news_stream_result.json",
+                   "serpapi_forecast_run/step5a_monthly_trends.xlsx",
+                   "serpapi_forecast_run/step5b_df_keyword_processed.xlsx"],
+        "outputs": ["phase2_rank_score_final_mode_result.json", "phase2_longevity_cross_source_result.json",
+                    "phase2_growth_score_result.json"],
     },
     "extract_trend_highlights": {
         # 🆕 (2026-09-16) + ผล ⑥ ใช้คัด Top N เทรนด์ + ผลพยากรณ์ของ ⑦ ใช้ทำสำเนา step5c_..._top{N}.xlsx
@@ -187,9 +191,38 @@ STAGE_IO_MAP = {
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
                    "phase2_news_stream_result.json", "phase3_scale_validation_nvidia_result.json",
                    "phase2_paper_social_z_delta_result.json", "phase2_longevity_cross_source_result.json",
-                   "phase3_trend_highlights_result.json"],
+                   "phase3_trend_highlights_result.json",
+                   # 🆕 (2026-10-01) + คะแนนการเติบโตของ ⑥ ใช้ทำข้อมูลพยากรณ์เข้า STEPIC และภาพรวมตลาด
+                   "phase2_growth_score_result.json", "phase2_rank_score_final_mode_result.json"],
         "outputs": ["phase4_master_trend_report.md", "phase4_stepic_raw_analysis.json",
-                    "phase4_stepic_final_insight.json"],
+                    "phase4_stepic_final_insight.json", "phase4_market_overview.json",
+                    "phase4_trend_analysis.json"],
+    },
+    "build_pdf_report": {
+        # 🆕 (2026-09-25) ⑯ รายงาน PDF ภาษาอังกฤษ - อ่านผลของขั้นเทรนด์มาจัดหน้า (ไม่รวมผล ⑬ แบรนด์)
+        "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_paper_social_z_delta_result.json", "phase2_longevity_cross_source_result.json",
+                   "phase2_category_overall_result.json", "phase3_scale_validation_nvidia_result.json",
+                   "phase4_stepic_final_insight.json", "phase4_stepic_raw_analysis.json",
+                   "phase2_growth_score_result.json", "phase4_market_overview.json",
+                   "phase4_trend_analysis.json"],
+        # 🆕 (2026-09-25) + ฉบับภาษาไทย (_TH) - build_pdf_report.py สร้าง 2 ภาษาในรันเดียว
+        "outputs": ["phase6_trend_report.pdf", "phase6_trend_report_TH.pdf", "phase6_report_context.json",
+                    "phase6_report_enrichment.json", "phase6_report_enrichment_TH.json"],
+    },
+    "build_brand_report": {
+        # 🆕 (2026-09-26) ⑰ รายงานแบรนด์ PDF - อ่านผล ⑬ phase3_brand_coverage_<แบรนด์>.json และเขียน
+        # phase6_brand_report_<แบรนด์>*.pdf ชื่อเปลี่ยนตามแบรนด์ จึงไม่ได้ใส่ในรายการ (ต้องเป็นชื่อตายตัว)
+        "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_paper_social_z_delta_result.json", "phase3_scale_validation_nvidia_result.json"],
+        "outputs": [],
+    },
+    "build_brand_category_report": {
+        # 🆕 (2026-10-05) ⑱ รายงานหมวด x ระดับราคา PDF - อ่านผล ⑬ (phase3_brand_coverage_<แบรนด์>.json ช่อง price_tiers) และเขียน
+        # phase6_brand_category_report_<แบรนด์>*.pdf ชื่อเปลี่ยนตามแบรนด์ จึงไม่ได้ใส่ในรายการ (ต้องเป็นชื่อตายตัว)
+        "inputs": ["phase3_trend_highlights_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_paper_social_z_delta_result.json", "phase3_scale_validation_nvidia_result.json"],
+        "outputs": [],
     },
 }
 
@@ -327,15 +360,42 @@ def prompt_run_config(default_topic="beauty and personal care trends", default_y
     return topic, years * 12
 
 
+# 🆕 (2026-10-07) โหมดอัปเดตรอบเดิม (main.py โหมด 3): รอบใหม่ใช้เทรนด์ + คีย์เวิร์ดของรอบต้นทาง (สำเนาผล ①-⑤) ต่างแค่
+# Google Trends ที่ดึงใหม่ - main.py ตั้ง env นี้เป็นชื่อโฟลเดอร์รอบต้นทาง ⑪ ใช้จุดเด่นเดิม ⑫ ใช้เหตุผลจับคู่สินค้าเดิม
+REFRESH_ENV = "TREND_REFRESH_FROM"
+
+
+def refresh_source_dir():
+    """โฟลเดอร์รอบต้นทางของโหมดอัปเดต - None ถ้าไม่ได้ตั้ง env (รันปกติ) / ตั้งแต่หาโฟลเดอร์ไม่เจอ = หยุด (ถ้าปล่อยผ่าน
+    ⑪ จะเรียก LLM สกัดจุดเด่นใหม่ทุกเทรนด์เงียบๆ ผลไม่ใช่ "ต่างแค่ Google Trends" อย่างที่ตั้งใจ)"""
+    name = (os.getenv(REFRESH_ENV) or "").strip()
+    if not name:
+        return None
+    path = _OUTPUT_ROOT / name
+    if not path.is_dir():
+        raise SystemExit(f"❌ {REFRESH_ENV}='{name}' แต่ไม่มีโฟลเดอร์ {path}")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # 🆕 (2026-09-16) Top N เทรนด์ที่ใช้ต่อหลังพยากรณ์ - เจ้าของงานเลือกทาง B: ①-⑦ และ ⑥ ยังทำครบทุกเทรนด์
 # (สายละ 5 = 15) เพราะต้องพยากรณ์ก่อนถึงจะรู้ว่าเทรนด์ไหนมาแรง แล้วตั้งแต่ ⑪ เป็นต้นไป (⑪ ⑫ ⑬ รายงาน
-# และ bump chart ใน trend.ipynb) ใช้เฉพาะ N อันดับแรกตาม Rank Score ของ ⑥ (Z_Delta + โบนัสยืนยันข้ามสาย)
+# และ bump chart ใน trend.ipynb) ใช้เฉพาะ N อันดับแรกตาม Rank Score ของ ⑥ (🆕 2026-09-30: คะแนนการเติบโตปีที่ 1
+# แทน Z_Delta + โบนัสยืนยันข้ามสาย - ดู GROWTH_LINE ด้านล่าง)
 # ชุดเดียวกันทั้งหมด - เดิมรายงานใช้ทั้ง 15 ส่วน notebook คัด 10 ตัวด้วยอันดับ z-score ปีสุดท้าย ตรงกันแค่
 # 6/10 (ตรวจกับรอบ 2026-09-16) เลยต้องมีเกณฑ์คัดเดียวที่ทุกขั้นเรียกใช้ร่วมกัน
 # ---------------------------------------------------------------------------
 TOP_N_TRENDS_DEFAULT = 10
 RANK_SCORE_FILE = "phase2_rank_score_final_mode_result.json"
+# 🆕 (2026-09-30) เกณฑ์หลักเปลี่ยนจาก Z_Delta เป็นคะแนนการเติบโต (rank_trends.py / growth_score.py) และเจ้าของงานตกลง:
+# หน้ารายละเอียดทำเฉพาะเทรนด์ที่คะแนนปีที่ 1 ถึงค่ากลางตลาด (GROWTH_LINE) และจับคู่สินค้าได้ ไม่เกิน N ตัว ส่วนหน้า
+# Top 5 ระยะสั้น/ระยะยาวเลือกจากทุกเทรนด์ที่จับคู่สินค้าได้ (ไม่ใช่แค่ชุดที่มีหน้ารายละเอียด)
+GROWTH_LINE = 0.5            # ต้องตรงกับ growth_score.GROWTH_LINE
+TOP_K_PER_HORIZON = 5        # หน้า Top 5 ระยะสั้น/ระยะยาวของรายงาน
+# 🆕 (2026-10-02) เจ้าของงานกำหนด ระยะสั้น = 2 ปี, ระยะยาว = 5 ปี: เส้นแบ่ง/หน้ารายละเอียด/Top 5 ระยะสั้นใช้คะแนนปีที่ 2,
+# Top 5 ระยะยาวใช้ปีที่ 5 · 🆕 (2026-10-19) ระยะสั้นเปลี่ยนเป็น 3 ปี - ค่าอยู่ที่ common/horizons.py ที่เดียว
+# (rank_trends.RANK_YEAR, report_data.SHORT_YEAR / LONG_YEAR, market_overview, brand_data อ่านจากที่เดียวกัน)
+from common.horizons import LONG_YEAR, SHORT_YEAR  # noqa: E402,F401
 
 
 def get_top_n_trends():
@@ -356,7 +416,7 @@ def get_top_n_trends():
 
 def load_ranked_trends(rank_path=None):
     """ทุกเทรนด์จากผล ⑥ (rank_trends.py) เรียงตาม Overall Rank - คืน list:
-    [{"overall_rank", "stream", "trend", "rank_score", "z_delta", "mode"}, ...]
+    [{"overall_rank", "stream", "trend", "rank_score", "mode", "growth_short", "growth_long"}, ...]
 
     ไม่มีไฟล์ของ ⑥ = หยุดพร้อมบอกให้รัน ⑥ ก่อน (ไม่แอบกลับไปใช้ทุกเทรนด์เงียบๆ เพราะผลจะไม่ตรงกับที่
     ผู้ใช้ตั้ง N ไว้)"""
@@ -368,14 +428,17 @@ def load_ranked_trends(rank_path=None):
     if not rows:
         raise SystemExit(f"❌ {path.name} ไม่มีเทรนด์เลย - ตรวจผล ⑥ ก่อน")
     return [{"overall_rank": int(r["Overall Rank"]), "stream": r["Stream"], "trend": r["Trend Name"],
-             "rank_score": r.get("Rank Score"), "z_delta": r.get("Z_Delta"), "mode": r.get("Mode")}
+             "rank_score": r.get("Rank Score"), "mode": r.get("Mode"),
+             # 🆕 (2026-09-30) คะแนนการเติบโตระยะสั้น/ระยะยาวแทน Z_Delta (ไม่มีในผล ⑥ รอบก่อนเปลี่ยนเกณฑ์ -> None)
+             # 🆕 (2026-10-02) ปีที่ SHORT_YEAR / LONG_YEAR (เดิมปีที่ 1 / 3)
+             "growth_short": r.get(f"Growth_Y{SHORT_YEAR}"), "growth_long": r.get(f"Growth_Y{LONG_YEAR}")}
             for r in rows]
 
 
 def select_top_trends(n=None, rank_path=None):
     """เทรนด์ N อันดับแรกตาม Rank Score ของ ⑥ (ยังไม่ได้ดูว่ามีข้อมูลให้จับคู่สินค้าไหม - ⑪ ใช้
     collect_top_n_with_matchable_data() แทนเพื่อข้ามตัวที่ข้อมูลไม่พอ) - ถ้า N มากกว่าจำนวนเทรนด์ที่มีจะคืน
-    ทั้งหมดพร้อมบอก, ถ้าอันดับยังเป็นโหมด preliminary (ไม่มี Z_Delta จริง) จะเตือนให้เห็น"""
+    ทั้งหมดพร้อมบอก, ถ้าอันดับยังเป็นโหมด preliminary (ไม่มีคะแนนการเติบโตจริง) จะเตือนให้เห็น"""
     n = n or get_top_n_trends()
     ranked = load_ranked_trends(rank_path)
     if n > len(ranked):
@@ -383,7 +446,7 @@ def select_top_trends(n=None, rank_path=None):
     picked = ranked[:n]
     preliminary = [r["trend"] for r in picked if not str(r.get("mode") or "").startswith("final")]
     if preliminary:
-        print(f"  ⚠️ {len(preliminary)} เทรนด์ใน Top {n} ยังจัดอันดับแบบ preliminary (ไม่มี Z_Delta จริง ใช้ขนาด"
+        print(f"  ⚠️ {len(preliminary)} เทรนด์ใน Top {n} ยังจัดอันดับแบบ preliminary (ไม่มีคะแนนการเติบโต ใช้ขนาด"
               f"คลัสเตอร์แทน): {preliminary}")
     return picked
 
@@ -421,6 +484,69 @@ def collect_top_n_with_matchable_data(ranked, make_profile, exclusion_reason, n)
         selected.append({**item, "top_rank": len(selected) + 1})
         profiles.append(profile)
     return selected, profiles, excluded, failed
+
+
+def collect_detail_and_top_k(ranked, make_profile, exclusion_reason, n, k=TOP_K_PER_HORIZON, line=GROWTH_LINE):
+    """🆕 (2026-09-30) ชุดเทรนด์ที่ ⑪ ต้องตัดสินว่าจับคู่สินค้าได้ไหม ตามเกณฑ์ใหม่ของรายงาน (ดู GROWTH_LINE):
+    1. หน้ารายละเอียด (selected): เดินตามอันดับของ ⑥ เฉพาะเทรนด์ที่คะแนนระยะสั้น (ปีที่ SHORT_YEAR) ถึง line จนได้ n ตัว
+       ที่จับคู่ได้
+       - ผล ⑥ รอบก่อนเปลี่ยนเกณฑ์ (ไม่มีคะแนนการเติบโตเลย) ใช้ทุกเทรนด์ เหมือน collect_top_n_with_matchable_data
+    2. Top k ระยะสั้น/ระยะยาว: เดินตามคะแนนปีที่ SHORT_YEAR และ LONG_YEAR ของทุกเทรนด์ จนเจอ k ตัวที่จับคู่ได้ในแต่ละลำดับ
+       - เทรนด์ที่ได้จากขั้นนี้แต่อยู่ใต้เส้นไม่มีหน้ารายละเอียด แค่รู้ว่าจับคู่ได้ (รายงานใช้ในหน้า Top 5)
+    แต่ละเทรนด์ถูกตัดสินครั้งเดียว (make_profile เรียก LLM) - ข้อ 2 ส่วนใหญ่ใช้ผลที่ตัดสินไว้แล้วในข้อ 1
+
+    make_profile / exclusion_reason ใช้แบบเดียวกับ collect_top_n_with_matchable_data (raise = ล้มเหลวทางเทคนิค)
+    คืน dict: selected (มี top_rank 1..), profiles (ของ selected ตามลำดับ), extra_profiles (จับคู่ได้แต่ไม่มีหน้า
+    รายละเอียด), excluded, failed, checked (ทุกเทรนด์ที่ตัดสินสำเร็จ: overall_rank, stream, trend, matchable, reason)"""
+    results = {}  # (stream, trend) -> ("ok", profile) | ("excluded", เหตุผล) | ("failed", ข้อความ error)
+
+    def check(item):
+        key = (item["stream"], item["trend"])
+        if key not in results:
+            try:
+                profile = make_profile(item)
+            except Exception as e:
+                results[key] = ("failed", str(e)[:300])
+            else:
+                reason = exclusion_reason(profile)
+                results[key] = ("excluded", reason) if reason else ("ok", profile)
+        return results[key]
+
+    has_growth = any(r.get("growth_short") is not None for r in ranked)
+    pool = ([r for r in ranked if r.get("growth_short") is not None and r["growth_short"] >= line]
+            if has_growth else ranked)
+    selected, profiles = [], []
+    for item in pool:
+        if len(selected) >= n:
+            break
+        status, value = check(item)
+        if status == "ok":
+            selected.append({**item, "top_rank": len(selected) + 1})
+            profiles.append(value)
+
+    if has_growth:
+        for field in ("growth_short", "growth_long"):
+            order = sorted((r for r in ranked if r.get(field) is not None),
+                           key=lambda r: (-r[field], r["overall_rank"]))
+            found = 0
+            for item in order:
+                if found >= k:
+                    break
+                found += check(item)[0] == "ok"
+
+    by_key = {(r["stream"], r["trend"]): r for r in ranked}
+    selected_keys = {(s["stream"], s["trend"]) for s in selected}
+    done = sorted(results.items(), key=lambda kv: by_key[kv[0]]["overall_rank"])
+    return {
+        "selected": selected,
+        "profiles": profiles,
+        "extra_profiles": [v for key, (s, v) in done if s == "ok" and key not in selected_keys],
+        "excluded": [{**by_key[key], "reason": v} for key, (s, v) in done if s == "excluded"],
+        "failed": [{**by_key[key], "error": v} for key, (s, v) in done if s == "failed"],
+        "checked": [{"overall_rank": by_key[key]["overall_rank"], "stream": key[0], "trend": key[1],
+                     "matchable": s == "ok", "reason": v if s == "excluded" else None}
+                    for key, (s, v) in done if s != "failed"],
+    }
 
 
 class use_typhoon:

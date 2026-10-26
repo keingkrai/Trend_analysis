@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="{{ c.lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ L.report_title }}</title>
+<style>
+{% include "style.css" %}
+{% include "brand.css" %}
+{% include "market.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ c.lang }}">
+{#- ⑲ รายงานส่วนแบ่งตลาด (ภาพรวมตลาด) - ใช้หน้าตาชุดเดียวกับ ⑯/⑰/⑱ (style.css + brand.css) + market.css
+    c = market_report_data.build_context(...) / L = market_i18n.STRINGS[lang] / brand = branding ของผู้จัดทำ
+    กติกา: ไม่บอกว่าแบรนด์ไหนชนะหรือแพ้ (ข้อความทั้งหมดมาจาก L และ findings ที่ผ่านการตรวจ) - อ้างอิง Euromonitor หน้าสุดท้าย -#}
+{%- set m = c.meta -%}
+
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights.format(edition=m.edition) }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro cites(ns) -%}{% if ns %} <span class="cite">[{{ ns | join(", ") }}]</span>{% endif %}{%- endmacro %}
+
+{% macro finding_list(items, show_subject=true) -%}
+  {% for f in items %}
+  <div class="fd{% if f.relevance == 'background' %} bg{% endif %}">
+    {%- if show_subject %}<span class="subj">{{ f.subject }}</span>{% endif %}{{ f.text }}{{ cites(f.cites) }}
+    <span class="rel">{{ L.tag_direct if f.relevance == "direct" else L.tag_background }}</span>
+  </div>
+  {% endfor %}
+{%- endmacro %}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ L.report_title }}</h1>
+    <div class="cover-sub">{{ L.report_kind.format(y0=m.y0, y1=m.y1) }}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.cover_sources }}</div>
+  </div>
+  <div class="cover-strip">
+    <div class="cover-kpi"><div class="v">{{ c.kpi.market.value }}</div><div class="l">{{ L.kpi_market.format(y=m.y1) }}</div></div>
+    <div class="cover-kpi"><div class="v">{{ c.kpi.online.a }} → {{ c.kpi.online.b }}</div><div class="l">{{ L.kpi_online }} · {{ m.y0 }}-{{ m.y1 }}</div></div>
+    <div class="cover-kpi"><div class="v">{{ c.kpi.others.a }} → {{ c.kpi.others.b }}</div><div class="l">{{ L.kpi_others }} · {{ m.y0 }}-{{ m.y1 }}</div></div>
+    {% if c.kpi.imports %}<div class="cover-kpi"><div class="v">{{ c.kpi.imports.a }} → {{ c.kpi.imports.b }}</div><div class="l">{{ L.kpi_imports }} · {{ c.kpi.imports.y0 }}-{{ c.kpi.imports.y1 }}</div></div>{% endif %}
+  </div>
+</section>
+
+{#- ======================= 2. สรุป ======================= -#}
+<section class="page" data-label="Summary">
+  {{ bar_header(L.summary_header) }}
+  <div class="sm-left">
+    <div class="sm-stats">
+      <div class="stat"><div class="lbl">{{ L.kpi_market.format(y=m.y1) }}</div><div class="val">{{ c.kpi.market.value }}</div><div class="sub">{{ c.kpi.market.sub }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.kpi_online }}</div><div class="val">{{ c.kpi.online.a }} → {{ c.kpi.online.b }}</div><div class="sub">{{ L.kpi_share_sub.format(y0=m.y0, y1=m.y1) }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.kpi_others }}</div><div class="val">{{ c.kpi.others.a }} → {{ c.kpi.others.b }}</div><div class="sub">{{ L.kpi_share_sub.format(y0=m.y0, y1=m.y1) }}</div></div>
+      {% if c.kpi.imports %}<div class="stat"><div class="lbl">{{ L.kpi_imports }}</div><div class="val">{{ c.kpi.imports.a }} → {{ c.kpi.imports.b }}</div><div class="sub">{{ L.kpi_imports_sub.format(y0=c.kpi.imports.y0, y1=c.kpi.imports.y1) }}</div></div>{% endif %}
+    </div>
+    <div class="how-box fit" data-name="how to read"><h3>{{ L.how_title }}</h3>{{ L.how_body }}</div>
+  </div>
+  <div class="sm-right">
+    <div class="ex-title">{{ L.key_messages }}</div>
+    <ol class="sm-msgs fit" data-name="key messages">{% for msg in c.messages %}<li>{{ msg }}</li>{% endfor %}</ol>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. มูลค่าตลาดแยกหมวด ======================= -#}
+<section class="page" data-label="Market size">
+  {{ bar_header(L.market_header) }}
+  <div class="mk-wrap fit" data-name="market table">
+    <table class="mk">
+      <colgroup><col style="width:26%"><col style="width:38%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
+      <thead><tr><th>{{ L.col_category }}</th><th>{{ L.col_value.format(y=m.y1) }}</th><th class="num">{{ L.col_share }}</th>
+        <th class="num">{{ L.col_growth.format(y0=m.y0, y1=m.y1) }}</th><th class="num">{{ L.col_forecast.format(y1=m.y1, y2=m.y2) }}</th></tr></thead>
+      <tbody>
+      {% for r in c.market_rows %}
+        <tr><td>{{ r.name }}</td>
+          <td><div class="bar-cell"><div class="bar" style="width:{{ (r.bar * 0.62) | round(1) }}%"></div><span class="bar-v">{{ r.value }}</span></div></td>
+          <td class="num">{{ r.share }}</td><td class="num">{{ r.growth }}</td><td class="num">{{ r.forecast }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mk-note">{{ L.market_note }}</div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 4. ภาพรวมปัจจัย (แบบ A) ======================= -#}
+{%- set ov_pages = c.overview | batch(12) | list -%}
+{% for chunk in ov_pages %}
+<section class="page" data-label="Factor overview{% if ov_pages | length > 1 %} {{ loop.index }}{% endif %}">
+  {{ bar_header(L.overview_header) }}
+  <div class="ov-intro">{{ L.overview_intro }}</div>
+  <div class="ov-wrap fit" data-name="factor overview">
+    <table class="ovf">
+      <colgroup><col style="width:19%"><col style="width:45%"><col style="width:28%"><col style="width:8%"></colgroup>
+      <thead><tr><th>{{ L.col_factor }}</th><th>{{ L.col_seen }}</th><th>{{ L.col_brands }}</th><th class="num">{{ L.col_sources }}</th></tr></thead>
+      <tbody>
+      {% for r in chunk %}
+        <tr><td class="fl">{{ r.label }}<span class="tag">{{ r.tag }}</span></td>
+          <td class="seen">{% for s in r.seen %}<div>{{ s }}</div>{% endfor %}</td>
+          <td>{{ r.brands | join(", ") if r.brands else "-" }}</td>
+          <td class="num">{{ r.n_sources or "-" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 5. ปัจจัย - 2 คอลัมน์ต่อหน้า (🆕 2026-10-14 จัดคอลัมน์ตามความสูงเนื้อหา: ปัจจัยที่มีข้อน้อยอยู่คอลัมน์เดียวกัน,
+      ปัจจัยที่มีข้อมากแสดงเพิ่มจนเต็ม - market_report_data.plan_columns) ======================= -#}
+{%- set cpages = c.factor_columns | batch(2) | list -%}
+{% for pair in cpages %}
+<section class="page" data-label="Factors {{ loop.index }}">
+  {{ bar_header(L.factors_header ~ " " ~ loop.index ~ "/" ~ loop.length) }}
+  <div class="fx2">
+    {% for col in pair %}
+    <div class="fcol fit" data-name="factors column {{ loop.index }}" data-min="8">
+      {% for p in col %}
+      <div class="fblock">
+        <div class="fcol-h">{{ p.label }}<span class="tag">{{ L.data_tag if p.source == "data" else L.web_tag }}</span></div>
+        {% if p.data_lines %}<div class="data-box">{% for s in p.data_lines %}<div class="dl">{{ s }}</div>{% endfor %}</div>{% endif %}
+        <div class="fd-list">
+          {% if p.findings %}{{ finding_list(p.findings) }}{% else %}<div class="fd muted">{{ L.no_findings_line }}</div>{% endif %}
+        </div>
+        {% if p.brands or p.shown_of %}<div class="fcol-foot">{% if p.brands %}{{ L.related_brands.format(brands=p.brands | join(", ")) }}{% endif %}{% if p.brands and p.shown_of %} · {% endif %}{{ p.shown_of }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 6. แบรนด์ - 3 แบรนด์ต่อหน้า ======================= -#}
+{%- set bpages = c.brand_pages | batch(3) | list -%}
+{% for trio in bpages %}
+<section class="page" data-label="Brands {{ loop.index }}">
+  {{ bar_header(L.brands_header ~ " " ~ loop.index ~ "/" ~ loop.length) }}
+  <div class="bx3">
+    {% for b in trio %}
+    <div class="brow">
+      <div class="bchart">
+        <div class="bname">{{ b.brand }}</div>
+        <div class="bcap">{{ L.share_chart.format(category=b.main_category) }}</div>
+        {% if charts[b.brand] %}<img src="{{ charts[b.brand] }}" alt="">{% endif %}
+      </div>
+      <div class="bfacts fit" data-name="facts {{ b.brand }}">
+        <div><span class="k">{{ L.owner }}</span> {{ b.owner or L.na }}</div>
+        <div><span class="k">{{ L.tier }}</span> {{ b.tier }}</div>
+        {% for r in b.rows %}<div class="share">{{ r }}</div>{% endfor %}
+        {% if b.absorbed %}<div class="note">{{ b.absorbed }}</div>{% endif %}
+        {% if b.fda %}<div class="note">{{ b.fda }}</div>{% endif %}
+      </div>
+      <div class="bfind fd-list fit" data-name="findings {{ b.brand }}">
+        {{ finding_list(b.findings, show_subject=false) }}
+        {% if b.shown_of %}<div class="fcol-foot">{{ b.shown_of }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 7. วิธีการ + การเปลี่ยนแปลงที่ยังไม่พบคำอธิบาย ======================= -#}
+<section class="page" data-label="Method">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid{% if c.missing %} with-missing{% endif %}">
+    <div class="ap-box fit" data-name="method data"><h3>{{ L.m_data_title }}</h3>{{ L.m_data.format(edition=m.edition, y0=m.y0, y1=m.y1, y2=m.y2, f0=fda_from, f1=fda_to, rows=m.fda.rows or 0) }}</div>
+    <div class="ap-box fit" data-name="method compare"><h3>{{ L.m_compare_title }}</h3>{{ L.m_compare.format(y0=m.y0) }}</div>
+    <div class="ap-box fit" data-name="method search"><h3>{{ L.m_search_title }}</h3>{{ L.m_search.format(y0=m.y0) }}</div>
+    <div class="ap-box fit" data-name="method limits"><h3>{{ L.m_limits_title }}</h3>{{ L.m_limits }}</div>
+  </div>
+  {% if c.missing %}
+  <div class="miss-strip fit" data-name="missing"><b>{{ L.none_header }}:</b> {{ c.missing | map(attribute="subject") | join(" · ") }}. {{ L.none_intro }}</div>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{#- ======================= 8. แหล่งข้อมูล (3 คอลัมน์ - ชื่อโดเมนกดเป็นลิงก์ได้, URL เต็มอยู่ใน phase7_market_report_context.json) ======================= -#}
+{% for chunk in c.source_pages %}
+<section class="page" data-label="Sources {{ loop.index }}">
+  {{ bar_header(L.sources_header ~ ((" " ~ loop.index ~ "/" ~ loop.length) if loop.length > 1 else "")) }}
+  <div class="src-wrap fit" data-name="sources" data-min="6.5">
+    {% for s in chunk %}
+    <div class="src"><div class="t"><span class="n">[{{ s.n }}]</span> {{ s.title }}</div><div class="meta"><a href="{{ s.url }}">{{ s.domain }}</a>{% if s.date %} · {{ s.date }}{% endif %} · {{ s.kind }}</div></div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 10. แหล่งข้อมูลและลิขสิทธิ์ (อ้างอิง Euromonitor - หน้าสุดท้ายตามที่เจ้าของงานขอ) ======================= -#}
+<section class="page" data-label="Data sources and copyright">
+  {{ bar_header(L.final_header) }}
+  <div class="final fit" data-name="final">
+    <p class="em">{{ L.final_euromonitor.format(edition=m.edition, extracted=m.extracted) }}<br>{{ L.final_copyright.format(edition=m.edition) }}</p>
+    <p>{{ L.final_fda.format(f0=fda_from, f1=fda_to) }}</p>
+    <p>{{ L.final_web.format(n=c.sources | length) }}</p>
+    <p>{{ L.final_prepared.format(company=brand.company_name) }}</p>
+  </div>
+  {{ footer() }}
+</section>
+
+<script>
+// เหมือนรายงาน ⑯/⑰/⑱: ย่อฟอนต์กล่อง .fit จนพอดี แล้วคืนกล่องที่ยังล้นให้ Python เตือน
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

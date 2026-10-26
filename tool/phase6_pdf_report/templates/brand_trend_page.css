@@ -1,0 +1,128 @@
+/* 🆕 (2026-10-14) หน้าสินค้าต่อเทรนด์ของ ⑰ = หน้าเทรนด์ของ ⑱ เดิม (3 กลุ่มราคาต่อปริมาณ: top 5 + สินค้าที่ดีที่สุดของแบรนด์) - กฎคัดลอกจาก brand_category.css (⑱ เลิกสร้างแล้ว) ใช้ .bt-left/.bt-text/.bt-stats/.rk-msg ของ brand.css */
+/* ---------- หน้าเทรนด์: 3 คอลัมน์ระดับราคา (หมวด -> ระดับราคาของแบรนด์) ---------- */
+.ct-right { position: absolute; left: 336px; right: 24px; top: 90px; height: 372px; display: flex; flex-direction: column; gap: 6px; }
+.ct-right .rk-msg { flex: none; }
+.tier-grid { flex: 1; min-height: 0; display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
+.tier-grid.k1 { grid-template-columns: 1fr; }
+.tier-grid.k2 { grid-template-columns: repeat(2, 1fr); }
+.tier { display: flex; flex-direction: column; min-height: 0; }
+.tier-head { height: 36px; border-bottom: 1.5px solid var(--ink); }
+.tier-head b { display: block; font-size: 11px; line-height: 1.3; }
+.tier-range { color: var(--accent); font-weight: 700; font-size: 10px; margin-left: 3px; white-space: nowrap; }
+.tier-count { display: block; font-size: 8.5px; color: var(--ink-2); line-height: 1.3; }
+.tier-typical { display: block; font-size: 8.5px; color: var(--ink); line-height: 1.3; font-variant-numeric: tabular-nums; }
+.tier-grid.ranged .tier-head { height: 49px; }
+.tier-top { flex: none; }
+.tr { display: grid; grid-template-columns: 22px 1fr auto; column-gap: 5px; align-items: center; height: 37px; border-bottom: 1px solid var(--line);
+      font-size: 9px; line-height: 1.25; padding: 0 3px; }
+.tr .no { font-weight: 700; color: var(--ink-2); }
+.tr .nm { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tr .pr { white-space: nowrap; text-align: right; font-size: 8.5px; }
+.tr .pr .un { display: block; font-size: 7.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }   /* 🆕 2026-10-14 ราคา/ปริมาตร */
+.tr.is-you { background: color-mix(in srgb, var(--accent) 14%, #ffffff); }
+.tr.is-you .no { color: var(--accent); }
+.tier-grid.k1 .tr, .tier-grid.k2 .tr { font-size: 10px; }
+
+.tier-you { flex: 1; min-height: 0; margin-top: 8px; padding: 6px 8px 6px 9px; background: var(--card); border-left: 3px solid var(--accent);
+            display: flex; flex-direction: column; gap: 3px; }
+.tier-you-h { font-size: 8.5px; font-weight: 700; color: var(--accent); }
+.yc { display: flex; gap: 6px; align-items: center; }
+.yc .img { width: 38px; height: 38px; flex: none; background: #ffffff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+.yc .img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.yc .img .ph { font-size: 7px; }
+.yc .info { min-width: 0; }
+.yc .nm { font-size: 9px; font-weight: 400; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.yc .pr { font-size: 8.5px; color: var(--ink-2); }
+.yc .un { font-size: 8px; color: var(--ink-2); font-variant-numeric: tabular-nums; }   /* 🆕 (2026-10-12) ขนาด · ฿ ต่อหน่วย */
+.yrank { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.yrank b { font-size: 14px; color: var(--accent); line-height: 1.2; }
+.yrank .fit-tag { font-size: 9.5px; font-weight: 600; }
+.ymkt { font-size: 8.5px; color: var(--ink-2); }
+.tier-none { font-size: 10.5px; color: var(--ink-2); line-height: 1.4; padding: 6px 0; }
+
+/* ---------- ฉบับภาษาไทย ---------- */
+.lang-th .tr { line-height: 1.3; }
+
+/* 🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์: แผนที่ ความใกล้เทรนด์ x ยอดขาย (fit_sales_map.py) - 3 กราฟต่อ 3 กลุ่มราคา + สินค้าไฮไลต์ A/B/C ใต้กราฟ */
+.dm { fill: var(--accent); }
+.fm-svg { display: block; }
+.fm-svg text { font-family: inherit; fill: #0b0b0b; }
+.fm-svg .ch { font-size: 7.9px; font-weight: 700; }
+.fm-svg .cs { font-size: 7.2px; fill: #6b6a64; }
+.fm-svg .rl { font-size: 8.2px; font-weight: 700; }
+.fm-svg .rs { font-size: 7px; fill: #6b6a64; }
+.fm-svg .ax { font-size: 7.4px; fill: #6b6a64; }
+.fm-svg .cn { font-size: 10px; font-weight: 700; fill: #3b3a36; paint-order: stroke; stroke: rgba(255,255,255,.7); stroke-width: 2px; }
+.fm-svg .cn.z { fill: #a9a8a1; font-weight: 400; }
+text.dl { font-size: 7.6px; font-weight: 700; fill: #ffffff; font-family: inherit; }
+.fm-legend { position: absolute; left: 24px; right: 24px; top: 84px; height: 16px; font-size: 9px; color: var(--ink-2); display: flex; gap: 16px;
+             align-items: center; white-space: nowrap; }
+.fm-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
+.fm-legend svg { display: block; }
+.fm-legend .sw { display: inline-block; width: 11px; height: 9px; margin: 0 3px 0 6px; vertical-align: -1px; }
+.sw-excellent { background: rgba(28,92,171,.24); }
+.sw-good { background: rgba(57,135,229,.17); }
+.sw-average { background: rgba(134,182,239,.24); }
+.sw-below_average { background: #f1f0ed; }
+.fm-grid { position: absolute; left: 24px; top: 106px; width: 912px; display: grid; grid-template-columns: repeat(3, 292px); column-gap: 18px; }
+.fm-head { height: 55px; border-bottom: 1.5px solid var(--ink); margin-bottom: 3px; }
+.fm-head b { font-size: 11.5px; }
+.fm-head .sub { display: block; font-size: 8.5px; color: var(--ink-2); line-height: 1.3; }
+.fm-head .zc { display: block; font-size: 8.5px; color: var(--ink); line-height: 1.3; }
+.fm-head .zc b { font-size: 8.5px; color: var(--accent); }
+.fm-co { margin-top: 4px; }
+.co { display: grid; grid-template-columns: 14px 30px 1fr; column-gap: 5px; align-items: center; height: 33px; border-top: 1px solid var(--line); }
+.co .bdg { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); color: #ffffff; font-size: 8px; font-weight: 700; text-align: center; line-height: 13px; }
+.co .im { width: 30px; height: 30px; background: #ffffff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+.co .im img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.co .im .ph { font-size: 6px; }
+.co .tx { min-width: 0; }
+.co .kd { display: flex; justify-content: space-between; gap: 6px; font-size: 7.6px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.co .kd .gd { color: var(--ink); white-space: nowrap; }
+.co .kd .gd .fit-dot { width: 7px; height: 7px; margin-right: 3px; }
+.co .nm { font-size: 8.6px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.co .mt { font-size: 7.8px; color: var(--ink-2); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fm-note { font-size: 8.5px; }
+.fm-none { margin-top: 8px; }
+
+/* 🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์ ระดับหมวด L2: กราฟเดียวเต็มซ้าย (560px) + สินค้าไฮไลต์ A/B/C ใหญ่ขึ้นด้านขวา */
+.l2p { position: absolute; left: 24px; top: 106px; width: 912px; display: grid; grid-template-columns: 560px 1fr; column-gap: 22px; }
+.l2p-chart .fm-head { height: 40px; }
+.fm-svg.fm-big .ch { font-size: 10.5px; }
+.fm-svg.fm-big .cs { font-size: 8.6px; }
+.fm-svg.fm-big .rl { font-size: 10px; }
+.fm-svg.fm-big .rs { font-size: 8.4px; }
+.fm-svg.fm-big .ax { font-size: 8.8px; }
+.fm-svg.fm-big .cn { font-size: 13px; }
+.fm-svg.fm-big text.dl { font-size: 9.5px; }
+.l2p-co { display: flex; flex-direction: column; gap: 8px; }
+.co2 { display: grid; grid-template-columns: 16px 64px 1fr; column-gap: 8px; align-items: center; min-height: 96px; border-top: 1px solid var(--line); padding-top: 6px; }
+.co2 .bdg { width: 15px; height: 15px; border-radius: 50%; background: var(--accent); color: #ffffff; font-size: 9px; font-weight: 700; text-align: center; line-height: 15px; }
+.co2 .im { width: 64px; height: 64px; background: #ffffff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+.co2 .im img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.co2 .im .ph { font-size: 6px; }
+.co2 .tx { min-width: 0; }
+.co2 .kd { display: flex; justify-content: space-between; gap: 6px; font-size: 8.6px; font-weight: 700; color: var(--accent); line-height: 1.25; }
+.co2 .kd .gd { color: var(--ink); white-space: nowrap; }
+.co2 .kd .gd .fit-dot { width: 8px; height: 8px; margin-right: 3px; }
+.co2 .nm { font-size: 10px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 1px 0 2px; }
+.co2 .mt { font-size: 9px; color: var(--ink-2); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.lang-th .co2 .nm { line-height: 1.4; }
+
+/* 🆕 (2026-10-21) หน้าสินค้าต่อเทรนด์เมื่อเกรดเทียบในหมวด L2 อย่างเดียว (กลุ่มเดียว "all"): top 5 ของหมวดซ้าย + สินค้าที่ดีที่สุดของแบรนด์ขวา */
+.tier-grid.l2 { grid-template-columns: 1fr; }
+.tier-grid.l2 .tier { display: grid; grid-template-columns: 1fr 236px; grid-template-rows: auto 1fr; column-gap: 18px; }
+.tier-grid.l2 .tier-head { grid-column: 1 / -1; height: auto; padding-bottom: 4px; }
+.tier-grid.l2 .tier-head b { font-size: 13px; }
+.tier-grid.l2 .tier-count { font-size: 9.5px; }
+.tier-grid.l2 .tr { font-size: 10.5px; height: 44px; grid-template-columns: 28px 1fr auto; }
+.tier-grid.l2 .tr .pr { font-size: 9.5px; }
+.tier-grid.l2 .tier-you { margin-top: 4px; align-self: start; padding: 10px 12px; gap: 6px; }
+.tier-grid.l2 .tier-you-h { font-size: 9.5px; }
+.tier-grid.l2 .yc .img { width: 64px; height: 64px; }
+.tier-grid.l2 .yc .nm { font-size: 10.5px; }
+.tier-grid.l2 .yc .pr { font-size: 9.5px; }
+.tier-grid.l2 .yrank b { font-size: 18px; }
+.tier-grid.l2 .yrank .fit-tag { font-size: 10.5px; }
+.tier-grid.l2 .ymkt { font-size: 9.5px; }

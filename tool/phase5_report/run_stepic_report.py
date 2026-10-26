@@ -15,7 +15,7 @@ input เดิมที่มาจาก pipeline สายเดียวแ�
 | Input เดิมของ trend_final_v2.py | แทนที่ด้วย (v2, ข้อมูลจริงจากรอบนี้) |
 |---|---|
 | `trend_report` (รายงานสายเดียว) | รายงาน 3 สาย (Paper+Social+News) ต่อกัน |
-| `master_report` (forecast คลัสเตอร์เดียว) | `phase2_paper_social_z_delta_result.json` (14 คลัสเตอร์จริง, Z_Delta จริง) |
+| `master_report` (forecast คลัสเตอร์เดียว) | `phase2_paper_social_z_delta_result.json` (14 คลัสเตอร์จริง, Z_Delta จริง) - 🆕 2026-10-01 เปลี่ยนเป็นการเติบโตที่คาดของ ⑥ (`phase2_growth_score_result.json` ผ่าน common/market_overview.py) รอบเก่าที่ไม่มีไฟล์นี้ยังใช้ของเดิม |
 | `strategix_context` (Strategic Pillar mapping) | สรุปคลัสเตอร์จริง 15 ตัว (ingredients/benefits/Z_Delta/Longevity/market coverage) - ไม่ผ่านระบบ Pillar เดิม (คนละ abstraction กับ v2) |
 | `product_context`/`product_results` (Exfac pillar match) | ผล ⑫ (`phase3_scale_validation_nvidia_result.json`) - Watsons จริง 10,622 SKU |
 | `llm_forecast_analysis` (Step 6-7 narrator) | คีย์ `llm_forecast_analysis` ใน `phase2_paper_social_z_delta_result.json` (🆕 2026-09-16 - เดิม None
@@ -29,6 +29,7 @@ input เดิมที่มาจาก pipeline สายเดียวแ�
 ในสคริปต์นี้เท่านั้น (ขอบเขตแคบ ไม่กระทบโค้ดอื่น)
 """
 import json
+import re
 import os
 import sys
 from contextlib import contextmanager
@@ -43,6 +44,8 @@ from common.bootstrap import OUTPUTS, PROJECT_ROOT, prompt_run_config, record_mo
 
 # 🆕 (2026-09-22) ส่วนที่ใช้จริงของ trend_final_v2.py คัดลอกตรงตัวไว้ใน main/ (common/trend_final_v2_subset.py)
 from common import trend_final_v2_subset as tf2  # noqa: E402
+from common import market_overview as mo  # noqa: E402
+from common import trend_analysis as ta  # noqa: E402
 
 from openai import OpenAI  # noqa: E402
 
@@ -187,56 +190,239 @@ def load_selected_trends():
         return json.load(f).get("selected_trends")
 
 
-def load_current_year_interest_ranks(selected):
-    """🆕 (2026-09-16) อันดับความสนใจ "ปีปัจจุบัน" ภายในชุด Top N - เจ้าของงานขอให้รายงานแสดงอันดับของปีนี้แทน
-    อันดับการเติบโต (Rank Score) และเรียงหัวข้อ 3-4 ตามอันดับนี้ (แบบ A)
-
-    คำนวณแบบเดียวกับ bump chart ทุกขั้น (main/Plot_bump_chart.py และ trend.ipynb) ให้เลขในรายงานตรงกับกราฟ:
-    step5c เฉพาะโมเดล best_model, ตัดแถว Holdout (ซ้อนเดือนเดียวกับ Fit), เฉลี่ย z-score รายปี, จัดอันดับเทียบทุก
-    คลัสเตอร์ แล้วจัดอันดับใหม่ภายในชุด Top N (1..N)
-
-    "ปีปัจจุบัน" = ปีของเดือนล่าสุดที่เป็นข้อมูลจริง (Type = Fit) ในผลพยากรณ์ของรอบนั้น ไม่ใช่วันที่ตอนสร้างรายงาน
-    (สร้างรายงานของรอบเดิมซ้ำปีหน้าก็ได้เลขเดิม) - ค่าของปีนั้น = ข้อมูลจริงถึงเดือนล่าสุด + ค่าพยากรณ์เดือนที่เหลือ
-
-    คืน (year, {trend_name: rank}) หรือ (None, {}) ถ้าไม่มีไฟล์พยากรณ์/ข้อมูลไม่ครบ (รายงานถอยไปแสดงอันดับ Top N)"""
-    import pandas as pd
-
-    fp = OUTPUTS / "serpapi_forecast_run" / "step5c_df_cluster_forecast.xlsx"
-    if not selected or not fp.exists():
-        return None, {}
-    df = pd.read_excel(fp)
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df[df["Model"] == df["best_model"]]
-    fit = df[df["Type"] == "Fit"]
-    if fit.empty:
-        return None, {}
-    year = int(fit["Date"].max().year)
-    df = df[df["Type"] != "Holdout"].copy()
-    df["period"] = df["Date"].dt.to_period("Y").dt.to_timestamp()
-    pivot = (df.groupby(["cluster_name", "period"], as_index=False)["z_score"].mean()
-             .pivot(index="period", columns="cluster_name", values="z_score"))
-    ranks = (pivot.rank(axis=1, ascending=False, method="first", na_option="bottom")
-             .fillna(len(pivot.columns) + 1).astype(int))
-    names = [s["trend"] for s in selected]
-    missing = [n for n in names if n not in ranks.columns]
-    if missing or year not in set(ranks.index.year):
-        print(f"  ⚠️ คำนวณอันดับความสนใจปี {year} ไม่ได้ (ไม่พบในผลพยากรณ์: {missing}) - ใช้อันดับ Top N แทน")
-        return None, {}
-    # ลำดับคอลัมน์เดียวกับกราฟ (เรียงตามอันดับช่วงล่าสุด) - มีผลเฉพาะกรณีอันดับเสมอกัน ให้ตัดสินเหมือนกราฟ
-    ordered = [n for n in ranks.iloc[-1].sort_values().index if n in names]
-    row = ranks.loc[ranks.index.year == year, ordered].rank(axis=1, method="first").astype(int).iloc[0]
-    return year, {n: int(row[n]) for n in ordered}
+# 🆕 (2026-09-30) "Investment Signal" ในหัวข้อ 4 (Quantitative Cluster Forecasts) คิดจาก Z_Delta ด้วยกฎตายตัว
+# (trend_final_v2_subset.compute_investment_signal) - ตัดบรรทัดนี้ออกจากรายงาน md (ค่าชุดคำตายตัวเท่านั้น
+# "Investment Signal" ของ STEPIC Industry ที่เป็นข้อความจาก LLM ยังอยู่)
+_Z_DELTA_SIGNAL_RE = re.compile(r"^- \*\*Investment Signal:\*\* (Invest Now|Monitor|Wait|N/A)[ \t]*\n?", re.MULTILINE)
 
 
-def build_strategix_context(streams, selected=None, year_ranks=None, year=None):
+def strip_z_delta_signals(markdown):
+    return _Z_DELTA_SIGNAL_RE.sub("", markdown)
+
+
+# 🆕 (2026-10-01) LLM ตอบโครง JSON ของ STEPIC ไม่คงที่ระหว่างรอบ - รอบ 2026-09-17: technology.analysis{...},
+# creativity.creativity_analysis{...}, ฟิลด์ industry อยู่ชั้นบน / รอบ 2026-10-01: technology/creativity แบน, industry.
+# industry{...}, signals {signal_type, dimensions: [...], insight} ไม่มี value_driver ของ persona - รายงาน md
+# (tf2.generate_master_markdown_report) อ่านแบบแบน ส่วนรายงาน PDF เคยอ่านแบบซ้อน หัวข้อเลยหายคนละที่ในแต่ละรอบ
+# แปลงเป็นโครงเดียวก่อนบันทึก: ฟิลด์ของแต่ละมิติอยู่ชั้นบนของมิติ, signal = {dimensions: "SOCIETY + INDUSTRY", signal,
+# implication, signal_type}
+# ฟิลด์ที่ prompt ของ tf2.analyze_trend() ขอในแต่ละมิติ (คัดจาก step_prompts ในไฟล์นั้น) - key ซ้อนชื่ออะไรก็ได้ที่
+# ไม่ใช่ฟิลด์เหล่านี้แต่ข้างในมีฟิลด์เหล่านี้ = ตัวห่อ ให้คลี่ออก (ชื่อตัวห่อเปลี่ยนไปเรื่อยๆ ตามรอบ)
+STEPIC_FIELDS = {
+    "society": ("concept", "key_drivers", "behavioral_shift", "current_status", "projected_impact", "proof_point",
+                "example_products_or_brands"),
+    "technology": ("core_technology", "innovation_driver", "adoption_stage", "commercialization_signal",
+                   "projected_growth", "proof_point", "example_products_or_brands"),
+    "environment": ("environmental_factor", "ESG_driver", "regulatory_pressure", "sustainability_opportunity",
+                    "risk_factor", "proof_point", "example_products_or_brands"),
+    "policy": ("regulatory_trend", "government_role", "legal_barrier_or_support", "geopolitical_factor",
+               "business_impact", "proof_point"),
+    "industry": ("market_structure", "competitive_landscape", "growth_rate_estimate", "key_players",
+                 "strategic_positioning", "investment_signal", "proof_point"),
+    "creativity": ("brand_expression", "product_innovation", "consumer_emotional_trigger", "differentiation_strategy",
+                   "example_products_or_brands", "proof_point"),
+}
+
+
+def _as_text(value):
+    """ฟิลด์ที่บางรอบ LLM ตอบเป็น dict ย่อย (เช่น industry.market_structure {transformation, channel_shift, ...})
+    -> ข้อความเดียว"""
+    if isinstance(value, dict):
+        return " · ".join(_as_text(v) for v in value.values() if v not in (None, "", [], {}))
+    if isinstance(value, list):
+        return ", ".join(_as_text(v) for v in value if v not in (None, "", [], {}))
+    return str(value)
+
+
+def _holds_fields(value, fields):
+    """dict นี้ (หรือ dict ที่ซ้อนอยู่ข้างใน) มีฟิลด์ของมิติอยู่ไหม"""
+    return isinstance(value, dict) and (bool(set(fields) & set(value))
+                                        or any(_holds_fields(v, fields) for v in value.values()))
+
+
+def normalize_stepic_raw(raw):
+    """ผล analyze_trend (6 มิติ) -> โครงแบน (คืนสำเนาใหม่)"""
+    if not isinstance(raw, dict):
+        return raw
+    raw = json.loads(json.dumps(raw))
+    for dim, fields in STEPIC_FIELDS.items():
+        d = raw.get(dim)
+        if not isinstance(d, dict):
+            continue
+        for _ in range(3):  # ตัวห่อซ้อนกันได้หลายชั้น
+            wrappers = [k for k, v in d.items() if k not in fields and _holds_fields(v, fields)]
+            if not wrappers:
+                break
+            for k in wrappers:
+                for kk, vv in d.pop(k).items():
+                    d.setdefault(kk, vv)
+        for f in fields:
+            if isinstance(d.get(f), dict):
+                d[f] = _as_text(d[f])
+    return raw
+
+
+# prompt สังเคราะห์รวมของต้นฉบับ (tf2.integrate_stepic) สั่งแค่ชื่อ field ไม่บอกโครง - รอบ 2026-10-01 LLM ตอบ persona
+# แค่ name/description (หน้า persona ใน PDF ไม่มี value driver / ช่องทาง) และ signals คนละโครงกับที่ md/PDF อ่าน
+# ไฟล์ subset ต้องตรงต้นฉบับทุกตัวอักษร (test_trend_final_subset) จึงเขียนขั้นนี้ไว้ในสคริปต์นี้แทน - system prompt
+# เหมือนต้นฉบับทุกคำ ต่างแค่ระบุโครง JSON ให้ตรงกับฝั่งอ่าน
+STEPIC_FINAL_SCHEMA = """Provide one JSON object with exactly this structure (all values plain text):
+
+{
+  "mega_trend_name": "...",
+  "macro_direction": "...",
+  "core_concept": "...",
+  "3_month_projection": "...",
+  "emerging_personas": [
+    {"name": "...", "description": "...", "value_driver": "...", "channel_preference": "..."}
+  ],
+  "cross_dimensional_signals": [
+    {"dimensions": "SOCIETY + INDUSTRY", "signal": "...", "implication": "..."}
+  ],
+  "key_risk": "...",
+  "key_opportunity": "..."
+}
+
+- emerging_personas: 2-3 personas. value_driver = what they value most when choosing;
+  channel_preference = where they discover and buy.
+- cross_dimensional_signals: 3-5 signals. dimensions = 2-3 STEPIC dimension names in capitals
+  joined by " + "; signal = the convergence observed; implication = what it means for brands.
+
+Return VALID JSON only."""
+
+
+def _chat_json(system, prompt, label):
+    """เรียก LLM ที่ tf2 ถืออยู่ (use_bedrock_v2() สลับให้) แล้วแปลงคำตอบเป็น dict - ผิดพลาดคืน {"error": ...}"""
+    try:
+        response = tf2.client.chat.completions.create(
+            model=tf2.MODEL_NAME,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=tf2.compute_max_tokens(system + prompt),
+        )
+        if getattr(response, "usage", None):
+            tf2.total_input_tokens += getattr(response.usage, "prompt_tokens", 0)
+            tf2.total_output_tokens += getattr(response.usage, "completion_tokens", 0)
+        parsed = tf2.safe_json_parse(response.choices[0].message.content)
+    except Exception as e:
+        print(f"❌ {label} error: {e}")
+        return {"error": str(e)}
+    if not isinstance(parsed, dict):
+        print(f"⚠️ Invalid {label} JSON")
+        return {"error": "Invalid JSON"}
+    return parsed
+
+
+def integrate_stepic(stepic_raw, user_query):
+    """แทน tf2.integrate_stepic() - ใช้ client/MODEL_NAME ของ tf2 (ที่ use_bedrock_v2() สลับให้) เหมือนเดิม"""
+    if not stepic_raw:
+        print("❌ No STEPIC result provided.")
+        return {}
+    system = (f"You are a Senior Strategic Foresight Analyst.\n\nFocus trend: {user_query}\n\n"
+              "Your job:\nSynthesize cross-dimensional insights.\nIdentify convergence patterns across STEPIC.\n\n"
+              "Return VALID JSON only.\nNo markdown.")
+    prompt = f"Based on this STEPIC analysis:\n\n{json.dumps(stepic_raw, ensure_ascii=False)}\n\n{STEPIC_FINAL_SCHEMA}"
+    return _chat_json(system, prompt, "Integration")
+
+
+# 🆕 (2026-10-01) ภาพรวมตลาด (ป้าย 3 ช่อง + ข้อความสรุป) คิดจากคะแนนการเติบโตของ ⑥ แทนผลตีความ z-score ของ ⑦ - ป้ายมาจากกฎตายตัว
+# (common/market_overview.py) ส่วนข้อความสรุปให้ LLM เรียบเรียงจากตัวเลขชุดเดียวกัน ไม่ได้ก็ใช้ประโยคที่ประกอบจากตัวเลขแทน
+GROWTH_FILE = "phase2_growth_score_result.json"
+RANK_FILE = "phase2_rank_score_final_mode_result.json"
+MARKET_FILE = "phase4_market_overview.json"
+
+
+def write_market_summary(snapshot, user_query):
+    """ข้อความสรุปตลาด (<= 3 ประโยค) จากข้อเท็จจริงของโมเดลการเติบโต - คืน None ถ้า LLM ตอบไม่ได้"""
+    system = ("You are a Senior Strategic Foresight Analyst writing the market overview of a trend report.\n"
+              "Return VALID JSON only: {\"summary\": \"...\"}\nNo markdown.")
+    prompt = (f"Topic: {user_query}\n\nFacts from the growth model (worldwide Google Trends; expected change in search "
+              f"interest compared with the last 12 months):\n{json.dumps(mo.llm_facts(snapshot), ensure_ascii=False)}\n\n"
+              "Write the market summary in at most 3 sentences for business readers:\n"
+              # 🆕 (2026-10-02) ระยะสั้น = ปีที่ 2, ระยะยาว = ปีที่ 5 / ห้ามคำ faster/slower ตามคำแนะนำ DA
+              # 🆕 (2026-10-19) ระยะสั้น = ปีที่ 3 - อ่านจาก common/horizons.py (ผ่าน market_overview)
+              f"- Say how much search interest is expected to change by year {mo.SHORT_YEAR} and by year {mo.LONG_YEAR} "
+              f"(use the median figures) and how many trends are above the market median in year {mo.SHORT_YEAR}.\n"
+              "- Name the 2-4 themes behind the trends with the highest expected growth, using the trend names.\n"
+              "- Use only the facts above. Do not mention z-scores, Z_Delta, breakouts, investment signals, or any "
+              "number that is not given. Do not call trends fast or slow, or faster or slower than the market; say "
+              "above or below the market median.")
+    summary = _chat_json(system, prompt, "Market summary").get("summary")
+    return summary.strip() if isinstance(summary, str) and summary.strip() else None
+
+
+TREND_FILE = "phase4_trend_analysis.json"
+
+
+def write_trend_analysis(facts_list, user_query):
+    """ข้อความวิเคราะห์ต่อเทรนด์จากข้อเท็จจริงของโมเดลการเติบโต (1 คำขอทั้งชุด) -> {ชื่อเทรนด์: {ฟิลด์ข้อความ}}
+    คืน {} ถ้า LLM ตอบไม่ได้ (common/trend_analysis.analysis_entry ใช้ประโยคสำรองจากตัวเลขแทน) - ลองซ้ำ 1 ครั้ง"""
+    system = ("You are a Senior Strategic Foresight Analyst writing the per-trend analysis of a trend report.\n"
+              "Return VALID JSON only.\nNo markdown.")
+    prompt = (f"Topic: {user_query}\n\nFacts per trend from the growth model (worldwide Google Trends; expected change in "
+              f"search interest compared with the last 12 months) and from the evidence:\n"
+              f"{json.dumps(facts_list, ensure_ascii=False)}\n\n"
+              "For every trend write, in plain business English:\n"
+              "- executive_summary: at most 2 sentences - what is expected and why it matters.\n"
+              "- consumer_intent_signal: what consumers are looking for (use the keywords, key benefits and target consumer).\n"
+              "- driver_explanation: 1-2 sentences tying the expected growth, seasonality and durability together. "
+              "Be consistent with trend_stage and primary_driver as given.\n"
+              "- risk_scenario_if_forecast_fails: 1 sentence on the downside case.\n"
+              "Use only the facts above. Every percentage you quote must be one of the numbers given for that trend. Do not "
+              f"mention z-scores, Z_Delta, breakouts or investment signals. Short term = years {mo.SHORT_RANGE}, long term = "
+              f"years {mo.LONG_RANGE}; years {mo.LONG_RANGE} are much less certain, so present them as a direction. "
+              "Do not call a trend fast or slow, or "
+              "faster or slower than the market; say above or below the market median.\n"
+              'Return {"cluster_analysis": [{"cluster_name": "<trend exactly as given>", "executive_summary": "...", '
+              '"consumer_intent_signal": "...", "driver_explanation": "...", "risk_scenario_if_forecast_fails": "..."}]}')
+    for attempt in (1, 2):
+        out = _chat_json(system, prompt, "Trend analysis")
+        entries = out.get("cluster_analysis") if isinstance(out, dict) else None
+        found = {e["cluster_name"]: e for e in entries or [] if isinstance(e, dict) and e.get("cluster_name")}
+        if found:
+            return found
+        print(f"⚠️ ข้อความวิเคราะห์ต่อเทรนด์ครั้งที่ {attempt} ไม่ได้ผล" + (" - ลองอีกครั้ง" if attempt == 1 else ""))
+    return {}
+
+
+def load_json_file(name):
+    fp = OUTPUTS / name
+    if not fp.exists():
+        return None
+    with open(fp, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def durability_scores(longevity):
+    """Longevity Score ของทุกเทรนด์ในผล ⑥ (ใช้หาค่ากลางสำหรับป้าย Estimated duration)"""
+    rows = load_json_file(RANK_FILE) or []
+    return [(longevity.get((r.get("Stream"), r.get("Trend Name"))) or {}).get("Longevity Score") for r in rows]
+
+
+def normalize_stepic_final(final):
+    """ผล integrate_stepic -> signals โครงเดียว (dimensions เป็นข้อความ, signal ไม่ว่าง) - คืนสำเนาใหม่"""
+    if not isinstance(final, dict):
+        return final
+    final = json.loads(json.dumps(final))
+    for s in final.get("cross_dimensional_signals") or []:
+        if not isinstance(s, dict):
+            continue
+        if isinstance(s.get("dimensions"), list):
+            s["dimensions"] = " + ".join(str(d).upper() for d in s["dimensions"] if d)
+        if not s.get("signal"):
+            s["signal"] = s.get("insight") or s.get("description") or ""
+        s.setdefault("implication", "")
+    return final
+
+
+def build_strategix_context(streams, selected=None):
     """แทนที่ Strategic Pillar mapping เดิม (คนละ abstraction กับ v2 - ไม่มี "Pillar" ในสถาปัตยกรรมนี้)
     - สรุปคลัสเตอร์จริงพร้อมส่วนผสม/ประโยชน์/กลุ่มเป้าหมาย/Longevity
 
     🆕 (2026-09-16) selected: ชุด Top N จาก load_selected_trends() - ใช้เฉพาะเทรนด์ในชุดนั้น / None = ทุกเทรนด์
     ตามลำดับสายเหมือนเดิม
-    🆕 (2026-09-16, แบบ A ที่เจ้าของงานเลือก) year_ranks/year จาก load_current_year_interest_ranks(): แสดง
-    "อันดับความสนใจปี X: #k" (ตัดคำว่า "ใน Top N" ออกตามที่เจ้าของงานขอ) เรียงบล็อกตามอันดับนี้ และใส่ประโยคใต้หัวข้อว่าคัดจากอัตราการเติบโต - ถ้าไม่มี
-    (รอบเก่า/ไม่มีไฟล์พยากรณ์) แสดงอันดับ Top N จาก Rank Score แทน
+    🆕 (2026-09-30) เรียงและแสดงอันดับตามชุดของ ⑪ (การเติบโตที่คาดในปีที่ 1) - เลิกใช้ "อันดับความสนใจปี X"
+    ที่คำนวณจากค่าพยากรณ์ z-score ของ ⑦ (เจ้าของงานให้เอา Z_Delta ออกจากทุกส่วนที่คนเห็น)
     🆕 (2026-09-16) ตัดบรรทัด "Market signal" ออก (เจ้าของงานขอ) - เป็นการเทียบสัมพัทธ์ที่ยังไม่มีเกณฑ์ยืนยัน และเลข
     อันดับในบรรทัดนั้นชวนสับสนกับอันดับเทรนด์ ข้อมูลสินค้ายังอยู่ครบในหัวข้อ 5"""
     longevity_override = load_cross_source_longevity()
@@ -246,16 +432,10 @@ def build_strategix_context(streams, selected=None, year_ranks=None, year=None):
     if selected is not None:
         by_key = {(stream, t.get("Trend Name")): (stream, t) for stream, t in pairs}
         pairs = [by_key[(s["stream"], s["trend"])] for s in selected if (s["stream"], s["trend"]) in by_key]
-        if year_ranks:
-            pairs.sort(key=lambda pair: year_ranks.get(pair[1].get("Trend Name"), len(pairs) + 1))
-            lines.append(f"> คัด {len(pairs)} เทรนด์จากอัตราการเติบโต (Rank Score) เรียงตามความสนใจปี {year}\n")
-            rank_line = {(stream, t.get("Trend Name")):
-                         f"- อันดับความสนใจปี {year}: #{year_ranks[t.get('Trend Name')]}"
-                         for stream, t in pairs if t.get("Trend Name") in year_ranks}
-        else:
-            rank_line = {(s["stream"], s["trend"]):
-                         f"- Trend Rank (Top {len(selected)}): #{s.get('top_rank', s['overall_rank'])}"
-                         for s in selected}
+        lines.append(f"> คัด {len(pairs)} เทรนด์ที่คาดว่าการค้นหาโตเร็วกว่าค่ากลางตลาด เรียงตามการเติบโตที่คาดในปีที่ 1\n")
+        rank_line = {(s["stream"], s["trend"]):
+                     f"- Trend Rank (Top {len(selected)}): #{s.get('top_rank', s['overall_rank'])}"
+                     for s in selected}
     for stream, t in pairs:
         name = t.get("Trend Name", "")
         # 🆕 (2026-09-12, audit M1) ใช้ Longevity ที่แก้ D2 แล้วถ้ามี ไม่งั้น fallback ไปค่าดิบเดิม
@@ -370,6 +550,12 @@ def load_supply_layer_results():
 
 
 if __name__ == "__main__":
+    FROM_SAVED = "--from-saved" in sys.argv
+    REINTEGRATE = "--reintegrate" in sys.argv
+    NARRATIVE = "--narrative" in sys.argv   # ใช้ผล STEPIC ที่บันทึกไว้ทั้งชุด เรียก LLM เฉพาะข้อความวิเคราะห์ต่อเทรนด์ใหม่
+    for flag in ("--from-saved", "--reintegrate", "--narrative"):
+        if flag in sys.argv:
+            sys.argv.remove(flag)
     print("=" * 70)
     print("Phase 4 ⑭-⑮ — STEPIC Analysis -> Master Report (⑬ ข้ามไปก่อน)")
     print("=" * 70)
@@ -394,30 +580,99 @@ if __name__ == "__main__":
     else:
         print("⚠️ ผล ⑪ ไม่มี selected_trends (รอบเก่า) - รายงานใช้ทุกเทรนด์เหมือนเดิม")
 
-    # 🆕 (2026-09-16, แบบ A) อันดับความสนใจปีปัจจุบัน (ตรงกับ bump chart) - หัวข้อ 3, 4, 5 เรียงตามอันดับนี้
-    current_year, year_ranks = load_current_year_interest_ranks(selected_trends)
-    if year_ranks:
-        print(f"เรียงรายงานตามอันดับความสนใจปี {current_year}: "
-              + ", ".join(f"#{r} {n}" for n, r in sorted(year_ranks.items(), key=lambda kv: kv[1])))
-        product_results = sorted(product_results, key=lambda p: year_ranks.get(p["Key_Trends"], len(year_ranks) + 1))
+    # 🆕 (2026-09-30) หัวข้อ 3, 4, 5 เรียงตามอันดับของ ⑪ (การเติบโตที่คาดในปีที่ 1) - เลิกใช้อันดับความสนใจปีปัจจุบัน
+    # ที่คำนวณจากค่าพยากรณ์ z-score ของ ⑦ (เจ้าของงานให้เอา Z_Delta/ค่าพยากรณ์ z-score ออกจากทุกส่วนที่คนเห็น)
+    if selected_trends is not None:
+        order = {s["trend"]: s.get("top_rank", s["overall_rank"]) for s in selected_trends}
+        product_results = sorted(product_results, key=lambda p: order.get(p["Key_Trends"], len(order) + 1))
 
     final_trend_report = build_merged_trend_report(streams)
-    strategix_context = build_strategix_context(streams, selected_trends, year_ranks, current_year)
-    master_report_str = load_master_report_json(selected_trends)
-    llm_forecast_analysis = load_llm_forecast_analysis(selected_trends, year_ranks or None)
+    strategix_context = build_strategix_context(streams, selected_trends)
+    llm_forecast_analysis = load_llm_forecast_analysis(selected_trends)
     if llm_forecast_analysis:
         print(f"⑦ Step 6-7 forecast analysis: {len(llm_forecast_analysis.get('cluster_analysis') or [])} คลัสเตอร์")
     else:
         print("⚠️ ไม่มีผล Step 6-7 จาก ⑦ (ไฟล์รุ่นเก่า หรือขั้นนั้นล้มเหลว) - หัวข้อพยากรณ์ในรายงานจะว่าง")
 
-    print(f"\n🧠 [Step 9a] STEPIC 6 มิติ (Society/Technology/Environment/Policy/Industry/Creativity)...")
-    with use_bedrock_v2():
-        stepic_raw_analysis = tf2.analyze_trend(final_trend_report, master_report_str, USER_QUERY,
-                                                product_context_str)
+    out_dir = OUTPUTS
+    # 🆕 (2026-10-01) ข้อมูลพยากรณ์ที่ส่งเข้า STEPIC + ภาพรวมตลาด มาจากคะแนนการเติบโตของ ⑥ (ไม่ใช้ z-score ของ ⑦แล้ว)
+    # รอบเก่าที่ไม่มีไฟล์ growth ยังใช้ master_report เดิมของ ⑦ ได้ (เตือนไว้)
+    growth = load_json_file(GROWTH_FILE)
+    snapshot = None
+    if growth:
+        longevity = load_cross_source_longevity()
+        snapshot = mo.market_snapshot(growth["clusters"], durability_scores(longevity))
+        master_report_str = mo.stepic_growth_facts(growth["clusters"], growth.get("keywords"), selected_trends, longevity,
+                                                   snapshot)
+        print(f"⑥ growth: {snapshot['n_trends'] if snapshot else 0} เทรนด์ - ส่งข้อมูลการเติบโตเข้า STEPIC")
+    else:
+        master_report_str = load_master_report_json(selected_trends)
+        print(f"⚠️ ไม่พบ {GROWTH_FILE} (รอบเก่า) - ส่งผลพยากรณ์ z-score ของ ⑦ เข้า STEPIC และใช้ภาพรวมตลาดของ ⑦ เหมือนเดิม")
+    if FROM_SAVED or REINTEGRATE or NARRATIVE:
+        # 🆕 (2026-10-01) --from-saved: ใช้ผล STEPIC ที่บันทึกไว้แล้วของรอบนี้ ไม่เรียก LLM ซ้ำ (ประกอบรายงาน md ใหม่อย่างเดียว)
+        # --reintegrate: ใช้ผล 6 มิติ (9a) ที่บันทึกไว้ แต่เรียก LLM สังเคราะห์รวม (9b) ใหม่ 1 ครั้ง
+        # --narrative: ใช้ผล STEPIC ทั้งชุดที่บันทึกไว้ (9a + 9b) เรียก LLM เฉพาะข้อความวิเคราะห์ต่อเทรนด์ (9d)
+        print("\n♻️ ใช้ผล STEPIC 6 มิติที่บันทึกไว้" + (" + สังเคราะห์รวมใหม่" if REINTEGRATE else
+                                                       " (เรียก LLM เฉพาะข้อความต่อเทรนด์)" if NARRATIVE else
+                                                       " ไม่เรียก LLM"))
+        with open(out_dir / "phase4_stepic_raw_analysis.json", encoding="utf-8") as f:
+            stepic_raw_analysis = json.load(f)
+        if REINTEGRATE:
+            print(f"\n🧠 [Step 9b] สังเคราะห์รวม (integrate_stepic)...")
+            with use_bedrock_v2():
+                final_stepic_insight = integrate_stepic(stepic_raw_analysis, USER_QUERY)
+        else:
+            with open(out_dir / "phase4_stepic_final_insight.json", encoding="utf-8") as f:
+                final_stepic_insight = json.load(f)
+    else:
+        print(f"\n🧠 [Step 9a] STEPIC 6 มิติ (Society/Technology/Environment/Policy/Industry/Creativity)...")
+        with use_bedrock_v2():
+            stepic_raw_analysis = tf2.analyze_trend(final_trend_report, master_report_str, USER_QUERY,
+                                                    product_context_str)
 
-    print(f"\n🧠 [Step 9b] สังเคราะห์รวม (integrate_stepic)...")
-    with use_bedrock_v2():
-        final_stepic_insight = tf2.integrate_stepic(stepic_raw_analysis, USER_QUERY)
+        print(f"\n🧠 [Step 9b] สังเคราะห์รวม (integrate_stepic)...")
+        with use_bedrock_v2():
+            final_stepic_insight = integrate_stepic(stepic_raw_analysis, USER_QUERY)
+    stepic_raw_analysis = normalize_stepic_raw(stepic_raw_analysis)
+    final_stepic_insight = normalize_stepic_final(final_stepic_insight)
+
+    market_overview = None
+    if snapshot:
+        # --from-saved / --reintegrate ใช้ภาพรวมตลาดที่บันทึกไว้ถ้ามี (--from-saved ไม่เรียก LLM เลย: ไม่มีไฟล์ = ประโยคจากตัวเลข)
+        market_overview = load_json_file(MARKET_FILE) if (FROM_SAVED or REINTEGRATE or NARRATIVE) else None
+        if market_overview is None:
+            summary = None
+            if not FROM_SAVED:
+                print(f"\n🧠 [Step 9c] ข้อความสรุปตลาดจากคะแนนการเติบโต...")
+                with use_bedrock_v2():
+                    summary = write_market_summary(snapshot, USER_QUERY)
+            market_overview = mo.market_overview(snapshot, summary, USER_QUERY)
+        llm_forecast_analysis = {**(llm_forecast_analysis or {}), "market_overview": market_overview}
+
+    # 🆕 (2026-10-01) ข้อความวิเคราะห์ต่อเทรนด์ (md หัวข้อ 4 + ข้อมูลตั้งต้นของข้อความบนหน้าเทรนด์ใน PDF) จากโมเดลการเติบโต
+    # แทน Step 6-7 ของ ⑦ - ป้ายตามกฎ (common/trend_analysis.py) ข้อความให้ LLM เรียบเรียงจากข้อเท็จจริงของเทรนด์นั้น
+    trend_analysis = None
+    if growth:
+        trend_analysis = load_json_file(TREND_FILE) if (FROM_SAVED or REINTEGRATE) else None
+        if trend_analysis is None:
+            by_trend = {c["trend"]: c for c in growth["clusters"]}
+            words = {}
+            for k in growth.get("keywords") or []:
+                words.setdefault(k.get("cluster_name"), []).append(k["keyword"])
+            picked = ([(s_["stream"], s_["trend"]) for s_ in selected_trends] if selected_trends is not None
+                      else [(None, name) for name in by_trend])
+            facts_list = [f for f in (ta.trend_facts(by_trend[name], words.get(name, []), longevity.get((stream, name)))
+                                      for stream, name in picked if name in by_trend) if f]
+            written = {}
+            if facts_list and not FROM_SAVED:
+                print(f"\n🧠 [Step 9d] ข้อความวิเคราะห์ต่อเทรนด์ {len(facts_list)} เทรนด์จากโมเดลการเติบโต...")
+                with use_bedrock_v2():
+                    written = write_trend_analysis(facts_list, USER_QUERY)
+            entries = [ta.analysis_entry(f, written.get(f["trend"])) for f in facts_list]
+            trend_analysis = {"cluster_analysis": entries}
+            print("  ข้อความจาก LLM: " + ", ".join(f"{e['cluster_name'][:24]}={e['text_source']}" for e in entries))
+        if trend_analysis.get("cluster_analysis"):
+            llm_forecast_analysis = {**(llm_forecast_analysis or {}), "cluster_analysis": trend_analysis["cluster_analysis"]}
 
     print(f"\n📄 [Step 10] ประกอบ Master Report...")
     master_markdown = tf2.generate_master_markdown_report(
@@ -431,14 +686,19 @@ if __name__ == "__main__":
         master_report_dict=None,
     )
 
-    out_dir = OUTPUTS
     with open(out_dir / "phase4_stepic_raw_analysis.json", "w", encoding="utf-8") as f:
         json.dump(stepic_raw_analysis, f, ensure_ascii=False, indent=2)
     with open(out_dir / "phase4_stepic_final_insight.json", "w", encoding="utf-8") as f:
         json.dump(final_stepic_insight, f, ensure_ascii=False, indent=2)
+    if market_overview:
+        with open(out_dir / MARKET_FILE, "w", encoding="utf-8") as f:
+            json.dump(market_overview, f, ensure_ascii=False, indent=2)
+    if trend_analysis:
+        with open(out_dir / TREND_FILE, "w", encoding="utf-8") as f:
+            json.dump(trend_analysis, f, ensure_ascii=False, indent=2)
     report_path = out_dir / "phase4_master_trend_report.md"
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(master_markdown)
+        f.write(strip_z_delta_signals(master_markdown))
 
     print("\n" + "=" * 70)
     print("STEPIC สรุป (final_stepic_insight):")
@@ -449,3 +709,7 @@ if __name__ == "__main__":
     print(f"\n✅ Saved -> {report_path}")
     print(f"✅ Saved -> {out_dir / 'phase4_stepic_raw_analysis.json'}")
     print(f"✅ Saved -> {out_dir / 'phase4_stepic_final_insight.json'}")
+    if market_overview:
+        print(f"✅ Saved -> {out_dir / MARKET_FILE}")
+    if trend_analysis:
+        print(f"✅ Saved -> {out_dir / TREND_FILE}")

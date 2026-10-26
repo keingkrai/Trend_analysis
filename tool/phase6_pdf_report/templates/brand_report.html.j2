@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+{% include "brand.css" %}
+{% include "brand_trend_page.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{#- ⑰ รายงานแบรนด์ - 1 ไฟล์ต่อ 1 แบรนด์ ใช้หน้าตา/สไตล์ชุดเดียวกับรายงานเทรนด์ (style.css) + brand.css
+    ข้อความตายตัวมาจาก L (= brand_i18n.brand_strings(lang)) / b = brand context (brand_data.build_brand_context)
+    ชื่อ "brand" ในเทมเพลตนี้คือ branding ของผู้จัดทำ (S&J) ส่วนแบรนด์ลูกค้าคือ b.brand -#}
+{%- set meta = ctx.meta -%}
+{%- set n_market = "{:,}".format(b.n_market or 0) -%}
+{#- 🆕 (2026-10-07) ระดับตาม % แรกในกลุ่ม หมวด x ช่วงราคา: pct = เกณฑ์ % (config) -#}
+{%- set pct = b.top_pct -%}
+{%- set levels = ["excellent", "good", "average", "below_average"] -%}
+
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-02) % การค้นหาที่คาดปีที่ 2 (แทนคำ "เร็ว/ช้ากว่าตลาด") - ปัด 0 เป็น "0%" -#}
+{% macro epct(v) -%}
+  {%- if v is number %}{% set r = v | round | int %}{{ "0%" if r == 0 else "{:+d}%".format(r) }}{% else %}{{ L.na }}{% endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro img_or_ph(p, label) -%}
+  {%- if p and p.image -%}<img src="{{ p.image }}" alt="">{%- else -%}<div class="ph">{{ label }}</div>{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-05) ชื่อสินค้าในแคตตาล็อกมักขึ้นต้นด้วยชื่อแบรนด์อยู่แล้ว - ทำแบรนด์ตัวหนา ไม่พิมพ์ซ้ำสองรอบ -#}
+{% macro pname(brand, name) -%}
+  {%- set br = brand or "" -%}
+  {%- if br and name.lower().startswith(br.lower()) and name[br | length:br | length + 1] in ["", " "] -%}<span class="rk-brand">{{ name[:br | length] }}</span>{{ name[br | length:] }}
+  {%- else -%}{% if br %}<span class="rk-brand">{{ br }}</span> {% endif %}{{ name }}{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-07) "Good or better" / "Good ขึ้นไป" - ระดับบนสุด (Excellent) ไม่มีคำว่า "ขึ้นไป" -#}
+{% macro lvb(level) -%}
+  {{- L[level] if level == "excellent" else L.or_better.format(lv=L[level]) -}}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-07) ชื่อกลุ่ม "Skin Care · High price" (สตริงธรรมดา - ใช้ใน .format() ได้โดยไม่ escape ซ้ำ) -#}
+{#- 🆕 (2026-10-21) เกรดเทียบในหมวด L2 อย่างเดียว = กลุ่ม "all" (ทั้งหมวด) -> ชื่อกลุ่มคือชื่อหมวดล้วน -#}
+{% macro grp(x) -%}
+  {{- x.category if x.tier == "all" else (x.category ~ " · " ~ L["tier_" ~ x.tier]) -}}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-07) ช่วงราคาเป็นบาท "THB 160-395" (ราคาเดียว = "THB 199") -#}
+{#- 🆕 (2026-10-12) ช่วงราคาต่อปริมาณ (b.tier_basis == "unit_price") ไม่มีช่วงบาทเดียวต่อกลุ่ม -> ว่าง -#}
+{% macro trange(x) -%}
+  {%- if b.tier_basis != "unit_price" and x.price_from is not none -%}
+  {{- L.thb.format(v=("{:,}".format(x.price_from) if x.price_from == x.price_to else "{:,}-{:,}".format(x.price_from, x.price_to))) -}}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-12) ฿ ต่อหน่วยแบบสั้น "3.59/ml" ใช้ต่อท้ายราคาในบรรทัดเดียวกัน (ตารางหน้าเทรนด์เทียบคู่แข่งแน่น ไม่มีที่เพิ่มบรรทัด) -#}
+{% macro unit_short(m) -%}
+  {%- if b.tier_basis == "unit_price" and m.unit_label -%}{%- set us = m | uprice -%}{%- if us -%}{{ us }}/{{ L["unit_" ~ m.unit_label] }}{%- endif -%}{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-12) ขนาด · ฿ ต่อหน่วย ของสินค้า (ว่างเมื่อผลไม่มีข้อมูลขนาด) -#}
+{% macro unit_line(m) -%}
+  {%- if b.tier_basis == "unit_price" -%}{{ m | ulabel }}{%- endif -%}
+{%- endmacro %}
+
+{% macro level_tag(level) -%}
+  {%- if level -%}<span class="fit-tag"><span class="fit-dot fit-{{ level }}"></span>{{ L[level] }}</span>
+  {%- else -%}<span class="fit-tag muted">{{ L.not_checked }}</span>{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-19) ยอดขาย Konvy ในเกณฑ์เกรดสินค้า: ป้ายสั้น (เฉพาะขายดี/ขายช้า/ของหมด) ไว้ข้างระดับ + บรรทัดละเอียดในหน้า 1 -#}
+{% macro sales_pill(x) -%}
+  {%- set sv = x.sales -%}
+  {#- ป้ายเดียวเสมอ (การ์ดหน้ารายละเอียดแคบ - สองป้ายตกบรรทัด): ของหมดมาก่อน (รายละเอียดอยู่ในแถว "Sales on Konvy" ของหน้า 1) -#}
+  {%- if sv -%}
+    {%- if sv.soldout %}<span class="st st-soldout">{{ L.sold_out }}</span>
+    {%- elif sv.state in ["strong", "slow"] %}<span class="st st-{{ sv.state }}">{{ L["sales_" ~ sv.state] }}</span>{% endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro sales_line(x) -%}
+  {%- set sv = x.sales -%}
+  {%- if not sv or (sv.state == "unknown" and not sv.soldout) -%}{{ L.sales_unknown }}
+  {%- elif sv.state == "unknown" -%}{{ L.sold_out }}
+  {%- else -%}
+    {{ L["sales_" ~ sv.state] }}
+    {%- if sv.soldout %} · {{ L.sold_out }}{% if sv.reviews is number %} · {{ L.sl_reviews.format(n="{:,}".format(sv.reviews)) }}{% endif %}
+    {%- elif sv.zero %} · {{ L.sl_zero }}
+    {%- elif sv.sold is number %} · {{ L.sl_sold.format(n="{:,}".format(sv.sold)) }}{% endif %}
+    {#- ตำแหน่ง "x% แรกของกลุ่ม" แสดงเฉพาะขายดี/ปานกลาง - ขายได้น้อยบอกว่าอยู่ x% แรกอ่านผิดทิศ (เช่น ขาย 0 ชิ้น = "96% แรก") -#}
+    {%- if sv.top_pct and sv.state in ["strong", "steady"] %} · {{ (L.sl_top_reviews if sv.basis == "reviews" else L.sl_top_sales).format(p=sv.top_pct) }}{% endif %}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-21) ยอดขายของสินค้าไฮไลต์ใต้กราฟ "ความใกล้เทรนด์ x ยอดขาย": ของหมด/ไม่มีข้อมูล/ขาย 0 หรือ "ยอดขาย x% แรก (ขายแล้ว n ชิ้น)" -#}
+{% macro fm_sales(x) -%}
+  {%- set sv = x.sales -%}
+  {%- if sv and sv.soldout -%}{{ L.sold_out }}{% if sv.reviews is number %} · {{ L.fm_review_one if sv.reviews == 1 else L.sl_reviews.format(n="{:,}".format(sv.reviews)) }}{% endif %}
+  {%- elif not sv or sv.state == "unknown" -%}{{ L.sales_unknown }}
+  {%- elif sv.zero -%}{{ L.sl_zero }}
+  {%- else -%}{{ L.fm_sales_top.format(p=sv.top_pct) }}{% if sv.sold is number %} ({{ L.fm_sold.format(n="{:,}".format(sv.sold)) }}){% endif %}
+  {%- endif -%}
+{%- endmacro %}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.report_kind }}{% if meta.forecast_end %}{{ L.cover_outlook.format(end=meta.forecast_end) }}{% endif %}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.prepared_for.format(brand=b.brand, company=brand.company_name) }}</div>
+  </div>
+  <div class="cover-strip">
+    {% for r in b.rows[:5] %}
+    <div class="cover-tile">{{ img_or_ph(r.products[0] if r.products else none, r.rank) }}<div class="cap">{{ r.display_name or r.name }}</div></div>
+    {% endfor %}
+  </div>
+</section>
+
+{#- ======================= 2. สรุปผู้บริหาร ======================= -#}
+{%- set pf = b.portfolio -%}
+<section class="page" data-label="Executive Summary">
+  {{ bar_header(L.summary_header ~ " | " ~ b.brand) }}
+  <div class="ex-left">
+    <div class="ex-title">{{ L.on_retailer.format(brand=b.brand) }}</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="lbl">{{ L.skus }}</div><div class="val">{{ b.n_skus or pf.n_skus }}</div></div>
+      <div class="stat"><div class="lbl">{{ L.price_range }}</div>
+        <div class="val val-sm">{% if pf.price_min is number %}{{ pf.price_min | thb }} - {{ pf.price_max | thb }}{% else %}{{ L.na }}{% endif %}</div>
+        <div class="sub">{% if pf.price_median is number %}{{ L.median_price.format(v=(pf.price_median | thb)) }}{% endif %}</div></div>
+    </div>
+    <div class="ex-subcats">
+      <div class="lbl">{{ L.main_subcategories }}</div>
+      {% for s in pf.top_subcategories %}<div class="subcat"><span>{{ s.name }}</span><b>{{ s.n }}</b></div>{% endfor %}
+    </div>
+  </div>
+  <div class="ex-right">
+    {#- 🆕 (2026-10-07) เกรดรวม = ระดับสูงสุดที่เทรนด์เกินครึ่งทำได้ถึง (brand_data.overall_level) -#}
+    {%- set ov = b.overall -%}
+    {% if ov %}
+    <div class="ovr">
+      <div class="ovr-lv"><div class="lbl">{{ L.overall_title }}</div>
+        <div class="nm"><span class="fit-dot fit-{{ ov.level }}"></span>{{ L[ov.level] }}</div></div>
+      <div class="ovr-txt fit" data-name="overall" data-min="8">
+        <div class="ln">
+          {%- if ov.level == "below_average" %}{{ L.overall_line_below.format(lvb=lvb("average"), k=ov.at_or_better.average, n=ov.n, p=pct.average) }}
+          {%- elif ov.level == "excellent" %}{{ L.overall_line_excellent.format(lvb=lvb(ov.level), k=ov.k, n=ov.n, p=pct[ov.level]) }}
+          {%- else %}{{ L.overall_line.format(lvb=lvb(ov.level), k=ov.k, n=ov.n, p=pct[ov.level]) }}{% endif -%}
+        </div>
+        {% if ov.next %}<div class="nx">{{ L.overall_next.format(lvb=lvb(ov.next.level), k=ov.next.k, n=ov.n, lv=L[ov.next.level]) }}</div>{% endif %}
+        <div class="rule">{{ L.overall_rule }}</div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="ex-title">{{ L.fit_across.format(n=b.rows | length) }}</div>
+    <div class="lvl-row">
+      {% for lv in levels %}
+      <div class="lvl">
+        <div class="n">{{ b.counts[lv] }}</div>
+        <div class="nm"><span class="fit-dot fit-{{ lv }}"></span>{{ L[lv] }}</div>
+        <div class="def">
+          {%- if loop.first %}{{ L.lv_def_first.format(p=pct[lv], s=b.sales_cfg.strong_top_pct) }}
+          {%- elif loop.last %}{% set prev = levels[loop.index0 - 1] %}{{ L.lv_def_last.format(p=pct[prev]) }}
+          {%- else %}{% set prev = levels[loop.index0 - 1] %}{{ L.lv_def_mid.format(p0=pct[prev], p=pct[lv]) }}{% endif -%}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ex-title" style="margin-top:14px">{{ L.key_messages }}</div>
+    <ol class="msgs fit" data-name="key messages">
+      {%- set hs = b.highlights -%}
+      {%- if hs.strongest %}{% set r = b.rows | selectattr("rank", "equalto", hs.strongest) | first %}
+      <li>{{ L.msg_strongest.format(trend=(r.display_name or r.name), product=r.graded.name, rank="{:,}".format(r.graded.rank_in_tier),
+                                    n="{:,}".format(r.graded.n_tier), group=grp(r.graded)) }}</li>{% endif %}
+      {%- if hs.opportunity %}{% set r = b.rows | selectattr("rank", "equalto", hs.opportunity) | first %}
+      <li>{% if r.graded %}{{ L.msg_opportunity.format(trend=(r.display_name or r.name), z=epct(r.expected_pct), rank="{:,}".format(r.graded.rank_in_tier), n="{:,}".format(r.graded.n_tier), group=grp(r.graded)) }}
+          {%- else %}{{ L.msg_opportunity_none.format(trend=(r.display_name or r.name), z=epct(r.expected_pct), brand=b.brand, cats=(r.key_categories | join(", "))) }}{% endif %}</li>{% endif %}
+      {%- if hs.quick_win %}{% set r = b.rows | selectattr("rank", "equalto", hs.quick_win) | first %}
+      <li>{{ L.msg_quick_win.format(trend=(r.display_name or r.name), gap=(r.gap_to_leader | num(2)), group=grp(r.graded)) }}</li>{% endif %}
+      {%- if b.sales_effect and (b.sales_effect.up or b.sales_effect.down) %}
+      <li>{{ L.msg_sales.format(k=(b.sales_effect.up + b.sales_effect.down), n=b.n_checked, u=b.sales_effect.up, d=b.sales_effect.down) }}</li>{% endif %}
+      {%- if not (hs.strongest or hs.opportunity or hs.quick_win) %}<li>{{ L.msg_none }}</li>{% endif %}
+    </ol>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 4b. สินค้าตามเทรนด์ เทียบคู่แข่ง (หน้าละ 5 เทรนด์) ======================= -#}
+{#- 🆕 (2026-10-07) ตามสไลด์ที่ผู้ใช้ส่งมา (Top Trend By Product <brand> VS Market competitors) แบบ ข: แต่ละคอลัมน์ = top 5 ของกลุ่ม
+    หมวด x ช่วงราคาที่ใช้ให้เกรดของเทรนด์นั้น (อันดับ = ในกลุ่ม) สินค้าของแบรนด์ที่ติด top 5 ไฮไลต์ในแถวนั้น แถวล่าง = สินค้าที่ดีที่สุดของ
+    แบรนด์เมื่ออยู่นอก top 5 / ไม่มีสินค้าในหมวดสำคัญ -> คอลัมน์ = top 5 ของหมวดสำคัญ (ทุกช่วงราคา) และแถวล่างเว้นว่าง (สีเทา) -#}
+{% macro vs_prod(m, rank_text) -%}
+  <div class="vs-p">
+    <div class="img">{{ img_or_ph(m, "") }}</div>
+    <div class="info"><div class="nm">{{ pname(m.brand, m.name) }}</div>
+      {%- set us = unit_short(m) -%}
+      <div class="pr">{{ m.price_thb | thb }}{% if us | trim %} · {{ us }}{% endif %}</div>
+      <div class="rk">{{ rank_text }}</div>{% if m.level %}<div class="rk">{{ level_tag(m.level) }}</div>{% endif %}</div>
+  </div>
+{%- endmacro %}
+{%- set vs_pages = b.rows | batch(5) | list -%}
+{% for chunk in vs_pages %}
+<section class="page" data-label="Product Overview{% if vs_pages | length > 1 %} {{ loop.index }}{% endif %}">
+  {{ bar_header(L.vs_header.format(brand=b.brand)) }}
+  {#- คอลัมน์กว้างเท่ากันทุกหน้า (หน้าสุดท้ายที่มีเทรนด์น้อยกว่า 5 ไม่ยืดเต็มหน้า) -#}
+  <table class="vs" style="width:{{ 64 + (chunk | length) * 169 }}px">
+    <colgroup><col style="width:64px">{% for r in chunk %}<col style="width:169px">{% endfor %}</colgroup>
+    <thead><tr><th class="vs-corner">{{ L.vs_corner }}</th>
+      {% for r in chunk %}
+      {%- set kc = (r.categories | selectattr("key") | first) if r.categories else none -%}
+      <th><div class="vs-trend">#{{ r.rank }} {{ r.display_name or r.name }}</div>
+        <div class="vs-grp">{% if r.cell %}{{ grp(r.cell) }}{% set tr_txt = trange(r.cell) %}{% if tr_txt | trim %} · {{ tr_txt }}{% endif %}{% elif kc %}{{ kc.category }} · {{ L.tier_all }}{% else %}{{ L.not_checked }}{% endif %}</div></th>
+      {% endfor %}</tr></thead>
+    <tbody>
+    {% for i in range(5) %}
+      <tr><td class="vs-no">{{ i + 1 }}</td>
+      {% for r in chunk %}
+        {%- set kc = (r.categories | selectattr("key") | first) if r.categories else none -%}
+        {%- set lst = r.cell.top if r.cell else (kc.top if (r.no_key_product and kc) else []) -%}
+        {%- set m = lst[i] if lst | length > i else none -%}
+        <td class="vs-c{% if m and m.is_you %} is-you{% endif %}">{% if m %}{{ vs_prod(m, "#" ~ m.pos) }}{% endif %}</td>
+      {% endfor %}</tr>
+    {% endfor %}
+      <tr class="vs-you"><td class="vs-no">{{ b.brand }}</td>
+      {% for r in chunk %}
+        {%- set g = r.graded -%}
+        {% if g and r.cell and not r.cell.you_in_top %}
+        <td class="vs-c is-you">{{ vs_prod(g, "#{:,}".format(g.rank_in_tier)) }}</td>
+        {% else %}<td class="vs-c vs-empty"></td>{% endif %}
+      {% endfor %}</tr>
+    </tbody>
+  </table>
+  <div class="ev-note">{{ L.vs_note.format(brand=b.brand) }}</div>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{#- ======================= 5+. เทรนด์ละ 2 หน้า ======================= -#}
+{#- 🆕 (2026-10-07) ผู้ใช้เห็นว่าหน้าเดียวแน่นเกินไป -> หน้า 1 = เทรนด์คืออะไร + ผลประเมิน (สรุป), หน้า 2 = ตารางหมวดสำคัญ x ช่วงราคา
+    เต็มหน้าพร้อมรูป - เทรนด์ที่ไม่มีสินค้าในหมวดสำคัญ / ยังไม่ได้ตรวจ มีแค่หน้า 1 (ตารางจะว่างทั้งหมด) -#}
+{% for r in b.rows %}
+{%- set t = r.trend -%}
+{%- set g = r.graded -%}
+{%- set has_grid = r.checked and not r.no_key_product -%}
+<section class="page" data-label="Brand Trend {{ r.rank }}">
+  <div class="t-head"><h2>{{ r.display_name or r.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub">{{ t.text.headline }}</div>
+  <div class="p1-left">
+    <div class="p1-text fit" data-name="trend text"><b>{{ L.trend_label }}</b> {{ t.text.trend }}</div>
+    <div class="p1-need fit" data-name="consumer need"><b>{{ L.consumer_need }}</b> {{ t.text.insight }}</div>
+    <div class="p1-kpis">
+      <div class="p1-kpi"><div class="lbl">{{ L.momentum }}</div><div class="val">{{ epct(r.expected_pct) }}</div></div>
+      <div class="p1-kpi"><div class="lbl">{{ L.last_12m }}</div><div class="val">{{ "{:+.0f}%".format(r.past_growth_pct) if r.past_growth_pct is number else L.na }}</div></div>
+    </div>
+  </div>
+  <div class="p1-right">
+    {% if not r.checked %}
+    <div class="rk-msg">{{ L.not_checked_row }}</div>
+    {% else %}
+    <div class="p1-verdict">
+      <div class="lbl">{{ L.fit_level }}</div>
+      <div class="p1-level">{{ level_tag(r.level) }}</div>
+      <div class="kv2">
+        <span class="k">{{ L.graded_group }}</span><span class="v">{% if g %}{{ grp(g) }}{% set tr_txt = trange(g) %}{% if tr_txt | trim %} <span class="muted">({{ tr_txt }})</span>{% endif %}{% else %}{{ L.no_key_short }}{% endif %}</span>
+        {#- 🆕 (2026-10-12) ตำแหน่งในกลุ่มเป็น % แรก (อันดับในกลุ่มแสดงในวงเล็บ - ไม่มี "จาก n" ตามกฎเดิมของ ⑰) -#}
+        {% if g and g.pct is number %}<span class="k">{{ L.pct_row }}</span><span class="v">{{ L.pct_val.format(p=(("%.1f" | format(g.pct)) if g.pct < 10 else (g.pct | round | int)), rank=g.rank_in_tier) }}</span>{% endif %}
+        {% if g %}<span class="k">{{ L.sales_row }}</span><span class="v">{{ sales_line(g) }}</span>{% endif %}
+        <span class="k">{{ L.action }}</span><span class="v q-{{ r.quadrant }}"><b>{{ L[r.quadrant] }}</b></span>
+      </div>
+      {% if g and g.sales_move %}<div class="p1-action sales-note">{{ L["sales_" ~ g.sales_move ~ "_note"].format(a=L[g.base_level], b=L[g.level]) }}</div>{% endif %}
+      <div class="p1-action">{{ L[r.quadrant ~ "_def"] }}</div>
+    </div>
+    {% if g %}
+    <div class="p1-prod">
+      <div class="lbl">{{ L.graded_product }}</div>
+      <div class="p1-prod-row">
+        <div class="img">{{ img_or_ph(g, "") }}</div>
+        <div class="info"><div class="nm">{{ pname(b.brand, g.name) }}</div>
+          <div class="meta">{{ g.price_thb | thb }} · {{ level_tag(g.level) }}{{ sales_pill(g) }}</div>
+          {%- set ul = unit_line(g) -%}{%- if ul %}<div class="meta muted">{{ ul }}</div>{% endif %}</div>
+      </div>
+      {% if g.reason %}<div class="p1-why fit" data-name="brand reason" data-min="7"><b>{{ L.why_match }}:</b> {{ g.reason }}</div>{% endif %}
+    </div>
+    {% else %}
+    <div class="rk-msg">{{ L.no_key.format(brand=b.brand, cats=(r.key_categories | join(", "))) }}</div>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% if not has_grid and r.checked %}<div class="ev-note">{{ L.trend_note.format(n=n_market, brand=b.brand) }}</div>{% endif %}
+  {{ footer() }}
+</section>
+{#- 🆕 (2026-10-14) หน้าสินค้าต่อเทรนด์ = หน้าเทรนด์ของ ⑱ เดิมที่รวมเข้ามา (เจ้าของงานสั่ง): ต่อกลุ่มราคาต่อปริมาณ (ต่ำ/กลาง/สูง) มี top 5 ของกลุ่ม
+    + สินค้าที่ดีที่สุดของแบรนด์ พร้อมอันดับ/% แรกของกลุ่ม/อันดับทั้งร้าน - ข้อมูลมาจาก cat (brand_category_data.build_category_context)
+    เทรนด์ที่แบรนด์ไม่มีสินค้าในหมวดก็มีหน้านี้ (แสดงสินค้าที่ตรงเทรนด์ที่สุดของแต่ละกลุ่ม) -#}
+{%- set cr = cat_rows.get(r.rank) -%}
+{% for v in (cr.pages if cr else []) %}
+<section class="page" data-label="Brand Trend {{ r.rank }} Detail">
+  <div class="t-head"><h2>{{ r.display_name or r.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub"><b>{{ v.category }}</b>{% if cr.pages | length > 1 %} · {{ L.cp_cat_page.format(i=loop.index, k=cr.pages | length) }}{% endif %}</div>
+  <div class="bt-left">
+    <div class="bt-text fit" data-name="trend text"><b>{{ L.trend_label }}</b> {{ t.text.trend }}</div>
+    <div class="bt-stats kv">
+      <span class="k">{{ L.momentum }}</span><span class="v">{{ epct(r.expected_pct) }}</span>
+      <span class="k">{{ L.last_12m }}</span><span class="v">{{ "{:+.0f}%".format(r.past_growth_pct) if r.past_growth_pct is number else L.na }}</span>
+      <span class="k">{{ L.cp_cat_main }}</span><span class="v">{{ v.category }}</span>
+      <span class="k">{{ L.cp_cat_your_products }}</span><span class="v">{{ v.brand_n }}</span>
+      <span class="k">{{ L.cp_cat_your_best }}</span><span class="v">{% if v.best %}{{ level_tag(v.level) }}{% if v.best_tier.label != "all" %} <span class="muted">{{ L["tier_" ~ v.best_tier.label] }}</span>{% endif %}{% else %}{{ L.na }}{% endif %}</span>
+    </div>
+  </div>
+  <div class="ct-right">
+    {% if not v.brand_n %}<div class="rk-msg">{{ L.cp_no_brand_category.format(brand=b.brand, category=v.category) }}</div>{% endif %}
+    {%- set has_range = v.tiers | selectattr("unit_range") | list | length > 0 -%}
+    <div class="tier-grid k{{ v.tiers | length }}{% if has_range %} ranged{% endif %}{% if cat.group_basis == "l2" %} l2{% endif %}">
+      {% for tr in v.tiers %}
+      {%- set bb = tr.brand_best -%}
+      <div class="tier">
+        <div class="tier-head">
+          <b>{{ v.category if tr.label == "all" else L["tier_" ~ tr.label] }}{% if tr.price_from is not none and cat.tier_basis != "unit_price" %} <span class="tier-range">{{ L.cp_tier_range.format(a="{:,}".format(tr.price_from), b="{:,}".format(tr.price_to)) }}</span>{% endif %}</b>
+          <span class="tier-count">{{ L.cp_tier_count.format(n="{:,}".format(tr.n_total), b=tr.n_brand, brand=b.brand) }}</span>
+          {%- if tr.unit_range and (tr.unit_range | uspan) %}
+          <span class="tier-typical">{{ L.cp_tier_typical.format(r=(tr.unit_range | uspan)) }}</span>{% endif %}
+        </div>
+        <div class="tier-top">
+          {% for p in tr.top %}
+          <div class="tr{% if p.is_you %} is-you{% endif %}">
+            <span class="no">#{{ p.rank_in_tier }}</span>
+            <span class="nm">{{ pname(p.brand_label, p.name) }}{% if p.is_you %}<span class="rk-you">{{ L.your_tag }}</span>{% endif %}{{ sales_pill(p) }}</span>
+            <span class="pr">{{ p.price_thb | thb }}{% if cat.tier_basis == "unit_price" and (p | uper) %}<span class="un">{{ p | uper }}</span>{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="tier-you">
+          {% if bb %}
+          <div class="tier-you-h">{{ L.cp_tier_you_best }}</div>
+          <div class="yc">
+            <div class="img">{{ img_or_ph(bb, "") }}</div>
+            <div class="info"><div class="nm">{{ pname(b.brand, bb.name) }}</div><div class="pr">{{ bb.price_thb | thb }}</div>
+              {%- if cat.tier_basis == "unit_price" and (bb | ulabel) %}<div class="un">{{ bb | ulabel }}</div>{% endif %}</div>
+          </div>
+          <div class="yrank"><b>#{{ "{:,}".format(bb.rank_in_tier) }}</b><span>{{ level_tag(bb.level) }}{{ sales_pill(bb) }}</span></div>
+          <div class="ymkt">{{ L.cp_top_pct.format(p=("%.1f" | format(bb.pct)) if bb.pct < 10 else (bb.pct | round | int)) }} · {{ L.cp_market_rank.format(rank="{:,}".format(bb.rank_in_market)) }}</div>
+          {% else %}
+          <div class="tier-none">{{ L.cp_tier_none.format(brand=b.brand) }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {#- หมายเหตุ: โหมดราคาต่อปริมาณใช้ข้อความ cat_note ของชุด UNIT_STRINGS (ซ้อนทับใน L เมื่อ tier_basis = unit_price) ไม่งั้นใช้ของ ⑱ เดิม -#}
+  <div class="ev-note">{{ L.cat_note if L.cat_note is defined else L.cp_cat_note }}{% if has_range %} · {{ L.cp_range_note }}{% endif %}</div>
+  {{ footer() }}
+</section>
+{% endfor %}
+{#- 🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์ = แผนที่ ความใกล้เทรนด์ (แกน x) x ยอดขาย Konvy (แกน y) ระดับหมวด L2 อย่างเดียว (เจ้าของงานสั่ง - ไม่แยกช่วงราคา):
+    สินค้าของแบรนด์ทุกชิ้นในหมวดหลักของเทรนด์เป็นจุด เทียบกับสินค้าทั้งหมวด (fit_sales_map.py; ข้อมูลจาก l2_map.py) พร้อมสินค้าไฮไลต์ A/B/C ด้านขวา
+    เทรนด์ที่แบรนด์ไม่มีสินค้าในหมวด / รอบที่ไม่มีไฟล์แผนที่ไม่มีหน้านี้ -#}
+{%- set l2 = cr.l2 if cr else none -%}
+{% if l2 and l2.map %}
+{%- set m = l2.map -%}
+<section class="page" data-label="Brand Trend {{ r.rank }} Fit x Sales">
+  <div class="t-head"><h2>{{ r.display_name or r.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub"><b>{{ l2.category }}</b> · {{ L.fm_question.format(brand=b.brand) }}</div>
+  <div class="fm-legend">
+    <span class="lg"><svg width="12" height="12"><circle cx="6" cy="6" r="3.5" class="dm" fill-opacity=".82"/></svg>{{ L.fm_lg_you.format(brand=b.brand) }}</span>
+    <span class="lg"><svg width="14" height="14"><circle cx="7" cy="7" r="6" class="dm"/><text x="7" y="9.8" class="dl" text-anchor="middle">A</text></svg>{{ L.fm_lg_hl }}</span>
+    <span class="lg">{{ L.fm_lg_shade }}
+      {% for lv in levels %}<span><span class="sw sw-{{ lv }}"></span>{{ L[lv] }}</span>{% endfor %}</span>
+  </div>
+  <div class="l2p">
+    <div class="l2p-chart">
+      <div class="fm-head"><b>{{ l2.category }}</b>
+        <span class="sub">{{ L.fm_l2_count.format(n="{:,}".format(l2.n_total), b=l2.n_brand, brand=b.brand) }}</span></div>
+      {{ fitmap_svg(m, L) }}
+    </div>
+    <div class="l2p-co">
+      {% for c in m.callouts %}
+      <div class="co2"><span class="bdg">{{ c.kind }}</span><div class="im">{{ img_or_ph(c, "") }}</div>
+        <div class="tx"><div class="kd"><span>{{ L["fm_k_" ~ (c.kind | lower)] }}</span><span class="gd"><span class="fit-dot fit-{{ c.level }}"></span>{{ L[c.level] }}</span></div>
+          <div class="nm">{{ pname(b.brand, c.name) }}</div>
+          <div class="mt">{{ c.price_thb | thb }}</div>
+          <div class="mt">{{ L.fm_fit_top.format(p=(("%.1f" | format(c.pct)) if c.pct < 10 else (c.pct | round | int))) }} · {{ fm_sales(c) }}</div></div></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="ev-note fm-note">{{ L.fm_note.format(brand=b.brand, p=pct.good, p1=pct.excellent, s=b.sales_cfg.strong_top_pct, a=pct.average, total="{:,}".format(l2.n_total), category=l2.category) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+{% endfor %}
+
+{#- ======================= 15. โอกาสพัฒนาสินค้า ======================= -#}
+<section class="page" data-label="Opportunities">
+  {{ bar_header(L.opp_header ~ " | " ~ b.brand) }}
+  <div class="intro">{{ L.opp_intro.format(brand=b.brand) }}</div>
+  {% if b.opportunities %}
+  <div class="opp-grid n{{ b.opportunities | length }}">
+    {% for rank in b.opportunities %}
+    {%- set r = b.rows | selectattr("rank", "equalto", rank) | first -%}
+    {%- set t = r.trend -%}
+    <div class="opp">
+      <div class="opp-head"><span class="rk">#{{ r.rank }}</span> {{ r.display_name or r.name }}
+        <span class="opp-meta">{{ L.momentum }}: {{ epct(r.expected_pct) }} · {{ level_tag(r.level) }}</span></div>
+      <div class="opp-body fit" data-name="opportunity {{ r.rank }}">
+        <b>{{ L.consumer_need }}</b> {{ t.text.insight }}<br>
+        <b>{{ L.product_direction }}</b> {{ t.text.trend }}
+        {% if t.target %}<br><b>{{ L.target }}</b> {{ t.target }}{% endif %}
+        <div class="opp-kw">{% for k in t.keywords[:4] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="opp-none">{{ L.opp_none.format(brand=b.brand) }}</div>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{#- ======================= 16. ภาคผนวก ======================= -#}
+<section class="page" data-label="Method">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid">
+    {#- 🆕 (2026-10-12) ขั้นตอน (1) (2) (3) แยกเป็นย่อหน้าละขั้น - เดิมเป็นก้อนเดียวยาวมาก -#}
+    {%- set fit_parts = L.m_fit.format(n=n_market, brand=b.brand, p1=pct.excellent, p2=pct.good, p3=pct.average)
+          .replace(" (2) ", "
+(2) ").replace(" (3) ", "
+(3) ").split("
+") -%}
+    <div class="ap-box fit" data-name="method fit"><h3>{{ L.m_fit_title }}</h3>
+      {% for part in fit_parts %}<p class="ap-p">{{ part }}</p>{% endfor %}
+      <p class="ap-p">{{ L.m_sales.format(brand=b.brand, s1=b.sales_cfg.strong_top_pct, s2=b.sales_cfg.slow_bottom_pct, p1=pct.excellent) }}</p>
+      <p class="ap-p">{{ L.m_map.format(brand=b.brand) }}</p></div>
+    <div class="ap-box fit" data-name="method matrix"><h3>{{ L.m_matrix_title }}</h3>
+      {{ L.m_matrix }}</div>
+    <div class="ap-box fit" data-name="method data"><h3>{{ L.m_data_title }}</h3>
+      {{ L.m_data.format(run_id=meta.run_id, brand=b.brand, skus=(b.n_skus or b.portfolio.n_skus), t=(b.rows | length), date=(run_date | date_long)) }}</div>
+    <div class="ap-box fit" data-name="method limits"><h3>{{ L.m_limits_title }}</h3>
+      {{ L.m_limits }} {{ L.m_limits_sales }}</div>
+  </div>
+  {{ footer() }}
+</section>
+
+<script>
+// เหมือนรายงานเทรนด์ (report.html.j2): ย่อฟอนต์กล่อง .fit จนพอดี แล้วคืนกล่องที่ยังล้นให้ Python เตือน
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

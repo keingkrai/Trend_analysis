@@ -137,6 +137,11 @@ def test_subset_has_no_unresolved_globals(tag, mods):
     assert _unresolved_globals(COMMON / PAIRS[tag][0], mods[f"sub_{tag}"]) == {}
 
 
+# บล็อกที่ตั้งใจแก้จากต้นฉบับ (บรรทัดแรกของบล็อก ก่อน "=") - 🆕 2026-10-12 v2 เพิ่ม GoogleSearch (บล็อก try:) และ SERPAPI_KEY
+# ให้ใช้ตัวสลับคีย์ของ common/serpapi_keys.py
+EXPECTED_DEVIATIONS = {"v1": ["_TOOLS_DIR"], "v2": ["try:", "_TOOLS_DIR", "SERPAPI_KEY"]}
+
+
 @pytest.mark.parametrize("tag", PAIRS)
 def test_only_tools_dir_is_changed_and_points_to_main(tag, mods):
     blocks = _parse_blocks(COMMON / PAIRS[tag][0])
@@ -144,7 +149,7 @@ def test_only_tools_dir_is_changed_and_points_to_main(tag, mods):
     starts = [b["a"] for b in blocks]
     assert starts == sorted(starts), "บล็อกต้องเรียงตามลำดับเดิมในต้นฉบับ"
     deviated = [b for b in blocks if b["deviated"]]
-    assert [b["lines"][0].split("=")[0].strip() for b in deviated] == ["_TOOLS_DIR"]
+    assert [b["lines"][0].split("=")[0].strip() for b in deviated] == EXPECTED_DEVIATIONS[tag]
     sub = mods[f"sub_{tag}"]
     assert Path(sub._TOOLS_DIR) == MAIN_DIR
     assert Path(sub.env_path) == MAIN_DIR / ".env"

@@ -276,6 +276,8 @@ if __name__ == "__main__":
             "n_clusters": result["n_clusters"],
             "n_triplets_extracted": result["n_triplets_extracted"],
             "triplet_provenance": result["triplet_provenance"],
+            "documents": [{"title": a.get("title"), "source": a.get("source"), "link": a.get("link")}
+                          for a in result.get("scraped_data") or []],   # 🆕 (2026-10-14) หน้ารายการแหล่งข้อมูลของ ⑯
             "trends": result["df_trends"].to_dict(orient="records"),
             "keywords": result["df_keywords"].to_dict(orient="records"),
         }, f, ensure_ascii=False, indent=2)

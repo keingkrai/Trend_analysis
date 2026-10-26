@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{%- set meta = ctx.meta -%}
+{%- set trends = ctx.trends -%}
+
+{#- ข้อความตายตัวทั้งหมดมาจาก L (= i18n.STRINGS[lang]) - แก้คำที่ i18n.py ไม่ต้องแก้เทมเพลต
+    data-label ของแต่ละหน้าเป็นภาษาอังกฤษเสมอ (ใช้ในคำเตือนข้อความล้นกล่องและเทส ไม่แสดงในรายงาน) -#}
+
+{#- ======================= macros ======================= -#}
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-07) "ต่ำ 6 · กลาง 9 · สูง 5" = จำนวนสินค้าที่ใกล้เทรนด์ (pool) ในแต่ละช่วงราคาของคอลัมน์ -#}
+{% macro tier_parts(tiers) -%}
+  {%- for tr in tiers %}{{ L["tier_" ~ tr.label ~ "_s"] }} {{ tr.n_pool }}{% if not loop.last %} · {% endif %}{% endfor -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{% macro trend_head(t, sub) -%}
+  <div class="t-head"><span class="t-rank">#{{ t.rank }}</span><h2>{{ t.display_name or t.name }}</h2><div class="t-rule"></div>{{ logo() }}</div>
+  <div class="t-sub">{{ sub }}</div>
+{%- endmacro %}
+
+{% macro src_dots(n) -%}
+  <span class="dots">{% for i in range(1, 4) %}<i{% if n is number and i <= n %} class="on"{% endif %}></i>{% endfor %}</span>
+{%- endmacro %}
+
+{#- เกรด 4 ขั้นของ Longevity (report_data.long_term_grade): แถบ 4 ช่องเติมตามระดับ + ชื่อระดับ
+    "insufficient" (Longevity หลักฐานไม่พอ) ไม่มีแถบ - ไม่ใช่ Average -#}
+{% macro grade(g) -%}
+  {%- if g == "insufficient" -%}<span class="insuf">{{ L.insufficient }}</span>
+  {%- elif g -%}{%- set n = {"excellent": 4, "good": 3, "average": 2, "below_average": 1}[g] -%}
+    <span class="grade"><span class="meter">{% for i in range(4) %}<i{% if i < n %} class="on"{% endif %}></i>{% endfor %}</span>{{ L["grade_" ~ g] }}</span>
+  {%- else -%}<span class="muted">{{ L.na }}</span>{%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-09-30) หน้า Top 5 / ภาพรวมทุกเทรนด์ / ช่อง KPI: % (การโต 12 เดือนที่ผ่านมา หรือ % ที่คาด) - ปัด 0 เป็น "0%"
+    (🆕 2026-10-02 ไม่มีแถบระดับ 1-4 "เร็ว/ช้ากว่าตลาด" แล้ว) -#}
+{#- 🆕 (2026-10-02) ประโยคช่วงคลาดเคลื่อน 80% ของปีระยะสั้น/ยาว (report_data: gp.band จาก growth_score.FORECAST_BAND_80) -#}
+{% macro band_sentence(gp) -%}
+  {%- for k, y in [("short", gp.short_year), ("long", gp.long_year)] if gp.band and gp.band[k] -%}
+    {{ (L.band_first if loop.first else L.band_next).format(lo=gp.band[k][0], hi=gp.band[k][1], y=y) }}
+  {%- endfor -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-14) ช่วงคลาดเคลื่อน 80% เป็นของ "ระดับยอดค้นหาที่พยากรณ์" ปีที่ 2 / ปีที่ 5 - ใช้กับหน้า CAGR / YoY ที่ไม่มีหน้าตัวเลขสะสมแล้ว -#}
+{% macro band_levels(gp) -%}
+  {%- for k, y in [("short", gp.short_year), ("long", gp.long_year)] if gp.band and gp.band[k] -%}
+    {{ (L.m_band_first if loop.first else L.m_band_next).format(lo=gp.band[k][0], hi=gp.band[k][1], y=y) }}
+  {%- endfor -%}
+{%- endmacro %}
+
+{% macro pct(v) -%}
+  {%- if v is number %}{% set r = v | round | int %}{{ "0%" if r == 0 else "{:+d}%".format(r) }}{% else %}{{ L.na }}{% endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-02) หน้าภาพรวม: ช่องปีที่ 1-3 = แท่งกราฟ % ที่คาด (report_data.overview_bars - สเกลแยกต่อปี) + เส้นประ
+    ระดับตลาดโดยรวมทุกแถว - สีแท่ง: ฟ้า = คะแนนถึงระดับตลาด, เทา = ต่ำกว่า (ตามคำแนะนำ DA แทนคำ "เร็ว/ช้า") -#}
+{% macro mkline(gp, i) -%}
+  {%- if gp.market_x and gp.market_x[i] is number %}<i class="mk" style="left:{{ gp.market_x[i] }}%"></i>{% endif -%}
+{%- endmacro %}
+
+{% macro ov_bar(gp, x, i) -%}
+  {%- set b, s = x.bars[i], x.scores[i] -%}
+  <td class="hb{{ ' b1' if i == 0 }}{{ ' b2' if i == gp.short_year }}"><div class="bw">{{ mkline(gp, i) }}
+    {%- if b %}<i class="bar {{ 'up' if s is number and s >= gp.line else 'dn' }}" style="left:{{ b.left }}%;width:{{ b.width }}%"></i><span class="v" style="left:{{ b.end }}%">{{ pct(x.expected_pct[i]) }}</span>
+    {%- else %}<span class="v">–</span>{% endif %}</div></td>
+{%- endmacro %}
+
+{#- แถวเส้นแบ่ง: % ที่คาดของระดับตลาดโดยรวมใต้คอลัมน์ปีที่ 1-3 (ผล ⑥ รอบเก่าไม่มี -> ข้อความแถวเดียว) -#}
+{#- 🆕 (2026-10-19) yoy=true (หน้ารวม CAGR + YoY): ปีที่ 2 ขึ้นไปมีช่อง YoY ต่อท้ายช่องแท่งของแต่ละปี - ช่อง YoY ของแถวตลาดแสดง gp.market_yoy,
+    ข้อความ "เหนือเส้น N เทรนด์" ย้ายไปแถว legend (คอลัมน์ท้ายตารางแคบเกินไป) -#}
+{% macro ov_line(gp, yoy=false) -%}
+  {%- set detail = L.ov_line_detail.format(above=gp.n_above, detail=gp.n_detail, below=gp.n_below) -%}
+  {%- if gp.market_pct -%}
+  <tr class="cut"><td colspan="2"><b>{{ L.ov_line }}</b></td>
+    {%- for v in gp.market_pct %}<td class="hb mk{{ ' b1' if loop.first }}{{ ' b2' if loop.index0 == gp.short_year }}"><div class="bw">{{ mkline(gp, loop.index0) }}
+      {%- if v is number %}<span class="v" style="left:{{ gp.market_x[loop.index0] }}%">{{ pct(v) }}</span>{% endif %}</div></td>
+      {%- if yoy and not loop.first %}<td class="yo mk">{% if gp.market_yoy and gp.market_yoy[loop.index0] is number %}{{ pct(gp.market_yoy[loop.index0]) }}{% endif %}</td>{% endif -%}
+    {% endfor -%}
+    {%- if yoy %}<td colspan="3"></td>{% else %}<td colspan="3">{{ detail }}</td>{% endif %}</tr>
+  {%- else -%}
+  <tr class="cut"><td colspan="{{ (2 * (gp.years | length) + 4) if yoy else (5 + gp.years | length) }}"><b>{{ L.ov_line }}</b> · {{ detail }}</td></tr>
+  {%- endif -%}
+{%- endmacro %}
+
+{#- 🆕 (2026-10-14) ตารางภาพรวมทุกเทรนด์ + คำอธิบายสี - ใช้ร่วมหน้าภาพรวมและหน้าภาคผนวก CAGR (gp = ข้อมูลภาพรวม, ov_h = ความสูงแถว) -#}
+{#- 🆕 (2026-10-19) yoy=true = หน้ารวม CAGR + YoY (gp = report_data.combined_view): ปีที่ 1 ช่องเดียว (CAGR = YoY เพราะเทียบ 12 เดือนล่าสุดทั้งคู่)
+    ปีที่ 2 ขึ้นไป 2 ช่อง "CAGR" (แท่ง + ตัวเลข ใช้ ov_bar เดิม) | "YoY" (ตัวเลข - เทาเมื่อต่ำกว่า YoY ตลาดปีเดียวกัน) · คอลัมน์ท้าย = ⚠ อย่างเดียว -#}
+{% macro ov_table(gp, ov_h, yoy=false, legend_top=none) -%}
+  {%- set ny = gp.years | length -%}
+  <table class="ov{{ ' two' if yoy }}">
+    {#- 🆕 (2026-10-02) ไม่มีคอลัมน์แหล่งที่ยืนยันแล้ว (เจ้าของงานขอ - แสดงในหน้ารายเทรนด์อย่างเดียว) -#}
+    {#- 🆕 (2026-10-02) 5 ปี: ระยะสั้น = ปีที่ 1-2, ระยะยาว = ปีที่ 3-5 - เส้นคั่นก่อนปีที่ 1 และก่อนปีที่ 3 -#}
+    <colgroup><col class="c-r"><col class="c-nm">
+      {%- if yoy %}<col class="c-y1">{% for y in gp.years[1:] %}<col class="c-y"><col class="c-yo">{% endfor %}
+      {%- else %}{% for y in gp.years %}<col class="c-y">{% endfor %}{% endif -%}
+      <col class="c-lr"><col class="c-pg"><col></colgroup>
+    <thead>
+      <tr class="grp"><th class="blank" colspan="2"></th><th class="g-short" colspan="{{ (2 * gp.short_year - 1) if yoy else gp.short_year }}">{{ L.ov_short }}</th><th class="g-long" colspan="{{ (2 * (ny - gp.short_year)) if yoy else (ny - gp.short_year) }}">{{ L.ov_long }}</th><th class="blank" colspan="3"></th></tr>
+      <tr class="cols"><th class="num"{% if yoy %} rowspan="2"{% endif %}>#</th><th{% if yoy %} rowspan="2"{% endif %}>{{ L.ov_trend }}</th>
+        {% for y in gp.years %}<th class="ctr{{ ' yh' if yoy }}{{ ' b1' if y == 1 }}{{ ' b2' if y == gp.short_year + 1 }}"{% if yoy and y > 1 %} colspan="2"{% endif %}>{{ L.ov_year.format(y=y) }}</th>{% endfor %}
+        <th class="ctr{{ ' wrap' if yoy }}"{% if yoy %} rowspan="2"{% endif %}>{{ L.ov_long_rank.format(y=gp.long_year) }}</th><th class="ctr"{% if yoy %} rowspan="2"{% endif %}>{{ L.ov_page }}</th><th{% if yoy %} class="ctr" rowspan="2"{% endif %}>{{ "⚠" if yoy else L.ov_note_col }}</th></tr>
+      {%- if yoy %}
+      <tr class="subcols"><th class="ctr b1">{{ L.m_both_y1 }}</th>
+        {%- for y in gp.years[1:] %}<th class="ctr{{ ' b2' if y == gp.short_year + 1 }}">{{ L.m_both_cagr }}</th><th class="ctr">{{ L.m_both_yoy }}</th>{% endfor %}</tr>
+      {%- endif %}
+    </thead>
+    <tbody>
+    {% for x in gp.all %}
+    {% if loop.index0 == gp.n_above %}{{ ov_line(gp, yoy) }}{% endif %}
+    <tr class="{{ 'above' if x.above_line else 'below' }}" style="height:{{ ov_h }}px">
+      <td class="r">{{ x.rank }}</td>
+      <td class="nm">{{ x.display_name or x.name }}</td>
+      {% for i in range(ny) %}{{ ov_bar(gp, x, i) }}
+        {%- if yoy and i > 0 %}<td class="yo{{ ' lo' if x.yoy_up[i] is sameas false }}">{{ pct(x.yoy_pct[i]) if x.yoy_pct[i] is number else "–" }}</td>{% endif -%}
+      {% endfor %}
+      <td class="lr">{{ x.long_rank or "–" }}</td>
+      <td class="pg">{% if x.detail_rank %}<span class="pgref" data-ref="Trend {{ x.detail_rank }}"></span>{% else %}–{% endif %}</td>
+      <td class="nt">
+        {%- if yoy %}{% if x.recent_decline %}<span class="w">⚠</span>{% endif %}
+        {%- else %}
+        {%- if x.matchable is sameas false %}{{ L["ov_" ~ x.no_match_kind] }}{% endif -%}
+        {%- if x.matchable is sameas false and x.recent_decline %} · {% endif -%}
+        {%- if x.recent_decline %}<span class="w">{{ L.ov_decline }}</span>{% endif -%}
+        {%- endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% if gp.n_above == gp.all | length %}{{ ov_line(gp, yoy) }}{% endif %}
+    </tbody>
+  </table>
+  <div class="ov-legend"{% if legend_top %} style="top:{{ legend_top }}px"{% endif %}>
+    <span><i class="sq short"></i>{{ L.ov_short_def }}</span><span class="sep"><i class="sq long"></i>{{ L.ov_long_def }}</span>
+    <span><i class="lg up"></i>{{ L.ov_legend_above }}</span><span><i class="lg dn"></i>{{ L.ov_legend_below }}</span>
+    {% if gp.market_x %}<span><i class="lg mk"></i>{{ L.ov_legend_market }}</span>{% endif %}
+    {%- if yoy %}<span><b class="yo-key">+9%</b> <b class="yo-key lo">+4%</b> {{ L.m_both_legend_yoy }}</span>{% endif %}
+    <span><b class="c-warn">⚠</b> {{ L.ov_legend_decline }}</span>
+    {%- if yoy %}<span class="ov-detail">{{ L.ov_line_detail.format(above=gp.n_above, detail=gp.n_detail, below=gp.n_below) }}</span>{% endif %}
+  </div>
+{%- endmacro %}
+
+{#- 🆕 (2026-10-19) กราฟจุดกระจาย CAGR (แกนนอน) x YoY (แกนตั้ง) ของปีหนึ่ง - พิกัดทั้งหมดคำนวณแล้วใน report_data.scatter_view (h = sv.short / sv.long)
+    จุดฟ้า = คะแนนถึงเส้นตลาดเหมือนแท่งในตาราง, เทา = ต่ำกว่า · เส้นประ = ระดับตลาดโดยรวม (2026-10-19 เอาเส้นจุดทแยง YoY = CAGR ออกตามที่เจ้าของงานขอ) -#}
+{#- periods = ctx.growth.periods (ฉบับไทยแปลเดือนแล้วใน i18n.localize - ไม่เก็บสำเนาไว้ใน sv) -#}
+{% macro scatter_svg(h, side, sv, periods) -%}
+  {%- set period = periods["y" ~ h.year] -%}
+  <svg class="sc" viewBox="0 0 {{ sv.w }} {{ sv.h }}" width="{{ sv.w }}" height="{{ sv.h }}" role="img">
+    <text class="ttl {{ side }}" x="{{ sv.x0 }}" y="14">{{ L.short_term if side == "short" else L.long_term }} · {{ L.t5_period.format(y=h.year, period=(period or L.na)) }}</text>
+    {%- for t in h.yticks %}
+    <line class="gr" x1="{{ sv.x0 }}" x2="{{ sv.x1 }}" y1="{{ t.p }}" y2="{{ t.p }}"/><text class="tk" x="{{ sv.x0 - 6 }}" y="{{ t.p + 3.5 }}" text-anchor="end">{{ t.label }}</text>
+    {%- endfor %}
+    {%- for t in h.xticks %}
+    <text class="tk" x="{{ t.p }}" y="{{ sv.y1 + 13 }}" text-anchor="middle">{{ t.label }}</text>
+    {%- endfor %}
+    <line class="gr" x1="{{ sv.x0 }}" x2="{{ sv.x0 }}" y1="{{ sv.y0 }}" y2="{{ sv.y1 }}"/>
+    {%- if h.zero_y is not none %}<line class="zr" x1="{{ sv.x0 }}" x2="{{ sv.x1 }}" y1="{{ h.zero_y }}" y2="{{ h.zero_y }}"/>{% endif %}
+    {%- if h.market.x is not none %}<line class="mk" x1="{{ h.market.x }}" x2="{{ h.market.x }}" y1="{{ sv.y0 }}" y2="{{ sv.y1 }}"/>{% endif %}
+    {%- if h.market.y is not none %}<line class="mk" x1="{{ sv.x0 }}" x2="{{ sv.x1 }}" y1="{{ h.market.y }}" y2="{{ h.market.y }}"/>{% endif %}
+    {%- for p in h.points %}
+    <circle class="{{ 'up' if p.up else 'dn' }}" cx="{{ p.cx }}" cy="{{ p.cy }}" r="4.5"/><text class="pn" x="{{ p.lx }}" y="{{ p.ly }}" text-anchor="{{ p.anchor }}">{{ p.rank }}</text>
+    {%- endfor %}
+    <text class="ax" x="{{ (sv.x0 + sv.x1) / 2 }}" y="{{ sv.h - 4 }}" text-anchor="middle">{{ L.m_sc_x }}</text>
+    <text class="ax" transform="translate(11 {{ (sv.y0 + sv.y1) / 2 }}) rotate(-90)" text-anchor="middle">{{ L.m_sc_y }}</text>
+  </svg>
+{%- endmacro %}
+
+{% macro thumb(t) -%}
+  {%- set img = (t.products[0].image if t.products else none) -%}
+  {%- if img -%}<img src="{{ img }}" alt="">{%- else -%}<div class="ph">{{ t.rank }}</div>{%- endif -%}
+{%- endmacro %}
+
+{%- set end_clause = L.briefing_end.format(end=meta.forecast_end) if meta.forecast_end else "" -%}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.cover_sub }}{% if meta.forecast_end %}{{ L.cover_outlook.format(end=meta.forecast_end) }}{% endif %}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.cover_sources }}</div>
+  </div>
+  <div class="cover-strip">
+    {% for t in trends[:5] %}
+    <div class="cover-tile">{{ thumb(t) }}<div class="cap">{{ t.display_name or t.name }}</div></div>
+    {% endfor %}
+  </div>
+</section>
+
+{#- ======================= 2. Report Summary ======================= -#}
+<section class="page" data-label="Report Summary">
+  {{ bar_header(L.report_summary ~ " | " ~ report_title) }}
+  <div class="brief">
+    <div class="brief-logo">{{ logo() }}</div>
+    <div class="brief-text fit" data-name="briefing">
+      <p><b>{{ L.prepared_by }}</b> {{ brand.prepared_by or brand.company_name }}</p>
+      <p><b>{{ L.briefing }}</b> {{ L.briefing_text.format(n=meta.top_n, topic=(meta.title if lang == "th" else meta.topic),
+                                                          total=(meta.n_trends_total or L.briefing_total_na), end=end_clause) }}</p>
+    </div>
+  </div>
+  {% set top = trends[0] %}
+  <div class="sec-label" style="top:196px">{{ L.top_insights }}</div>
+  <div class="insight-card">
+    <div class="thumb">{{ thumb(top) }}</div>
+    <div class="txt fit" data-name="top insight">
+      <b class="nm">{{ top.display_name or top.name }}</b>&nbsp; <span class="hl">{{ top.text.headline }}</span><br>
+      <b>{{ L.trend_label }}</b> {{ top.text.trend }} <b>{{ L.insight_label }}</b> {{ top.text.insight }}
+    </div>
+  </div>
+  {% if trends | length > 1 %}
+  <div class="sec-label" style="top:312px">{{ L.top_microtrends }}</div>
+  <div class="micro-grid">
+    {% for t in trends[1:9] %}
+    <div class="micro">
+      <div class="thumb">{{ thumb(t) }}</div>
+      <div class="txt"><div class="nm">{{ t.display_name or t.name }}</div><div class="hl">{{ t.text.headline }}</div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. Takeaway ======================= -#}
+{% set tk = ctx.takeaway %}
+{% if tk.mega_trend_name or tk.macro_direction %}
+<section class="page" data-label="Takeaway">
+  {{ bar_header(L.report_summary ~ " | " ~ report_title) }}
+  <div class="prose fit" data-name="takeaway">
+    <h3>{{ L.takeaway }}</h3>
+    {% if tk.mega_trend_name %}<div class="mega">{{ tk.mega_trend_name }}</div>{% endif %}
+    <p>{{ tk.macro_direction }} {{ tk.core_concept }}</p>
+    {% if tk.key_opportunity %}<p><b>{{ L.opportunity_label }}</b> {{ tk.key_opportunity }}</p>{% endif %}
+    {% if tk.key_risk %}<p><b>{{ L.risk_label }}</b> {{ tk.key_risk }}</p>{% endif %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 4. Market Overview (🆕 2026-09-30 ไม่มีตัวเลข/กราฟ Z_Delta แล้ว) =======================
+    หน้า Dashboard, แผนที่กลยุทธ์ 2x2 และ Trend Map (สร้างจาก Z_Delta) ถูกลบ - หน้า Top 5 และภาพรวมทุกเทรนด์ใช้แทน -#}
+{% set ov = ctx.overview %}
+{%- set gp = ctx.growth -%}
+<section class="page" data-label="Market Overview">
+  {%- set bs = ov.market.basis -%}
+  {{ bar_header(L.market_overview) }}
+  <div class="mo-stats">
+    <div class="stat"><div class="lbl">{{ L.mo_faster }}</div>
+      <div class="val">{{ L.mo_faster_val.format(n=gp.n_above, total=gp.n_total) if gp else L.na }}</div>
+      <div class="sub">{{ L.mo_faster_sub }}</div></div>
+    {#- 🆕 (2026-10-01) มี basis (ผล ⑭-⑮ ตามคะแนนการเติบโต) -> ตัวเลขของเทรนด์ตรงกลางเป็นค่าหลัก แทนป้าย Moderate /
+        Strengthening / Medium-term ที่อ่านแล้วไม่รู้ว่าวัดอะไร - รอบเก่าไม่มี basis ใช้ป้ายเดิม -#}
+    {%- if bs and bs.median_change_pct_short is not none %}
+    {%- set nb = bs.n_trends or (gp.n_total if gp else L.na) %}
+    {#- 🆕 (2026-10-02) ระยะสั้น = ปีที่ 2, ระยะยาว = ปีที่ 5 · 🆕 (2026-10-19) ปีระยะสั้น/ยาวมาจาก common/horizons.py (basis.median_change_pct_short / _long) -#}
+    <div class="stat"><div class="lbl">{{ L.mo_short }}</div>
+      <div class="val">{{ bs.median_change_pct_short | signed(0) }}%</div><div class="sub">{{ L.mo_short_sub.format(n=nb) }}</div></div>
+    <div class="stat"><div class="lbl">{{ L.mo_long }}</div>
+      <div class="val">{{ (bs.median_change_pct_long | signed(0)) ~ "%" if bs.median_change_pct_long is not none else L.na }}</div><div class="sub">{{ L.mo_long_sub.format(n=nb) }}</div></div>
+    <div class="stat"><div class="lbl">{{ L.mo_dur }}</div>
+      <div class="val">{{ (bs.median_durability | round | int) ~ "/100" if bs.median_durability is not none else L.na }}</div><div class="sub">{{ L.mo_dur_sub.format(n=nb) }}</div></div>
+    {%- else %}
+    <div class="stat"><div class="lbl">{{ L.trend_strength }}</div>
+      <div class="val">{{ ov.market.current_trend_strength or L.na }}</div><div class="sub">{{ L.current_signal }}</div></div>
+    <div class="stat"><div class="lbl">{{ L.direction }}</div>
+      <div class="val">{{ ov.market.overall_direction or L.na }}</div><div class="sub">{{ L.next_years.format(years=(meta.years or L.few)) }}</div></div>
+    <div class="stat"><div class="lbl">{{ L.est_duration }}</div>
+      <div class="val">{{ ov.market.estimated_trend_duration or L.na }}</div><div class="sub">{{ L.of_shift }}</div></div>
+    {%- endif %}
+  </div>
+  <div class="mo-summary fit" data-name="market summary">
+    <h3>{{ L.market_summary }}</h3>
+    <p>{{ ov.market.summary or tk.macro_direction }}</p>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 4c. Top 5 ระยะสั้น x ระยะยาว (🆕 2026-09-30 แทนหน้า Rank Trajectory) =======================
+    คะแนนการเติบโตของ ⑥ (report_data.build_growth_pages) - ฝั่งซ้ายปีที่ 2 ฝั่งขวาปีที่ 5 (🆕 2026-10-02 เดิม 1 / 3)
+    เลือกจากทุกเทรนด์ที่จับคู่สินค้าได้ - ด้านขวาของแถวเป็น % ที่คาด (เดิมแถบ 4 ช่อง "เร็ว/ช้ากว่าตลาด")
+    แถวสูง 54px ต่อแถว (🆕 2026-10-02 เดิม 60 - เผื่อที่ให้แถบไทม์ไลน์) - เส้นเชื่อมตรงกลาง (SVG) คำนวณตำแหน่งจากลำดับแถวเดียวกัน
+    🆕 (2026-10-02) แถบไทม์ไลน์ใต้ intro นิยามระยะสั้น/ระยะยาว: ฐานเทียบ 12 เดือนล่าสุด | ปี 1..ปีระยะสั้น | ..ปีระยะยาว
+    ช่องปีที่ใช้จัดอันดับทึบ (ไม่ใช้ ● เพราะ legend ใช้แทน "ติดทั้งสองระยะ" แล้ว) - กว้างตามจำนวนปี (ฐาน 1 ส่วน) -#}
+{%- set gp = ctx.growth -%}
+{% if gp and gp.top5.short %}
+<section class="page t5-page" data-label="Top 5 Short vs Long">
+  {{ bar_header(L.t5_header) }}
+  <div class="intro">{{ L.t5_intro.format(n=gp.n_matchable, total=gp.n_total) }}</div>
+  {%- set sy, ly = gp.short_year, gp.long_year %}
+  <div class="t5-tl" style="grid-template-columns: 1fr {{ sy }}fr {{ ly - sy }}fr">
+    <div class="g base"><div class="lb">{{ L.t5_tl_base.format(period=(gp.periods.past or L.na)) }}</div>
+      <div class="bars"><span>{{ L.t5_past }}</span></div></div>
+    {% for side, a, b in [("short", 1, sy), ("long", sy + 1, ly)] %}
+    <div class="g {{ side }}"><div class="lb"><b>{{ L.short_term if side == "short" else L.long_term }}</b>
+      {{ L.t5_tl_term.format(a=a, b=b, start=(gp.periods["y" ~ a] or L.na).split(" - ")[0], end=(gp.periods["y" ~ b] or L.na).split(" - ")[-1]) }}</div>
+      <div class="bars">{% for y in range(a, b + 1) %}{% if y == b %}<span class="rk">{{ L.t5_tl_rank.format(y=y) }}</span>{% else %}<span>{{ L.t5_tl_year.format(y=y) }}</span>{% endif %}{% endfor %}</div></div>
+    {% endfor %}
+  </div>
+  <div class="t5-tl-key fit" data-name="top5 timeline key">{{ L.t5_tl_key }}</div>
+  {% for side, items, gi in [("short", gp.top5.short, gp.short_year - 1), ("long", gp.top5.long, gp.long_year - 1)] %}
+  {%- set period = gp.periods["y" ~ (gi + 1)] -%}
+  <div class="t5-col t5-{{ side }}">
+    <div class="t5-ch"><span class="sw"></span><span class="t">{{ L.short_term if side == "short" else L.long_term }}</span>
+      <span class="p">{{ L.t5_rank_by.format(y=(gi + 1), period=(period or L.na)) }}</span></div>
+    {% for x in items %}
+    <div class="t5-row{% if not x.both %} only{% endif %}">
+      <div class="rk">{{ loop.index }}</div>
+      <div class="nm"><span class="n">{{ x.display_name or x.name }}</span>
+        <span class="s">{{ L.t5_past }}{{ L.past_mark if gp.past_inflated }} <b>{{ pct(x.past_growth_pct) }}</b>
+          {%- if x.categories %} · {{ x.categories | join(", ") }}{% elif x.keywords %} · {{ x.keywords | join(", ") }}{% endif %}</span>
+        {%- if x.both %}
+        <span class="badge both">{{ L.t5_both.format(other=((L.long_term if side == "short" else L.short_term) | lower), n=x.other_rank) }}</span>
+        {%- else %}
+        <span class="badge {{ side }}-only">{{ (L.t5_short_only if side == "short" else L.t5_long_only).format(n=x.other_rank, total=gp.n_total) }}</span>
+        {%- endif %}
+      </div>
+      <div class="gr pc"><b>{{ pct(x.cagr_pct[gi]) }}</b></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  <div class="t5-gut">{{ L.t5_links }}</div>
+  <svg class="t5-links" viewBox="0 0 92 270" aria-hidden="true">
+    {%- for pair in gp.top5.links %}{% set y1 = pair[0] * 54 + 27 %}{% set y2 = pair[1] * 54 + 27 %}
+    <path d="M2 {{ y1 }} C46 {{ y1 }} 46 {{ y2 }} 90 {{ y2 }}" fill="none" stroke="#8a8983" stroke-width="1.5"/>
+    <circle cx="2" cy="{{ y1 }}" r="2.5" fill="#0b0b0b"/><circle cx="90" cy="{{ y2 }}" r="2.5" fill="#0b0b0b"/>
+    {%- endfor %}
+  </svg>
+  <div class="t5-legend">
+    <span><b>●</b> {{ L.t5_legend_both }}</span>
+    <span><b class="c-short">◇</b> {{ L.t5_legend_short }}</span>
+    <span><b class="c-long">◆</b> {{ L.t5_legend_long }}</span>
+    <span>{{ L.t5_legend_all.format(n=gp.n_total) }}</span>
+  </div>
+  <div class="t5-note fit" data-name="top5 note">{{ L.t5_note.format(bands=band_levels(gp)) }}{% if gp.past_inflated %}<br>{{ L.past_note }}{% endif %}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 4d. ภาพรวมทุกเทรนด์ (🆕 2026-09-30) =======================
+    ทุกเทรนด์เรียงตามคะแนนปีที่ 2 (ระยะสั้น) - เส้นประที่ค่ากลางตลาดคั่นก่อนแถวแรกที่ต่ำกว่าเส้น, เลขหน้าเติมด้วย fillPageRefs() -#}
+{% if gp and gp.all and gp.show_cumulative is not sameas false %}
+{#- 🆕 (2026-10-01) แถวสูงสุด 19px - หัวคอลัมน์ "แหล่งที่ยืนยัน" 2 บรรทัด + หมายเหตุข้อมูลกระโดดต้องการที่เพิ่ม -#}
+{%- set ov_h = [19, (318 / (gp.all | length)) | round(0, "floor")] | min -%}
+<section class="page" data-label="All Trends">
+  {{ bar_header(L.ov_header) }}
+  <div class="intro">{{ L.ov_intro.format(n=gp.n_total) }}</div>
+  {{ ov_table(gp, ov_h) }}
+  <div class="ov-note fit" data-name="overview note">{{ L.ov_note.format(bands=band_sentence(gp)) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= ภาพรวมทุกเทรนด์แบบกราฟจุดกระจาย CAGR x YoY (🆕 2026-10-19 แบบ D แทนหน้าตาราง) =======================
+    ปีที่ 2 (ระยะสั้น) กับปีที่ 5 (ระยะยาว) ข้างกัน · 1 จุด = 1 เทรนด์ เลขกำกับ = อันดับเดียวกับตารางภาพรวม (เรียงตามการเติบโตปีที่ 2)
+    ใต้กราฟมีรายชื่อเทรนด์ตามเลข + เลขหน้ารายละเอียด + ⚠ (แทนคอลัมน์หมายเหตุที่เอาออก) · แบ่งคอลัมน์รายชื่อให้ไม่เกิน 5 แถว -#}
+{% if gp and gp.scatter_view %}
+{%- set sv = gp.scatter_view -%}
+{%- set sk_cols = [((sv.key | length) + 4) // 5, 6] | min -%}
+<section class="page" data-label="All Trends CAGR and YoY">
+  {{ bar_header(L.m_both_header) }}
+  <div class="intro">{{ L.m_sc_intro.format(n=sv.n_total) }}</div>
+  <div class="sc-wrap">
+    <div class="sc-row">{{ scatter_svg(sv.short, "short", sv, gp.periods) }}{{ scatter_svg(sv.long, "long", sv, gp.periods) }}</div>
+    <div class="sc-legend">
+      <span><i class="dot up"></i>{{ L.ov_legend_above }}</span><span><i class="dot dn"></i>{{ L.ov_legend_below }}</span>
+      <span><i class="ln mk"></i>{{ L.ov_legend_market }}</span>
+      {%- if sv.any_decline %}<span><b class="c-warn">⚠</b> {{ L.ov_legend_decline }}</span>{% endif %}
+    </div>
+    <div class="sc-key" style="column-count:{{ sk_cols }}">
+      {%- for k in sv.key %}
+      <div class="{{ '' if k.above else 'below' }}"><b>{{ k.rank }}</b>{{ k.display_name or k.name }}
+        {%- if k.decline %} <span class="w">⚠</span>{% endif %}
+        {%- if k.missing %} <span class="pg">({{ L.na }})</span>{% endif %}
+        {%- if k.detail_rank %} <span class="pg">· {{ L.ov_page }} <span class="pgref" data-ref="Trend {{ k.detail_rank }}"></span></span>{% endif %}</div>
+      {%- endfor %}
+    </div>
+    <div class="sc-note fit" data-name="scatter note">{{ L.m_sc_note.format(bands=band_levels(gp)) }}</div>
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= ภาพรวมทุกเทรนด์ CAGR + YoY ในหน้าเดียว (🆕 2026-10-19 แทนหน้า CAGR + หน้า YoY แยก) =======================
+    เทรนด์/ลำดับ/เส้นแบ่ง/สีแท่งเหมือนหน้าภาพรวม - ปีที่ 1 ช่องเดียว (CAGR = YoY) ปีที่ 2-5 มีช่อง CAGR (แท่ง) ตามด้วยช่อง YoY (ตัวเลข)
+    แถวสูงสุด 18px (หัวตารางมีแถวหัวย่อยเพิ่ม) - กล่องหมายเหตุสูงกว่าหน้าอื่นเพราะอธิบาย 2 สูตร
+    legend + หมายเหตุวางตามความสูงตารางจริง: ตารางเริ่ม 84px + หัวตาราง ~52px + แถวเส้นแบ่ง 20px + เผื่อ 12px = 168 + (จำนวนแถว x ความสูงแถว)
+    legend มีสูงสุด 3 บรรทัด (~45px) แล้วต่อด้วยกล่องหมายเหตุ -#}
+{% if gp and gp.combined_view %}
+{%- set gb = gp.combined_view -%}
+{%- set ov_hb = [18, (268 / (gb.all | length)) | round(0, "floor")] | min -%}
+{%- set lg_top = 168 + (gb.all | length) * ov_hb -%}
+<section class="page" data-label="All Trends CAGR and YoY Table">
+  {{ bar_header(L.m_both_header) }}
+  <div class="intro">{{ L.m_both_intro.format(n=gb.n_total) }}</div>
+  {{ ov_table(gb, ov_hb, true, lg_top) }}
+  <div class="ov-note two fit" data-name="cagr yoy note" style="top:{{ lg_top + 48 }}px">{{ L.m_both_note.format(bands=band_levels(gb)) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= ภาพรวมทุกเทรนด์แบบ CAGR (🆕 2026-10-14 - ย้ายจากภาคผนวกมาต่อจากหน้าภาพรวม) =======================
+    ค่าเดียวกับหน้าภาพรวมทุกเทรนด์ (เทรนด์/ลำดับ/เส้นแบ่ง/สีแท่งเหมือนกัน) แปลงเป็น CAGR - เจ้าของงานขอไว้ดูเทียบเท่านั้น ไม่แก้หน้าอื่น -#}
+{% if gp and gp.cagr_view %}
+{%- set gc = gp.cagr_view -%}
+{%- set ov_hc = [19, (318 / (gc.all | length)) | round(0, "floor")] | min -%}
+<section class="page" data-label="All Trends CAGR">
+  {{ bar_header(L.m_cagr_header) }}
+  <div class="intro">{{ L.m_cagr_intro.format(n=gc.n_total) }}</div>
+  {{ ov_table(gc, ov_hc) }}
+  <div class="ov-note fit" data-name="cagr note">{{ L.m_cagr_note.format(bands=band_levels(gc)) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- 🆕 (2026-10-14) ภาคผนวก: ภาพรวมทุกเทรนด์แบบ YoY (เทียบปีก่อนหน้า) ต่อจากหน้า CAGR - ไว้ดูเทียบเท่านั้น -#}
+{% if gp and gp.yoy_view %}
+{%- set gy = gp.yoy_view -%}
+{%- set ov_hy = [19, (318 / (gy.all | length)) | round(0, "floor")] | min -%}
+<section class="page" data-label="All Trends YoY">
+  {{ bar_header(L.m_yoy_header) }}
+  <div class="intro">{{ L.m_yoy_intro.format(n=gy.n_total) }}</div>
+  {{ ov_table(gy, ov_hy) }}
+  <div class="ov-note fit" data-name="yoy note">{{ L.m_yoy_note.format(bands=band_levels(gy)) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 5. STEPIC ======================= -#}
+{% if ctx.stepic %}
+<section class="page" data-label="STEPIC">
+  {{ bar_header(L.stepic_header) }}
+  <div class="intro">{{ L.stepic_intro }}</div>
+  <div class="stepic-grid">
+    {% for s in ctx.stepic %}
+    <div class="st-tile dim-{{ s.dimension | lower }}">
+      <div class="st-head">{{ s.dimension_label or s.dimension }}</div>
+      <div class="st-body fit" data-name="stepic {{ s.dimension }}"><div class="hl">{{ s.headline }}</div>{{ s.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 6. Personas ======================= -#}
+{% if ctx.personas %}
+<section class="page" data-label="Personas">
+  {{ bar_header(L.personas_header) }}
+  <div class="persona-row">
+    {% for p in ctx.personas[:3] %}
+    <div class="persona">
+      <div class="p-head">{{ p.name }}</div>
+      <div class="p-body fit" data-name="persona {{ loop.index }}">
+        {{ p.description }}
+        {% if p.value_driver %}<span class="k">{{ L.value_driver }}</span>{{ p.value_driver }}{% endif %}
+        {% if p.channel_preference %}<span class="k">{{ L.preferred_channels }}</span>{{ p.channel_preference }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 6b. Trend Drivers (heatmap เทรนด์ x แรงขับ STEPIC + persona) ======================= -#}
+{#- ระดับต่อช่องจาก trend_links.link_trends (LLM ตัดสิน 0/1/2 พร้อมหลักฐาน) - lvx = เทรนด์ที่ไม่ได้ผล -#}
+{% if ctx.links_summary %}
+{%- set ls = ctx.links_summary -%}
+{%- set pers = ctx.personas[:3] -%}
+<section class="page" data-label="Trend Drivers">
+  {{ bar_header(L.dr_header) }}
+  <div class="intro">{{ L.dr_intro }}</div>
+  <table class="hm">
+    {#- table-layout: fixed เอาความกว้างจากแถวแรก (แถวหัวกลุ่มที่เป็น colspan) - ต้องกำหนดผ่าน colgroup -#}
+    <colgroup><col class="w-r"><col class="w-nm">{% for s in ctx.stepic %}<col class="w-f">{% endfor %}<col class="w-gap">
+      {%- for p in pers %}<col class="w-p">{% endfor %}</colgroup>
+    <thead>
+      <tr class="grp"><th colspan="2"></th><th colspan="{{ ctx.stepic | length }}">{{ L.dr_forces }}</th><th class="gap"></th>
+        <th colspan="{{ pers | length }}">{{ L.dr_personas }}</th></tr>
+      <tr class="cols"><th class="r">#</th><th class="nm"></th>
+        {% for s in ctx.stepic %}<th class="f">{{ s.dimension_label or s.dimension }}</th>{% endfor %}<th class="gap"></th>
+        {% for p in pers %}<th class="p">{{ p.name }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+    {% for t in trends %}
+    <tr>
+      <td class="r">{{ t.rank }}</td><td class="nm">{{ t.display_name or t.name }}</td>
+      {% for s in ctx.stepic %}<td class="c"><i class="lv{{ t.links.stepic[s.dimension].level if t.links else 'x' }} dim-{{ s.dimension | lower }}"></i></td>{% endfor %}
+      <td class="gap"></td>
+      {% for p in pers %}<td class="c"><i class="lv{{ t.links.personas[loop.index0].level if t.links else 'x' }} per"></i></td>{% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td></td><td class="nm">{{ L.dr_total }}</td>
+      {% for s in ctx.stepic %}<td class="c">{{ ls.stepic[s.dimension].main }}</td>{% endfor %}<td class="gap"></td>
+      {% for p in pers %}<td class="c">{{ ls.personas[loop.index0].main }}</td>{% endfor %}</tr></tfoot>
+  </table>
+  <div class="hm-legend"><span><i class="lv2 per"></i>{{ L.dr_main }}</span><span><i class="lv1 per"></i>{{ L.dr_some }}</span>
+    <span><i class="lv0"></i>{{ L.dr_none }}</span></div>
+  <div class="ev-note">{{ L.dr_note }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 7. Signals + Outlook ======================= -#}
+{% if ctx.signals or tk.projection %}
+<section class="page" data-label="Signals">
+  {{ bar_header(L.signals_header) }}
+  <div class="sig-list">
+    {% for s in ctx.signals[:4] %}
+    <div class="sig">
+      <div class="dims">{{ s.dimensions }}</div>
+      <div class="body fit" data-name="signal {{ loop.index }}">{{ s.signal }}<div class="imp">{{ s.implication }}</div></div>
+    </div>
+    {% endfor %}
+    {% if tk.projection %}
+    <div class="sig outlook">
+      <div class="dims">{{ L.next_3_months }}</div>
+      <div class="body fit" data-name="outlook">{{ tk.projection }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+{#- ======================= 8. หน้าคั่น ======================= -#}
+<section class="page" data-label="Consumer Insights">
+  <div class="div-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ L.consumer_insights }}</h1>
+    <div class="sub">{{ L.divider_sub.format(n=meta.top_n) }}</div>
+  </div>
+  <div class="div-body fit" data-name="how to read">
+    <p>{{ L.divider_text }}</p>
+    <div class="legend">
+      <b>{{ L.short_term }}</b><span>{{ L.short_term_def }}</span>
+      <b>{{ L.long_term }}</b><span>{{ L.long_term_def }}</span>
+      <b>{{ L.durability }}</b><span>{{ L.durability_def }}</span>
+      <b>{{ L.breadth }}</b><span>{{ L.breadth_def }}</span>
+    </div>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 9. เทรนด์ละ 2 หน้า (เดิม 3 - คำถาม Workshop ย้ายมาเป็นแถบล่างของหน้าแรก) ======================= -#}
+{% for t in trends %}
+<section class="page" data-label="Trend {{ t.rank }}">
+  {{ trend_head(t, t.text.headline) }}
+  {%- set g = t.growth or {} -%}
+  {%- set fc = g.forecast_cagr or [] -%}
+  {%- set sy, ly = (ctx.growth.short_year if ctx.growth else SHORT_YEAR), (ctx.growth.long_year if ctx.growth else LONG_YEAR) -%}
+  {%- set past_inflated = ctx.growth and ctx.growth.past_inflated and g.past_growth_pct is number -%}
+  <div class="kpis">
+    {#- 🆕 (2026-10-02) % ที่คาด (เทียบ 12 เดือนล่าสุด) ปีที่ 2 / ปีที่ 5 แทนแถบ "เร็ว/ช้ากว่าตลาด" -#}
+    {%- for label, y in [(L.kpi_short, sy), (L.kpi_long, ly)] %}
+    <div class="kpi"><span class="l">{{ label }}</span>
+      <span class="v">{{ pct(fc[y - 1]) if fc | length >= y else L.na }}<small>{{ L.kpi_cagr_sub }}</small></span>
+      <span class="s">{{ L.t5_period.format(y=y, period=(ctx.growth.periods["y" ~ y] if ctx.growth else L.na)) }}</span></div>
+    {%- endfor %}
+    <div class="kpi"><span class="l">{{ L.kpi_past }}{{ L.past_mark if past_inflated }}</span>
+      <span class="v">{{ pct(g.past_growth_pct) }}<small>{{ L.vs_prev12 }}</small></span>
+      <span class="s">{% if g.recent_decline %}<b class="warn">{{ L.ov_decline }}</b>{% elif g.recent_change_pct is number %}{{ L.kpi_recent.format(v=pct(g.recent_change_pct)) }}{% endif %}</span></div>
+    <div class="kpi"><span class="l">{{ L.kpi_sources }}</span>
+      <span class="v">{{ t.stream_count or L.na }}<small>{{ L.of_3 }}</small>{{ src_dots(t.stream_count) }}</span>
+      <span class="s">{{ L.kpi_longevity.format(v=(t.longevity_score if t.longevity_score is number else L.na)) }}{{ grade(t.long_term_grade) }}</span></div>
+  </div>
+  {% if past_inflated %}<div class="kpi-note">{{ L.past_note }}</div>{% endif %}
+  <div class="t-row">
+    <div class="t-chart">
+      <div class="cap"><b>{{ L.chart_caption }}{% if meta.data_as_of %}{{ L.chart_caption_end.format(end=meta.data_as_of) }}{% endif %}</b>
+        <span class="lg"><i class="cagr"></i>{{ L.legend_cagr }}</span><span class="lg"><i class="yoy"></i>{{ L.legend_yoy }}</span></div>
+      {% if charts[t.name] %}<img src="{{ charts[t.name] }}" alt="{{ L.chart_alt }}">{% else %}<div class="ph" style="height:188px;font-size:12px">{{ L.no_history }}</div>{% endif %}
+      <div class="kw"><span class="k">{{ L.tracked_keywords }}</span>{% for k in t.keywords[:4] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
+    </div>
+    <div class="t-text fit" data-name="trend text">
+      {% if t.target %}<p class="tgt"><span class="k">{{ L.target_consumer }}</span>{{ t.target }}</p>{% endif %}
+      {#- Means-End 3 บรรทัด (enrich.condense_means_end) - ไม่มีผล LLM ใช้ย่อหน้า Trend/Insight เดิม -#}
+      {% if t.ladder %}
+      <div class="ladder">
+        {% for f in ["difference", "benefit", "feeling"] if t.ladder[f] %}
+        <div class="rung r-{{ f }}"><span class="k">{{ L["ladder_" ~ f] }}</span><span class="v">{{ t.ladder[f] }}</span></div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p><b>{{ L.trend_label }}</b> {{ t.text.trend }}</p>
+      <p><b>{{ L.insight_label }}</b> {{ t.text.insight }}</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="ws">
+    <div class="k">{{ L.workshop_question }}<span>{{ L.overlooked.format(n=t.rank) }}</span></div>
+    <div class="q fit" data-name="workshop question" data-min="9">{{ t.text.workshop_question }}</div>
+  </div>
+  {#- คะแนนปีที่ 2 (ระยะสั้น) = สัดส่วนคีย์เวิร์ดในตลาดที่คาดว่าเพิ่มน้อยกว่าเทรนด์นี้ (growth_score) -> แสดงเป็น % แทนเลข 0-1 -#}
+  {%- set s1 = g.scores[sy - 1] if g.scores and g.scores | length >= sy else none -%}
+  {%- set facts = [L.cagr_fact] + ([L.rank_score.format(v=([(s1 * 100) | round | int, 99] | min))] if s1 is number else [])
+                  + ([L.months_with_data.format(pct=(t.pct_months_with_data | round(1)))] if t.pct_months_with_data is number else []) -%}
+  <div class="t-facts">{{ facts | join(" · ") }}</div>
+  {{ footer() }}
+</section>
+
+{% if t.l2 %}
+{#- 🆕 (2026-10-21) หน้าสินค้า = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 อย่างเดียว (เจ้าของงานสั่ง - ไม่แยกชนิดสินค้า/ช่วงราคา):
+    สินค้าทุกชิ้นของหมวดหลักถูกวางตามอันดับความใกล้เทรนด์ในหมวด (คอลัมน์ 4 ระดับ) x ยอดขาย Konvy เทียบในหมวด (แถว ขายดี/ปานกลาง/ขายช้า) ทุกช่องแสดงสินค้าที่ใกล้เทรนด์
+    ที่สุดในช่อง - ไม่แสดงจำนวนสินค้าต่อช่อง/คอลัมน์/แถว และไม่มีแถว "ไม่มีข้อมูลยอดขาย" (เจ้าของงานสั่ง); ข้อมูลจาก ⑫ --l2-map-only (l2_map.py)
+    รอบที่ไม่มีไฟล์แผนที่ใช้หน้าแบบเดิมด้านล่าง -#}
+{%- set l2 = t.l2 -%}
+{%- set final_of = {"strong": {"excellent": "excellent", "good": "good", "average": "good", "below_average": "below_average"},
+                    "steady": {"excellent": "good", "good": "good", "average": "average", "below_average": "below_average"},
+                    "slow": {"excellent": "good", "good": "average", "average": "below_average", "below_average": "below_average"}} -%}
+{%- set x_sub = {"excellent": L.l2_x_first.format(p=l2.cuts.excellent), "good": L.l2_x_mid.format(a=l2.cuts.excellent, b=l2.cuts.good),
+                 "average": L.l2_x_mid.format(a=l2.cuts.good, b=l2.cuts.average), "below_average": L.l2_x_last.format(p=l2.cuts.average)} -%}
+{%- set y_sub = {"strong": L.l2_y_strong_sub.format(p=l2.sales.strong_top_pct), "steady": L.l2_y_steady_sub,
+                 "slow": L.l2_y_slow_sub.format(p=l2.sales.slow_bottom_pct)} -%}
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.l2_sub.format(n="{:,}".format(l2.n), category=l2.category)) }}
+  <div class="l2-map">
+    <div class="l2-corner">{{ L.l2_corner_y }}<br>{{ L.l2_corner_x }}</div>
+    {% for c in l2.cols %}
+    <div class="l2-ch"><i class="lv-{{ c.level }}"></i><b>{{ L["l2_lv_" ~ c.level] }}</b><span>{{ x_sub[c.level] }}</span></div>
+    {% endfor %}
+    {% for r in l2.rows if r.state != "unknown" %}
+    <div class="l2-rh r-{{ r.state }}"><b>{{ L["l2_y_" ~ r.state] }}</b><span>{{ y_sub[r.state] }}</span></div>
+    {% for c in l2.cols %}
+    {%- set p = l2.cells[r.state ~ "|" ~ c.level].product -%}
+    <div class="l2-cell tint-{{ final_of[r.state][c.level] }}">
+      {% if p %}
+      {%- set sv = p.sales -%}
+      <div class="card"><div class="im">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph"></div>{% endif %}</div>
+        <div class="tx"><div class="nm">{% set br = p.brand or "" %}{% if br and p.name.lower().startswith(br.lower()) %}<b>{{ p.name[:br | length] }}</b>{{ p.name[br | length:] }}{% else %}{% if br %}<b>{{ br }}</b> {% endif %}{{ p.name }}{% endif %}</div>
+          <div class="mt">{{ p.price_thb | thb }}{% if (p | ulabel) %} · {{ p | ulabel }}{% endif %}</div>
+          <div class="mt">{{ L.l2_card_match.format(rank="{:,}".format(p.rank)) }}</div>
+          <div class="mt">{% if sv.soldout %}{{ L.l2_soldout }}{% elif sv.zero %}{{ L.l2_zero }}{% else %}{{ L.l2_sales_top.format(p=sv.top_pct) }}{% endif %}</div>
+          {#- ยอดขายแยกบรรทัด (ข้อความไทยยาว - ช่องแคบ 4 คอลัมน์) -#}
+          {% if sv.soldout and sv.reviews is number %}<div class="mt">{{ L.l2_review1 if sv.reviews == 1 else L.l2_reviews.format(n="{:,}".format(sv.reviews)) }}</div>
+          {% elif not sv.soldout and not sv.zero and sv.sold is number and sv.sold %}<div class="mt">{{ L.l2_sold.format(n="{:,}".format(sv.sold)) }}</div>{% endif %}</div></div>
+      {% else %}<div class="empty">{{ L.l2_empty }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+  <div class="l2-take">{{ L.l2_take.format(p=l2.take.close_pct, s=l2.take.strong_close, l=l2.take.slow_close, category=l2.category,
+                                           sa=l2.take.strong_all, la=l2.take.slow_all) }}</div>
+  <div class="ev-note">{{ L.l2_note.format(category=l2.category, total="{:,}".format(l2.n), p1=l2.cuts.excellent) }}</div>
+  {{ footer() }}
+</section>
+{% elif t.categories %}
+{#- หน้าสินค้าแยกหมวด (⑫ by_category) - สีคอลัมน์ตามหมวดแม่ cat-c0..3 ตรงกับแถบสัดส่วนด้านบน; หัวคอลัมน์ 2 บรรทัด:
+    บรรทัดเล็ก = หมวดแม่ (หรือ "ทุกชนิดสินค้า" ถ้าไม่ได้แตก) บรรทัดหลัก = ชนิดสินค้า/หมวด -#}
+{%- set tc = t.categories -%}
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.cat_sub_main.format(category=tc.main_category) if tc.main_category else L.cat_sub) }}
+  <div class="cat-dist">
+    {%- set pool = tc.pool_size or 1 -%}
+    {#- 🆕 (2026-10-08) หมวดหลักที่ LLM เลือก: แถบ = ชนิดสินค้า (L4) ในหมวดนั้น จากสินค้าที่ใกล้เทรนด์ที่สุดในหมวด -#}
+    {% if tc.main_category %}
+    <div class="h">{{ L.cat_dist_main.format(n=tc.pool_size, category=tc.main_category) }}
+      <span>{{ L.cat_dist_main_of.format(total="{:,}".format(tc.main_n_total or 0)) }}</span></div>
+    {% else %}
+    <div class="h">{{ L.cat_dist.format(n=tc.pool_size) }}
+      <span>{{ L.cat_dist_of.format(pct=tc.pool_pct, total="{:,}".format(t.n_products_compared or 0)) }}</span></div>
+    {% endif %}
+    <div class="bar">{% for d in tc.distribution %}<i class="{{ 'cat-c' ~ loop.index0 if d.group and loop.index0 < 4 else ('cat-rest' if d.group else 'cat-other') }}" style="width:{{ (d.n / pool * 100) | round(2) }}%"></i>{% endfor %}</div>
+    <div class="leg">{% for d in tc.distribution %}<span><i class="{{ 'cat-c' ~ loop.index0 if d.group and loop.index0 < 4 else ('cat-rest' if d.group else 'cat-other') }}"></i>{{ d.group or (L.cat_other_main if tc.main_category else L.cat_other) }} <b>{{ d.n }}</b></span>{% endfor %}</div>
+  </div>
+  <div class="cat-cols{% if ctx.meta.tier_basis == 'unit_price' %} unit{% endif %}" style="grid-template-columns: repeat({{ tc.categories | length }}, 1fr)">
+    {% for c in tc.categories %}
+    {#- สีตามหมวดแม่ (L2) ในแถบสัดส่วน - คอลัมน์ที่แตกเป็นชนิดสินค้าจากหมวดเดียวกันจึงสีเดียวกัน -#}
+    {%- set ci = c.color -%}
+    <div class="cat-col">
+      <div class="ch cat-c{{ ci }}"><span class="pa">{{ c.parent if c.subgroup else L.cat_all_types }}</span>{{ c.subgroup or c.group }}</div>
+      <div class="cs">{{ L.cat_count.format(n=c.n_pool, total="{:,}".format(c.n_total or 0)) }}<br>
+        {%- if c.price_tiers %}{{ L.cat_by_price.format(parts=tier_parts(c.price_tiers)) }}
+        {%- elif c.median_price_thb is number %}{{ L.cat_price.format(median=(c.median_price_thb | thb), lo="{:,.0f}".format(c.min_price_thb), hi="{:,.0f}".format(c.max_price_thb)) }}{% endif %}</div>
+      {% if c.price_tiers %}
+      {#- 🆕 (2026-10-07) แถว = ช่วงราคาตลาดของคอลัมน์ (ต่ำ/กลาง/สูง) แต่ละแถวคือชิ้นที่ใกล้เทรนด์ที่สุดในช่วงนั้น -#}
+      {% for tr in c.price_tiers %}
+      {%- set p = tr.product -%}
+      <div class="cp tiered">
+        {#- 🆕 (2026-10-12) ช่วงราคาต่อปริมาณ: ป้ายช่วง = ฿ ต่อ ml/g/ชิ้น ของช่วงนั้นในคอลัมน์ (ไม่ใช่ช่วงบาทของราคาขาย) -#}
+        {%- set unit_mode = ctx.meta.tier_basis == "unit_price" -%}
+        <div class="tl"><b>{{ L["tier_" ~ tr.label] }}</b> {% if unit_mode %}{{ tr | urange }}{% else %}{{ L.thb.format(v="{:,}-{:,}".format(tr.price_from, tr.price_to)) }}{% endif %}</div>
+        {% if p %}
+        <div class="im">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph">{{ p.brand }}</div>{% endif %}</div>
+        <div class="inf">
+          <div class="nm">{{ p.name }}</div>
+          <div class="br"><span>{{ p.brand }}</span><b>{{ p.price_thb | thb }}</b></div>
+          {%- if unit_mode and (p | ulabel) %}<div class="un">{{ p | ulabel }}</div>{% endif %}
+          <div class="sim"><span class="tr"><i class="cat-c{{ ci }}" style="width:{{ ((p.similarity or 0) / (tc.max_similarity or 1) * 100) | round(1) }}%"></i></span>
+            {%- if p.rank_in_market %}{{ L.cat_rank.format(n="{:,}".format(p.rank_in_market)) }}{% else %}{{ p.similarity | num(2) }}{% endif %}</div>
+        </div>
+        {% else %}<div class="inf none">-</div>{% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      {% for p in c.products %}
+      <div class="cp">
+        <div class="im">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph">{{ p.brand }}</div>{% endif %}</div>
+        <div class="inf">
+          <div class="nm">{{ p.name }}</div>
+          <div class="br"><span>{{ p.brand }}</span><b>{{ p.price_thb | thb }}</b></div>
+          <div class="sim"><span class="tr"><i class="cat-c{{ ci }}" style="width:{{ ((p.similarity or 0) / (tc.max_similarity or 1) * 100) | round(1) }}%"></i></span>
+            {#- 🆕 (2026-10-01) ตัดเลขความใกล้ 0-1 ออก (ไม่มีหน่วยให้อ่าน) เหลืออันดับในร้าน - แถบยังบอกความใกล้เทียบชิ้นแรก -#}
+            {%- if p.rank_in_market %}{{ L.cat_rank.format(n="{:,}".format(p.rank_in_market)) }}{% else %}{{ p.similarity | num(2) }}{% endif %}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="ev-note">{{ (L.cat_note_main if tc.main_category else (L.cat_note_tiers if tc.has_tiers else L.cat_note)).format(category=tc.main_category, n="{:,}".format(t.n_products_compared or 0)) }}</div>
+  {{ footer() }}
+</section>
+{% elif t.no_products %}
+{#- 🆕 (2026-10-14) เทรนด์เหนือดัชนีตลาดที่จับคู่สินค้าไม่ได้ (ช่องทางการขาย / ข้อมูลไม่พอ): หน้าบอกว่าไม่พบสินค้าในตลาด
+    (คำอธิบายเทรนด์อยู่ในหน้าแรกของเทรนด์) -#}
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.np_sub) }}
+  <div class="np-box">
+    <div class="np-h">{{ L.np_title }}</div>
+    <div class="np-b">{{ L["np_" ~ t.no_products] }}</div>
+  </div>
+  {{ footer() }}
+</section>
+{% else %}
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.evidence_sub) }}
+  {% if t.products %}
+  <div class="prod-row">
+    {% for p in t.products %}
+    <div class="prod">
+      <div class="img">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph">{{ p.brand }}</div>{% endif %}</div>
+      <div class="info">
+        <div class="nm">{{ p.name }}</div>
+        <div class="br">{{ p.brand }}{% if p.category %} · {{ p.category }}{% endif %}</div>
+        <div class="meta"><span>{{ p.price_thb | thb }}</span></div>
+        <div class="why fit" data-name="match reason" data-min="6.5">{{ p.reason }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="prose">{{ L.no_products }}</div>
+  {% endif %}
+  {%- set stats = L.evidence_stats.format(best=(t.similarity_stats.max | num(2)), mean=(t.similarity_stats.mean | num(2)),
+                                           n="{:,}".format(t.n_products_compared or 0)) if t.similarity_stats.max is defined else "" %}
+  <div class="ev-note">{{ L.evidence_note.format(stats=stats) }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+{% endfor %}
+
+{#- ======================= 10. Appendix ======================= -#}
+<section class="page" data-label="Methodology">
+  {{ bar_header(L.method_header) }}
+  <div class="ap-grid">
+    <div class="ap-box fit" data-name="method 1"><h3>{{ L.method_1_title }}</h3>
+      {{ L.method_1.format(total=(L.method_1_total.format(n=meta.n_trends_total) if meta.n_trends_total else "")) }}</div>
+    <div class="ap-box fit" data-name="method 2"><h3>{{ L.method_2_title }}</h3>
+      {{ L.method_2.format(years=(meta.years or L.few)) }}</div>
+    <div class="ap-box fit" data-name="method 3"><h3>{{ L.method_3_title }}</h3>
+      {%- set n_np = trends | selectattr("no_products") | list | length -%}
+      {{ L.method_3.format(n=meta.top_n, np_note=(L.method_3_np.format(k=n_np) if n_np else L.method_3_np_none)) }}</div>
+    <div class="ap-box fit" data-name="method 4"><h3>{{ L.method_4_title }}</h3>
+      {%- set cat_trends = trends | selectattr("categories") | list -%}
+      {%- set l2_trends = trends | selectattr("l2") | list -%}
+      {#- 🆕 (2026-10-21) มีหน้าแผนที่หมวด L2 = คำอธิบายวิธีของหน้านั้น (เส้นตัดมาจาก config เดียวกับ ⑰) -#}
+      {% if l2_trends %}{%- set ref = l2_trends[0].l2 -%}
+      {{ L.method_4_l2.format(n="{:,}".format(meta.n_products_compared or 0), p1=ref.cuts.excellent, p2=ref.cuts.good, p3=ref.cuts.average,
+                              s1=ref.sales.strong_top_pct, s2=ref.sales.slow_bottom_pct) }}
+      {% else %}
+      {{ (L.method_4_main if cat_trends | map(attribute="categories") | selectattr("main_category") | list
+          else (L.method_4_tiers if cat_trends | map(attribute="categories") | selectattr("has_tiers") | list
+          else (L.method_4_cat if cat_trends else L.method_4))).format(n="{:,}".format(meta.n_products_compared or 0)) }}
+      {% endif %}</div>
+  </div>
+  {{ footer() }}
+</section>
+
+<section class="page" data-label="Notes">
+  {{ bar_header(L.notes_header) }}
+  <div class="ap-cols{% if source_rows %} with-src{% endif %}">
+    <div class="ap-box fit" data-name="run details">
+      <h3>{{ L.run_details }}</h3>
+      <div class="kv2">
+        <span class="k">{{ L.topic }}</span><span>{{ meta.topic }}</span>
+        <span class="k">{{ L.run_id }}</span><span>{{ meta.run_id }}</span>
+        <span class="k">{{ L.data_collected }}</span><span>{{ run_date | date_long }}</span>
+        <span class="k">{{ L.report_generated }}</span><span>{{ generated_at | date_long(true) }}</span>
+        <span class="k">{{ L.forecast_window }}</span><span>{{ meta.forecast_start or L.na }} - {{ meta.forecast_end or L.na }}</span>
+        <span class="k">{{ L.language_models }}</span><span>{{ meta.models_used | join(", ") or L.na }}</span>
+        <span class="k">{{ L.report_copy }}</span><span>{{ text_sources }}</span>
+      </div>
+      {#- รายชื่อเทรนด์ที่ถูกข้าม (ctx.excluded) ไม่แสดงในรายงานแล้ว (feedback 2026-09-30) - ยังเก็บใน
+          phase6_report_context.json ไว้ตรวจย้อนหลัง -#}
+    </div>
+    <div class="ap-box fit" data-name="limitations">
+      <h3>{{ L.how_to_use }}</h3>
+      <p>{{ L.how_to_use_text }}</p>
+      {% if ctx.missing %}
+      <h3 style="margin-top:.9em">{{ L.data_not_available }}</h3>
+      <ul>{% for m in ctx.missing %}<li>{{ m }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    {#- 🆕 (2026-10-14) แหล่งที่มาของข้อมูล: แถวต่อแหล่ง (i18n.source_rows) - แหล่งที่รอบนี้ไม่มีข้อมูลไม่แสดง -#}
+    {% if source_rows %}
+    <div class="ap-box src-box" data-name="data sources">
+      <h3>{{ L.data_sources }}</h3>
+      <div class="src-grid">
+        {% for name, detail in source_rows %}
+        <span class="k">{{ name }}</span><span>{{ detail }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {{ footer() }}
+</section>
+
+{#- 🆕 (2026-10-14) หน้ารายการแหล่งข้อมูล (หัวข้อ + URL) ท้ายเล่ม - ไม่มีเอกสารเลย = ไม่มีหน้า; เอกสารที่ไม่มีลิงก์แสดงแค่ชื่อ -#}
+{% if source_docs %}
+<section class="page" data-label="Sources">
+  {{ bar_header(L.data_docs_header) }}
+  <div class="doc-list fit" data-name="source list" data-min="5">
+    {% for g in source_docs %}
+    <div class="doc-group">
+      <h3>{{ g.label }}</h3>
+      {% for d in g.docs %}
+      <div class="doc">
+        <span class="n">{{ loop.index }}</span>
+        <div class="b">
+          <div class="t">{% if d.platform %}<span class="pf">{{ d.platform }}</span> {% endif %}{{ d.name }}</div>
+          {% if d.url %}<a class="u" href="{{ d.url }}">{{ d.shown }}</a>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
+
+<script>
+// 🆕 (2026-09-30) เลขหน้ารายละเอียดในหน้าภาพรวมทุกเทรนด์: <span class="pgref" data-ref="Trend 3"> -> ลำดับของ
+// section.page ที่ data-label ตรงกัน (เลขหน้าที่พิมพ์ = counter(page) ซึ่งนับทุก .page ตามลำดับ)
+function fillPageRefs() {
+  const pages = Array.from(document.querySelectorAll("section.page"));
+  for (const el of document.querySelectorAll(".pgref[data-ref]")) {
+    const i = pages.findIndex((p) => p.dataset.label === el.dataset.ref);
+    el.textContent = i >= 0 ? String(i + 1) : "–";
+  }
+}
+document.addEventListener("DOMContentLoaded", fillPageRefs);
+
+// ย่อฟอนต์ของกล่อง .fit ทีละ 0.25px จนข้อความพอดีกล่อง (ไม่ต่ำกว่า data-min, ค่าเริ่มต้น 7px)
+// คืนรายชื่อกล่องที่ยังล้น ให้ Python พิมพ์เตือน - เรียกจาก render.py ก่อนสั่งพิมพ์ PDF
+window.fitAll = async function () {
+  fillPageRefs();
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

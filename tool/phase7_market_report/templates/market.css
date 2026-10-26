@@ -1,0 +1,108 @@
+/* ⑲ รายงานส่วนแบ่งตลาด - ส่วนเพิ่มจาก style.css ของ ⑯ (หน้า 16:9 960 x 540, ปก, แถบหัวดำ, .ap-*, .t-head)
+   สีกลางเสมอ: แถบ/กราฟสีน้ำเงินสีเดียว ไม่ใช้เขียว/แดงบอกขึ้นลง (รายงานไม่ตัดสินว่าแบรนด์ไหนชนะหรือแพ้) */
+.muted { color: var(--ink-3); }
+
+/* ---------- ปก: ชื่อรายงานยาว 2 บรรทัด (style.css ตั้งไว้ 1 บรรทัด จะทับคำบรรยาย) + ตัวเลขหลักแทนรูปสินค้า ---------- */
+.cover-top h1 { top: 132px; font-size: 36px; }
+.cover-kpi { flex: 1; background: #ffffff; padding: 18px 20px; display: flex; flex-direction: column; justify-content: center; }
+.cover-kpi + .cover-kpi { border-left: 1px solid var(--line); }
+.cover-kpi .v { font-size: 26px; font-weight: 600; line-height: 1.15; }
+.cover-kpi .l { font-size: 11px; color: var(--ink-2); margin-top: 4px; line-height: 1.3; }
+
+/* ---------- สรุป ---------- */
+.sm-left { position: absolute; left: 24px; top: 76px; width: 420px; bottom: 34px; display: flex; flex-direction: column; gap: 8px; }
+.sm-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sm-stats .stat { height: 92px; }
+.sm-stats .val { font-size: 20px; }
+.how-box { flex: none; max-height: 220px; background: var(--card); padding: 10px 13px; font-size: 11.5px; line-height: 1.45; border-left: 3px solid var(--accent); }
+.how-box h3 { font-size: 1.05em; font-weight: 700; margin-bottom: .3em; }
+.sm-right { position: absolute; left: 468px; right: 24px; top: 76px; bottom: 34px; display: flex; flex-direction: column; }
+.sm-right .ex-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.sm-msgs { flex: 1; min-height: 0; font-size: 13px; line-height: 1.45; padding-left: 1.3em; }
+.sm-msgs li + li { margin-top: .55em; }
+
+/* ---------- มูลค่าตลาด ---------- */
+.mk-wrap { position: absolute; left: 24px; right: 24px; top: 74px; bottom: 50px; font-size: 11.5px; }
+table.mk { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.mk th { text-align: left; font-size: .85em; color: var(--ink-2); font-weight: 600; padding: 0 6px 5px; border-bottom: 1.5px solid var(--ink); }
+table.mk td { padding: 2px 6px; border-bottom: 1px solid var(--line); height: 33px; vertical-align: middle; }
+table.mk .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.mk th.num { white-space: normal; line-height: 1.2; }   /* หัวคอลัมน์ "Expected a year 2025-2030" ล้นขอบถ้าไม่ตัดบรรทัด */
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.bar { height: 14px; background: var(--series); flex: none; }
+.bar-v { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mk-note { position: absolute; left: 24px; right: 24px; bottom: 30px; font-size: 9px; color: var(--ink-2); }
+
+/* ---------- ภาพรวมปัจจัย (แบบ A) ---------- */
+.ov-intro { position: absolute; left: 24px; right: 24px; top: 66px; font-size: 10.5px; color: var(--ink-2); }
+.ov-wrap { position: absolute; left: 24px; right: 24px; top: 86px; bottom: 32px; font-size: 10.5px; }
+table.ovf { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.ovf th { text-align: left; font-size: .9em; color: var(--ink-2); font-weight: 600; padding: 0 6px 4px; border-bottom: 1.5px solid var(--ink); }
+table.ovf td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.3; }
+table.ovf .fl { font-weight: 700; }
+table.ovf .tag { display: block; font-size: .82em; color: var(--ink-3); font-weight: 400; }
+table.ovf .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.ovf .seen div + div { margin-top: 1px; }
+
+/* ---------- รายการสิ่งที่แหล่งข้อมูลรายงาน (ใช้ทั้งหน้าปัจจัยและหน้าแบรนด์) ---------- */
+.data-box { background: var(--card); padding: 7px 11px; font-size: 10.5px; line-height: 1.4; border-left: 3px solid var(--series); }
+.data-box .dl + .dl { margin-top: 2px; }
+.fd-list { font-size: 11px; line-height: 1.38; }
+.fd { padding: 4px 0 5px; border-bottom: 1px solid var(--line); }
+.fd:first-child { padding-top: 0; }
+.fd .subj { display: inline-block; font-size: .78em; font-weight: 700; color: #ffffff; background: var(--ink-2); padding: 0 6px; margin-right: 6px; line-height: 1.6; vertical-align: 1px; }
+.fd .cite { font-size: .8em; color: var(--series); font-weight: 600; white-space: nowrap; }
+.fd .rel { display: block; font-size: .75em; color: var(--ink-3); margin-top: 1px; }
+.fd.bg { color: var(--ink-2); }
+.fcol-foot { font-size: 9.5px; color: var(--ink-2); line-height: 1.35; }
+
+/* ---------- ปัจจัย: 2 คอลัมน์ต่อหน้า, 1 คอลัมน์ = 1-3 ปัจจัยซ้อนกัน (🆕 2026-10-14 จัดตามความสูงเนื้อหา)
+   ขนาดตัวอักษรในคอลัมน์ใช้ em ทั้งหมด -> fitAll() ย่อทั้งคอลัมน์พร้อมกันเมื่อประมาณความสูงพลาด
+   (plan_columns ใช้ COLUMN_PX = 436 = 540 - 72 - 30 - 2 : แก้สองที่นี้ให้ตรงกัน) ---------- */
+.fx2 { position: absolute; left: 24px; right: 24px; top: 72px; bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.fcol { display: flex; flex-direction: column; gap: 16px; min-height: 0; font-size: 11px; }
+.fblock { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.fcol-h { font-size: 1.36em; font-weight: 700; border-bottom: 1.5px solid var(--ink); padding-bottom: 3px; }
+.fcol-h .tag { font-size: .67em; font-weight: 400; color: var(--ink-3); margin-left: 8px; }
+.fcol .data-box { font-size: .955em; }
+.fcol .fd-list { font-size: 1em; }
+.fcol .fcol-foot { font-size: .86em; }
+
+/* ---------- แบรนด์: 3 แบรนด์ต่อหน้า ---------- */
+.bx3 { position: absolute; left: 24px; right: 24px; top: 68px; bottom: 30px; display: grid; grid-template-rows: repeat(3, 1fr); gap: 6px; }
+.brow { display: grid; grid-template-columns: 250px 200px 1fr; column-gap: 14px; min-height: 0; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.brow:last-child { border-bottom: 0; }
+.bchart { min-height: 0; display: flex; flex-direction: column; }
+.bname { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.bcap { font-size: 8.5px; color: var(--ink-2); line-height: 1.3; }
+.bchart img { width: 250px; height: 102px; display: block; }
+/* 🆕 2026-10-14 กล่องข้อเท็จจริงว่างเกือบครึ่ง (ตัวอักษร 10px) -> 10.5px / เว้นบรรทัดมากขึ้น: อ่านง่ายขึ้นและเต็มกล่อง
+   (กล่องที่มีข้อมูลมาก เช่น 2 หมวด fitAll ย่อให้เอง) */
+.bfacts { background: var(--card); padding: 7px 9px; font-size: 10.5px; line-height: 1.35; min-height: 0; }
+.bfacts > div + div { margin-top: 2px; }
+.bfacts .k { color: var(--ink-2); }
+.bfacts .share { font-weight: 600; }
+.bfacts .note { font-size: .9em; color: var(--ink-2); }
+.bfind { font-size: 10.5px; min-height: 0; }
+
+/* ---------- วิธีการ + การเปลี่ยนแปลงที่ยังไม่พบคำอธิบาย ---------- */
+.ap-grid.with-missing { bottom: 100px; }
+.miss-strip { position: absolute; left: 22px; right: 22px; bottom: 34px; height: 58px; background: var(--card); border-left: 3px solid var(--accent);
+              padding: 7px 12px; font-size: 11px; line-height: 1.4; }
+
+/* ---------- แหล่งข้อมูล: 3 คอลัมน์ บรรทัดละ 1 ชิ้น 2 บรรทัด ---------- */
+.src-wrap { position: absolute; left: 24px; right: 24px; top: 72px; bottom: 30px; columns: 3; column-gap: 20px; font-size: 8.5px; line-height: 1.3; }
+.src { break-inside: avoid; margin-bottom: 4px; }
+.src .t, .src .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.src .n { font-weight: 700; color: var(--series); }
+.src .meta { color: var(--ink-2); }
+.src .meta a { color: var(--series); text-decoration: none; }
+
+/* ---------- หน้าสุดท้าย ---------- */
+.final { position: absolute; left: 24px; right: 24px; top: 84px; bottom: 34px; font-size: 13px; line-height: 1.55; }
+.final p + p { margin-top: .8em; }
+.final .em { background: var(--card); padding: 12px 16px; border-left: 3px solid var(--accent); }
+
+/* ---------- ฉบับภาษาไทย ---------- */
+.lang-th .fd-list, .lang-th .sm-msgs { line-height: 1.5; }
+.lang-th .cover-kpi .v { font-size: 22px; }   /* "269.7 พันล้านบาท" ยาวกว่า "THB 269.7 bn" */

@@ -9,7 +9,8 @@ statement นั้นใช้ชื่ออะไรในไฟล์เด�
 และเรียงตามลำดับเดิมในไฟล์ต้นฉบับ
 
 ต่างจากต้นฉบับ (ตั้งใจ):
-- บล็อกที่มีป้าย "⚠️ แก้จากต้นฉบับ" - `_TOOLS_DIR` ชี้ `main/` แทนโฟลเดอร์ของไฟล์นี้
+- บล็อกที่มีป้าย "⚠️ แก้จากต้นฉบับ" - `_TOOLS_DIR` ชี้ `main/` แทนโฟลเดอร์ของไฟล์นี้, `GoogleSearch` / `SERPAPI_KEY` ใช้ตัวสลับคีย์
+  ของ `common/serpapi_keys.py` (🆕 2026-10-12 SERPAPI_KEY มีได้หลายคีย์)
 - ไม่คัดมา: `if not TAVILY_API_KEY: sys.exit(1)` (Tavily ไม่มีฟังก์ชันไหนในไฟล์นี้ใช้) และ `if __name__ == "__main__"`
 
 ตรวจสอบ: `tool/tests/test_trend_final_subset.py` - (1) ไม่มีชื่อ global ที่หานิยามไม่เจอ (2) ถ้าพบต้นฉบับ (root หรือ
@@ -76,8 +77,13 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from sklearn.metrics import mean_squared_error
 
 
-# [trend_final_v2.py L32-L32]
-from serpapi import GoogleSearch
+# [trend_final_v2.py L32-L32] ⚠️ แก้จากต้นฉบับ: ใช้ตัวสลับคีย์ (common/serpapi_keys.py) แทน serpapi.GoogleSearch - SERPAPI_KEY ใน .env มีได้หลายคีย์ เปลี่ยนคีย์เองเมื่อโควตาหมด (2026-10-12)
+try:
+    from common.serpapi_keys import POOL as SERPAPI_POOL, RotatingGoogleSearch as GoogleSearch
+except ModuleNotFoundError:  # โหลดไฟล์นี้ตรงๆ โดยไม่มี tool/ ใน sys.path (เช่น เทสเทียบต้นฉบับ)
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from common.serpapi_keys import POOL as SERPAPI_POOL, RotatingGoogleSearch as GoogleSearch
 
 
 # [trend_final_v2.py L35-L35]
@@ -116,8 +122,8 @@ load_dotenv(dotenv_path=env_path)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
-# [trend_final_v2.py L65-L65]
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+# [trend_final_v2.py L65-L65] ⚠️ แก้จากต้นฉบับ: SERPAPI_KEY อาจเป็นรายการหลายคีย์ - ค่านี้ = คีย์ที่ใช้อยู่ตอน import (ค้นจริงผ่าน SERPAPI_POOL ซึ่งเปลี่ยนคีย์เองเมื่อหมด)
+SERPAPI_KEY = SERPAPI_POOL.current
 
 
 # [trend_final_v2.py L66-L66]

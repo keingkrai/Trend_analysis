@@ -103,16 +103,27 @@ def embed_batch_with_retry(texts, max_retries=10):
     raise RuntimeError(f"embed_batch ล้มเหลวหลัง {max_retries} ครั้ง")
 
 
+def _ingredient_text(row):
+    """ส่วนผสมของสินค้าสำหรับ embed: `ingredients` (รายการดิบ - ไฟล์ Watsons เดิม) ถ้ามี ไม่งั้น Ingredient_Functions
+    (สรุปหน้าที่ของส่วนผสมที่ LLM เขียน - ไฟล์ Konvy ไม่มี `ingredients`); "N/A - ..." (สิ่งทอ/อุปกรณ์ที่ไม่มีส่วนผสม) = ไม่มี"""
+    for col in ("ingredients", "Ingredient_Functions"):
+        v = row.get(col)
+        if isinstance(v, str) and v.strip() and not v.strip().upper().startswith("N/A"):
+            return v.strip()
+    return ""
+
+
 def build_product_text(row):
     """🆕 (2026-09-09) เหมือน validate_against_step8_overmatch.py's build_product_text() ทุกประการ -
-    ใช้ฟิลด์เชิงความหมายจาก watsons_product.csv (Key_Benefits/Primary_Use_Case/Product_Insights)
-    แทน Product Name+Content+Ingredients ตื้นๆ แบบเดิมจาก product_fda.parquet"""
+    ใช้ฟิลด์เชิงความหมายจากแคตตาล็อกสินค้า (Key_Benefits/Primary_Use_Case/Product_Insights)
+    แทน Product Name+Content+Ingredients ตื้นๆ แบบเดิมจาก product_fda.parquet
+    2026-10-11: แคตตาล็อก = Konvy -> ส่วนผสมมาจาก Ingredient_Functions (ดู _ingredient_text)"""
     parts = [
         str(row.get("product_name", "")),
         str(row.get("Key_Benefits", "")),
         str(row.get("Primary_Use_Case", "")),
         str(row.get("Product_Insights", ""))[:500],
-        str(row.get("ingredients", ""))[:300],
+        _ingredient_text(row)[:300],
     ]
     return " ".join(p for p in parts if p and p.lower() != "nan")
 
