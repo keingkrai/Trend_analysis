@@ -7,11 +7,11 @@
 | โฟลเดอร์ | มีอะไร |
 |---|---|
 | `common/` | `bootstrap.py` (path, `.env`, `use_bedrock()`, ฟังก์ชันร่วม) และส่วนที่ใช้จริงของระบบรุ่นแรก (`trend_final_subset.py`, `trend_final_v2_subset.py`) |
-| `step1_evidence/` | ①-⑤ หลักฐาน 3 สาย: `paper/` (+ `scrapers/` MDPI, PubMed Central), `social/`, `news/` และ `check_streams_differ.py` |
-| `step2_forecast/` | ⑦ `forecast_google_trends.py`, ⑧-⑨ `summarize_categories.py` (+ `aggregate_forecast.py`), ⑥ `rank_trends.py`, ⑩ `discovery_round.py` |
-| `step3_products/` | ⑪ `trend_highlights.py`, ⑫ `match_products.py`, ⑬ `brand_coverage.py` และ library ที่ใช้ร่วม (`match_supply.py`, `validate_at_scale.py`) |
-| `step4_report/` | ⑭-⑮ `stepic_report.py` — STEPIC → Master Report |
-| `step5_pdf/` | ⑯ `trend_report_pdf.py` รายงานเทรนด์ และ ⑰ `brand_report_pdf.py` รายงานแบรนด์ x เทรนด์ - อังกฤษ + ไทย (Jinja2 → Playwright Chromium) |
+| `phase2_three_streams/` | ①-⑤ หลักฐาน 3 สาย: `paper/` (+ `scrapers/` MDPI, PubMed Central), `social/`, `news/` และ `compare_all_streams.py` |
+| `phase2_three_streams/` | ⑦ `fetch_trends_worldwide_serpapi.py`, ⑧-⑨ `run_category_aggregation.py` (+ `aggregate_forecast.py`), ⑥ `rank_trends.py`, ⑩ `cross_category_discovery.py` |
+| `phase3_supply_layer/` | ⑪ `extract_trend_highlights.py`, ⑫ `validate_at_scale_nvidia.py`, ⑬ `run_brand_coverage.py` และ library ที่ใช้ร่วม (`match_supply.py`, `validate_at_scale.py`) |
+| `phase5_report/` | ⑭-⑮ `run_stepic_report.py` — STEPIC → Master Report |
+| `phase6_pdf_report/` | ⑯ `build_pdf_report.py` รายงานเทรนด์ และ ⑰ `build_brand_report.py` รายงานแบรนด์ x เทรนด์ - อังกฤษ + ไทย (Jinja2 → Playwright Chromium) |
 | `product/` | `watsons_product.csv` — สินค้า Watsons 10,622 SKU / 695 แบรนด์ |
 | `experiments/` | สคริปต์ทดลองและเทียบผลที่ `main.py` ไม่ได้เรียก (เทียบ baseline, lead-lag, DeepSeek, ชุดข้อมูลย่อย ฯลฯ) |
 | `history/` | บันทึกการพัฒนาแต่ละเฟส ไม่ต้องรัน |

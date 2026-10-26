@@ -9,7 +9,7 @@ STEPIC (⑭) — จัดรูปคำตอบของ LLM ทีละม�
 ตัวเขียนรายงาน (trend_final_v2_subset.generate_master_markdown_report - สำเนาตรงตัว ห้ามแก้) อ่านช่องที่ชั้นบนสุด
 เลยได้ "N/A" ทั้งมิติ (Technology ทั้ง 2 รอบ) หรือพิมพ์ dict ดิบออกมา (Industry รอบ 111455) และ PDF ข้ามมิติที่หาไม่เจอ
 
-ไฟล์นี้ไม่ import bootstrap และไม่เรียก API - ใช้ได้ทั้งจาก step4_report และ step5_pdf และเทสได้ตรงๆ
+ไฟล์นี้ไม่ import bootstrap และไม่เรียก API - ใช้ได้ทั้งจาก phase5_report และ phase6_pdf_report และเทสได้ตรงๆ
 """
 
 DIMENSIONS = ("society", "technology", "environment", "policy", "industry", "creativity")

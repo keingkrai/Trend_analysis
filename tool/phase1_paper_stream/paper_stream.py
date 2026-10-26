@@ -1,0 +1,499 @@
+# -*- coding: utf-8 -*-
+"""
+Phase 1 — แยกสาย Paper (นำร่อง)
+ดู workspace/phase1_paper_stream/README.md และ
+Detail/05 งานที่ยังไม่ได้ทำ/Workflow v2 — แยกสายแล้วรวม.md
+
+เป้าหมาย: ดึงกลุ่ม Scientific_Papers ออกมาเป็นสายของตัวเอง → สกัด triplet + Louvain clustering แยก
+จากสายอื่น → เทียบกับคลัสเตอร์ baseline (ที่มาจากการเทข่าวทุกแหล่งรวมกันแบบเดิม) ว่าต่างกันจริงไหม
+
+4 แหล่งข้อมูล (ScienceDaily RSS + MDPI native + OpenAlex + PubMed Central):
+- **ScienceDaily RSS** - ตรง ไม่กรองคำค้น (ล่าสุดจากหมวด cosmetics)
+- **MDPI (native)** 🆕 2026-09-11 - `scrapers/mdpi_scraper.py` (เพื่อนเจ้าของงานเขียน) ยิงตรงที่
+  mdpi.com/search ด้วย Playwright (เลิกอ้อมผ่าน Google News domain search แบบเดิม - ได้ abstract
+  เต็มจริง ไม่ใช่แค่ title จาก RSS stub) ดูรายละเอียดที่ fetch_mdpi_native_pool() ด้านล่าง
+- **OpenAlex** - ครอบคลุมทุกสำนักพิมพ์ (Elsevier, Wiley, Springer ฯลฯ) ผ่าน REST API ตรงๆ ต้องมี
+  OPEN_ALEX_KEY ใน .env (ฟรี ขอได้ที่ openalex.org/settings) ดูรายละเอียดที่ fetch_openalex_pool()
+- **PubMed Central** 🆕 2026-09-11 - `scrapers/pubmed_scraper.py` (เพื่อนเจ้าของงานเขียน) ผ่าน NCBI
+  E-utilities (esearch+efetch) ได้ JATS full-text จริง (ไม่ใช่แค่ abstract) ดูรายละเอียดที่
+  fetch_pmc_pool() ด้านล่าง
+
+**ใช้ฟังก์ชันเดิมจาก trend_final.py ทั้งหมด** (ผ่าน bootstrap) - ไม่เขียนใหม่ ตามหลักการ
+"จัดระเบียบใหม่ ใช้ของเดิมที่พิสูจน์แล้ว":
+  generate_trend_report_with_llm, select_top_10_news_with_llm, scrape_article_content,
+  process_and_clean_content, extract_beauty_triplets, build_trend_graph, summarize_trend_clusters
+สิ่งเดียวที่เขียนใหม่คือ "จะไปดึงข่าวจากไหน" (fetch_paper_pool) กับ "จะถามอะไร" (คำค้นเฉพาะสายวิชาการ)
+"""
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+for _p in Path(__file__).resolve().parents:
+    if (_p / "common" / "bootstrap.py").exists():
+        sys.path.insert(0, str(_p))
+        break
+from common.bootstrap import (PROJECT_ROOT, OUTPUTS, tf, safe_json_parse, select_top_news, scrape_article,
+                               extract_triplets_per_document, build_trend_graph, summarize_trend_clusters,
+                               extract_strategic_keywords, prompt_run_config, use_bedrock, generate_trend_report,
+                               check_minimum_evidence, verify_report_against_source,
+                               MAX_ASSERTED_HALLUCINATIONS)  # noqa: E402
+
+import feedparser  # noqa: E402
+import requests  # noqa: E402
+
+TOPIC = "beauty and personal care trends"  # default - ผู้ใช้พิมพ์เองตอนรัน (prompt_run_config)
+N_QUERIES = 3
+YEARS_BACK = 3
+TOP_K_SCRAPE = 10  # โควตาของสายนี้เอง - แยกจาก top_k=7 ของ pipeline หลักที่แชร์กันทุกแหล่ง
+CONTENT_CHAR_LIMIT = 8000  # ต่อบทความ - กัน prompt ระเบิด (ดูเหตุผลเต็มใน run_paper_stream)
+
+SCIENCEDAILY_RSS = "https://www.sciencedaily.com/rss/health_medicine/cosmetics.xml"
+OPENALEX_URL = "https://api.openalex.org/works"
+
+# 🆕 (2026-09-11) scrapers/ ของเพื่อนเจ้าของงาน (mdpi_scraper.py / pubmed_scraper.py) - ใส่ sys.path
+# แยกต่างหาก เพราะเป็นสคริปต์ยืนอิสระ (มี argparse main() ของตัวเอง) ไม่ใช่ import package ปกติ
+SCRAPERS_DIR = Path(__file__).resolve().parent / "scrapers"
+SCRAPERS_DATA_DIR = SCRAPERS_DIR / "data"
+
+# --- 1. แตกคำค้นแบบวิชาการ (ต่างจาก consumer-facing queries ของสายอื่น) ---
+SYSTEM_PROMPT_QUERIES = """You are a cosmetic science researcher searching scientific literature and
+science-news databases (ScienceDaily, MDPI journals) for research on this topic.
+
+Generate search queries a researcher would actually type - NOT consumer-facing marketing language.
+
+Rules:
+- Use technical/scientific terminology: ingredient mechanisms, formulation science, skin biology
+  (e.g. "surfactant skin barrier", "microbiome cosmetic formulation", "ceramide lipid barrier")
+- 2-5 words, like a real database search query
+- Cover different angles: active ingredients, formulation technology, skin biology mechanisms
+
+Answer JSON only: {"queries": ["query 1", "query 2", ...]}
+"""
+
+
+def generate_paper_queries(topic, n):
+    try:
+        response = tf.client.chat.completions.create(
+            model=tf.MODEL_NAME_META,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT_QUERIES},
+                {"role": "user", "content": f"Topic: '{topic}'\nGenerate {n} queries."},
+            ],
+            temperature=0.3,
+            max_tokens=800,  # 🆕 กันเผื่อโมเดลที่มี thinking ฝัง (ดู Backlog ข้อ 29) - เดิมไม่มี
+            response_format={"type": "json_object"},
+        )
+        parsed = safe_json_parse(response.choices[0].message.content)
+        return parsed.get("queries", []) if parsed else []
+    except Exception as e:
+        print(f"⚠️ Error generating queries: {e}")
+        return []
+
+
+def reconstruct_abstract(inverted_index):
+    """OpenAlex คืน abstract เป็น "inverted index" (dict คำ -> ลิสต์ตำแหน่ง) ไม่ใช่ข้อความเรียงปกติ
+    (เหตุผลด้านลิขสิทธิ์ของ OpenAlex เอง) ต้องประกอบกลับเป็นประโยคก่อนใช้งาน - ทดสอบยิงจริงแล้ว
+    (2026-08-31) ว่าประกอบกลับได้ข้อความอ่านออกสมบูรณ์ ไม่ขาดหาย"""
+    if not inverted_index:
+        return ""
+    positions = {}
+    for word, idxs in inverted_index.items():
+        for i in idxs:
+            positions[i] = word
+    return " ".join(positions[i] for i in sorted(positions))
+
+
+def fetch_openalex_pool(queries, years_back=YEARS_BACK):
+    """แหล่งที่ 3 ของสาย Paper — OpenAlex (ครอบคลุมทุกสำนักพิมพ์ ไม่ผูกกับ MDPI แหล่งเดียวแบบเดิม)
+
+    ต้องมี OPEN_ALEX_KEY ใน .env (ขอฟรีได้ที่ openalex.org -> settings) — ตั้งแต่ 13 ก.พ. 2026 OpenAlex
+    เปลี่ยนเป็นระบบเครดิต: ไม่มี key = $0.10/วัน (หมดง่ายมาก เจอเองตอนทดสอบครั้งแรกกับ IP ที่ใช้ร่วมกัน)
+    มี key ฟรี = $1/วัน — endpoint search ที่ใช้ตรงนี้ราคา $1/1,000 calls พอสำหรับ 3-10 คำค้น/รอบสบายๆ
+    ไม่มี key = ข้ามแหล่งนี้ไปเฉยๆ (ไม่ทำให้ทั้งสายพัง ยังมี ScienceDaily+MDPI อยู่)
+
+    ⚠️ ใช้ abstract ที่ OpenAlex คืนมาเป็น content ตรงๆ ไม่ scrape open-access URL ต่อ (ส่วนใหญ่เป็น PDF
+    ตรงที่ scrape_article()/Apify ไม่ได้ออกแบบมาให้อ่าน) — abstract มีความหนาแน่นข้อมูลสูงอยู่แล้ว
+    (หลักการเดียวกับที่ใช้ตัดเนื้อหา MDPI ใน run_paper_stream — เอาส่วนที่หนาแน่นข้อมูลสุดพอ)
+    """
+    all_news = []
+    seen_ids = set()
+    api_key = os.getenv("OPEN_ALEX_KEY")
+    if not api_key:
+        print("  ⚠️ ไม่มี OPEN_ALEX_KEY ใน .env - ข้าม OpenAlex (ยังมี ScienceDaily+MDPI อยู่)")
+        return all_news
+
+    from_date = (datetime.now() - timedelta(days=365 * years_back)).strftime("%Y-%m-%d")
+    for q in queries:
+        print(f"  🔬 ค้น OpenAlex สำหรับ: '{q}'...")
+        try:
+            resp = requests.get(OPENALEX_URL, params={
+                "search": q,
+                "filter": f"from_publication_date:{from_date}",
+                "per_page": 15,
+                "api_key": api_key,
+            }, timeout=30)
+            resp.raise_for_status()
+            for w in resp.json().get("results", []):
+                work_id = w.get("id")
+                if not work_id or work_id in seen_ids:
+                    continue
+                abstract = reconstruct_abstract(w.get("abstract_inverted_index"))
+                if not abstract:
+                    continue  # ไม่มี abstract ให้ใช้ ข้ามไปเลย (scrape PDF ต่อไม่คุ้ม)
+                seen_ids.add(work_id)
+                oa_url = (w.get("open_access") or {}).get("oa_url")
+                all_news.append({"title": w.get("title") or "No Title", "link": oa_url or work_id,
+                                  "source": "OpenAlex", "_abstract": abstract})
+        except Exception as e:
+            print(f"     ⚠️ {e}")
+
+    print(f"  ✅ OpenAlex: {len(all_news)} รายการ (มี abstract พร้อมใช้ทุกชิ้น)")
+    return all_news
+
+
+def _run_scraper_main(module_name):
+    """import scrapers/<module_name>.py แบบ lazy (path แยกจาก package หลัก) คืน module หรือ None"""
+    if str(SCRAPERS_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRAPERS_DIR))
+    import importlib
+    try:
+        return importlib.import_module(module_name)
+    except Exception as e:
+        print(f"  ⚠️ import {module_name} ไม่ได้ ({e}) - ข้ามแหล่งนี้")
+        return None
+
+
+def _read_jsonl(path):
+    if not path.exists():
+        return []
+    out = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return out
+
+
+def fetch_mdpi_native_pool(queries, since, until):
+    """แหล่งที่ 2 🆕 (2026-09-11) — mdpi_scraper.py (เขียนโดยเพื่อนเจ้าของงาน, วางไว้ที่
+    workspace/phase1_paper_stream/scrapers/) ยิงตรงที่ mdpi.com/search ผ่าน Playwright (headed —
+    Akamai bot manager ของ MDPI บล็อก headless/requests/httpx ทั้งหมด แม้แต่ robots.txt) เลิกอ้อมผ่าน
+    Google News domain search แบบเดิม (`site:mdpi.com` ผ่าน RSS) ที่ได้แค่ title จาก stub ไม่มี abstract
+
+    เรียกผ่าน `main(argv)` ตรงๆ (สคริปต์ยืนอิสระ ไม่ใช่ import แล้วเรียกฟังก์ชันย่อย) แล้วอ่านผลจาก
+    `scrapers/data/mdpi_papers.jsonl` กลับมา — ไฟล์นี้เป็น incremental store สะสมข้ามรอบ/หัวข้อ (DOI
+    ซ้ำไม่ถูกดึงซ้ำ) จึงกรองเอาเฉพาะแถวที่ `matched_keywords` ตรงกับ queries **รอบนี้** เท่านั้น
+    (กันหัวข้อเก่าหลุดเข้ามา)
+
+    🆕 ใช้ `--no-deep` (เก็บแค่ผลค้นหน้าแรก title+abstract เต็ม+ผู้เขียน+วันที่ ไม่เปิดหน้าเปเปอร์แต่ละ
+    อันต่อ) — เร็ว (~4s ต่อคำค้น แทนที่จะเปิด browser tab ทีละเปเปอร์) และ abstract ที่ MDPI ใส่ไว้ใน
+    หน้าค้นหาอยู่แล้วก็หนาแน่นพอ (เหมือนหลักการเดียวกับ OpenAlex — ดู fetch_openalex_pool) ถ้าอยาก
+    ได้ full-text จริงในอนาคต ตัดคำสั่งนี้ออกได้ (แลกกับรันช้าลงมาก — 1.5s/nav ต่อเปเปอร์)
+    """
+    mod = _run_scraper_main("mdpi_scraper")
+    if mod is None:
+        return []
+
+    argv = ["--keywords", *queries, "--since", since, "--until", until,
+            "--max-pages", "1", "--no-deep", "--match", "any",
+            "--out", str(SCRAPERS_DATA_DIR)]
+    try:
+        mod.main(argv)
+    except SystemExit as e:
+        if e.code not in (0, None):
+            print(f"  ⚠️ mdpi_scraper จบด้วย exit code {e.code}")
+            return []
+    except Exception as e:
+        print(f"  ⚠️ mdpi_scraper รันไม่สำเร็จ ({e}) - ข้ามแหล่งนี้")
+        return []
+
+    q_set = set(queries)
+    out = []
+    for rec in _read_jsonl(SCRAPERS_DATA_DIR / "mdpi_papers.jsonl"):
+        if rec.get("error") or not rec.get("abstract"):
+            continue
+        if not (set(rec.get("matched_keywords") or []) & q_set):
+            continue  # จากรอบ/หัวข้อก่อนหน้า - ไม่เกี่ยวกับ query ของรอบนี้
+        out.append({"title": rec.get("title") or "No Title",
+                    "link": rec.get("mdpi_url") or rec.get("doi_url") or "",
+                    "source": "MDPI (native)", "_abstract": rec["abstract"]})
+    print(f"  ✅ MDPI (native): {len(out)} รายการ (มี abstract พร้อมใช้ทุกชิ้น)")
+    return out
+
+
+def fetch_pmc_pool(queries, since, until):
+    """แหล่งที่ 4 🆕 (2026-09-11) — pubmed_scraper.py (เขียนโดยเพื่อนเจ้าของงาน) ผ่าน NCBI
+    E-utilities (esearch db=pmc + efetch retmode=xml) ได้ JATS full-text จริง (ไม่ใช่แค่ abstract
+    แบบ OpenAlex/MDPI-native) — plain requests ล้วน ไม่ต้องใช้ browser เลย (ต่างจาก MDPI)
+
+    ครอบคลุมคนละส่วนกับ OpenAlex: PMC = เฉพาะ open-access/funder-deposited subset ของ PubMed แต่ได้
+    full text; OpenAlex = ทุกสำนักพิมพ์แต่ได้แค่ abstract. เก็บทั้งคู่ไว้ ไม่ทับซ้อนกันเสียทีเดียว
+
+    ไม่มี NCBI_API_KEY/NCBI_EMAIL ใน .env ก็รันได้ (แค่ช้าลง 3 req/s แทน 10 req/s) - ไม่ทำให้สายพัง
+    `--per-keyword 15` ให้ขนาดพอๆ กับ OpenAlex (per_page=15) กันคำค้นเดียวดึงมาเป็นพันบทความ
+    """
+    mod = _run_scraper_main("pubmed_scraper")
+    if mod is None:
+        return []
+
+    argv = ["--keywords", *queries, "--since", since, "--until", until,
+            "--per-keyword", "15", "--match", "none", "--out", str(SCRAPERS_DATA_DIR)]
+    email, api_key = os.getenv("NCBI_EMAIL"), os.getenv("NCBI_API_KEY")
+    if email:
+        argv += ["--email", email]
+    if api_key:
+        argv += ["--api-key", api_key]
+    try:
+        mod.main(argv)
+    except SystemExit as e:
+        if e.code not in (0, None):
+            print(f"  ⚠️ pubmed_scraper จบด้วย exit code {e.code}")
+            return []
+    except Exception as e:
+        print(f"  ⚠️ pubmed_scraper รันไม่สำเร็จ ({e}) - ข้ามแหล่งนี้")
+        return []
+
+    q_set = set(queries)
+    out = []
+    n_full = 0
+    for rec in _read_jsonl(SCRAPERS_DATA_DIR / "pmc_papers.jsonl"):
+        if rec.get("error") or not (rec.get("abstract") or rec.get("content_paper")):
+            continue
+        if not (set(rec.get("matched_keywords") or []) & q_set):
+            continue
+        full = rec.get("content_paper") or ""
+        n_full += 1 if rec.get("has_full_text") else 0
+        out.append({"title": rec.get("title") or "No Title",
+                    "link": rec.get("pmc_url") or rec.get("doi_url") or rec.get("pubmed_url") or "",
+                    "source": "PubMed Central", "_abstract": rec.get("abstract") or "",
+                    "_full_content": full})
+    print(f"  ✅ PubMed Central: {len(out)} รายการ ({n_full} มี full text จริง)")
+    return out
+
+
+# --- 2. ดึงข่าว/เปเปอร์ เฉพาะสาย Paper เท่านั้น (ไม่ปนกับ RSS กลุ่มอื่น) ---
+def fetch_paper_pool(queries, years_back=YEARS_BACK):
+    all_news = []
+    seen_links = set()
+
+    # 2a. ScienceDaily RSS ตรง (ไม่กรองตามคำค้น - เอาข่าวล่าสุดจากหมวด cosmetics ทั้งหมด
+    #     เหมือนที่ get_historical_news เดิมทำกับ RSS ทุกแหล่ง)
+    print(f"  📡 ดึง ScienceDaily RSS...")
+    try:
+        feed = feedparser.parse(SCIENCEDAILY_RSS)
+        for entry in feed.entries[:15]:
+            link = entry.get("link", "")
+            if link and link not in seen_links:
+                seen_links.add(link)
+                all_news.append({"title": entry.get("title", "No Title"), "link": link,
+                                  "source": "ScienceDaily RSS"})
+        print(f"     ได้ {len(feed.entries[:15])} รายการ")
+    except Exception as e:
+        print(f"     ⚠️ ดึง ScienceDaily ไม่ได้: {e}")
+
+    since = (datetime.now() - timedelta(days=365 * years_back)).strftime("%Y-%m-%d")
+    until = (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d")
+
+    # 2b. MDPI (native) - แทนที่ Google News workaround เดิมทั้งหมด (2026-09-11)
+    for item in fetch_mdpi_native_pool(queries, since, until):
+        if item["link"] not in seen_links:
+            seen_links.add(item["link"])
+            all_news.append(item)
+
+    # 2c. OpenAlex - เพิ่มเข้ามา 2026-08-31 (ครอบคลุมทุกสำนักพิมพ์ ไม่ผูกกับ MDPI แหล่งเดียว)
+    for item in fetch_openalex_pool(queries, years_back):
+        if item["link"] not in seen_links:
+            seen_links.add(item["link"])
+            all_news.append(item)
+
+    # 2d. PubMed Central - เพิ่มเข้ามา 2026-09-11 (JATS full-text จริง ผ่าน NCBI E-utilities)
+    for item in fetch_pmc_pool(queries, since, until):
+        if item["link"] not in seen_links:
+            seen_links.add(item["link"])
+            all_news.append(item)
+
+    print(f"  ✅ รวมทั้งหมด {len(all_news)} รายการ (ScienceDaily + MDPI native + OpenAlex + PubMed Central)")
+    return all_news
+
+
+# --- 3. scrape + สังเคราะห์รายงาน + สกัด triplet + คลัสเตอร์ (ใช้ของเดิมทั้งหมด) ---
+def run_paper_stream(topic=TOPIC, n_queries=N_QUERIES, top_k=TOP_K_SCRAPE):
+    print(f"หัวข้อ: {topic}")
+    queries = generate_paper_queries(topic, n_queries)
+    print(f"คำค้นวิชาการที่สร้าง: {queries}")
+    if not queries:
+        print("❌ สร้างคำค้นไม่สำเร็จ")
+        return None
+
+    pool = fetch_paper_pool(queries)
+    if not pool:
+        print("❌ ไม่เจอบทความ/เปเปอร์เลย - สาย Paper อาจไม่มีข้อมูลพอสำหรับหัวข้อนี้")
+        return None
+
+    top_news = select_top_news(topic, pool, top_k=top_k, kind="paper")  # bootstrap: แก้บั๊ก + เกณฑ์แยก paper
+    print(f"  🧠 เลือกมา {len(top_news)} รายการสำหรับ scrape")
+
+    scraped_data = []
+    for article in top_news:
+        link = article["link"]
+        if article.get("source") in ("OpenAlex", "MDPI (native)") and article.get("_abstract"):
+            # ใช้ abstract ที่แหล่งคืนมาให้แล้วตรงๆ ไม่ scrape ต่อ (ดูเหตุผลใน fetch_openalex_pool /
+            # fetch_mdpi_native_pool - ทั้งคู่ --no-deep/abstract-only โดยตั้งใจ)
+            scraped_data.append({"title": article["title"], "source": article["source"],
+                                  "link": link, "content": article["_abstract"]})
+            print(f"  📄 [{article['source']} abstract] {article['title'][:60]}")
+            continue
+        if article.get("source") == "PubMed Central":
+            # 🆕 (2026-09-11) pubmed_scraper.py ให้ JATS full-text จริง - ใช้ตรงๆ ไม่ scrape ซ้ำ
+            # (scrape_article()/Apify ไม่รู้จัก PMC's JATS อยู่แล้ว และ full text ก็อยู่ในมือแล้ว)
+            content = article.get("_full_content") or article.get("_abstract") or ""
+            if not content:
+                continue
+            scraped_data.append({"title": article["title"], "source": article["source"],
+                                  "link": link, "content": content})
+            tag = "full text" if article.get("_full_content") else "abstract only"
+            print(f"  📄 [PubMed Central {tag}] {article['title'][:60]}")
+            continue
+        if link in tf.url_cache:
+            cached = tf.url_cache[link]
+            scraped_data.append({"title": cached.get("title", article["title"]),
+                                  "source": cached.get("source", article.get("source")),
+                                  "link": link, "content": cached.get("cleaned_text", "")})
+            print(f"  ⚡ [CACHE] {article['title'][:60]}")
+            continue
+        try:
+            print(f"  🌐 [SCRAPE] {article['title'][:60]}")
+            raw_text, decoded_url = scrape_article(link)  # bootstrap: แก้บั๊ก Apify Run object แล้ว
+            text_clean = tf.process_and_clean_content(raw_text)
+            if len(text_clean) > 150:
+                scraped_data.append({"title": article["title"], "source": article["source"],
+                                      "link": decoded_url, "content": text_clean})
+                tf.url_cache[link] = {"query": topic, "title": article["title"], "source": article["source"],
+                                       "decoded_url": decoded_url, "raw_text": raw_text,
+                                       "cleaned_text": text_clean,
+                                       "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        except Exception as e:
+            print(f"     ⚠️ scrape ล้มเหลว: {e}")
+
+    if not scraped_data:
+        print("❌ scrape ไม่ได้เลยสักบทความ")
+        return None
+    tf.save_scrape_cache(tf.url_cache)
+
+    # ตัดความยาวเนื้อหาก่อนสังเคราะห์รายงาน - เปเปอร์วิชาการยาวกว่าข่าวมาก (เฉลี่ย ~107,000 ตัวอักษร/
+    # บทความ vs ข่าวทั่วไปที่มักไม่กี่พันตัวอักษร) 10 บทความเต็มรวมกัน = 1.39M ตัวอักษร ทำให้
+    # generate_trend_report_with_llm() พังด้วย "Prompt too large" (เจอจริง 2026-08-28) - ไม่ใช่บั๊ก
+    # แต่เป็นสมมติฐานเดิมของฟังก์ชันที่ออกแบบมาสำหรับข่าวสั้นๆ ไม่ใช่เปเปอร์เต็ม
+    # ตัดที่ CONTENT_CHAR_LIMIT ตัวอักษรแรก เพราะ MDPI ขึ้น Abstract/Simple Summary +
+    # Introduction ไว้ต้นบทความเสมอ ซึ่งเป็นส่วนที่มีความหนาแน่นของข้อมูลสูงสุดอยู่แล้ว
+    for a in scraped_data:
+        if len(a["content"]) > CONTENT_CHAR_LIMIT:
+            a["content"] = a["content"][:CONTENT_CHAR_LIMIT]
+    total_chars = sum(len(a["content"]) for a in scraped_data)
+    print(f"  ✂️  ตัดเนื้อหาแต่ละบทความเหลือ ≤{CONTENT_CHAR_LIMIT:,} ตัวอักษร (รวม {total_chars:,} ตัวอักษร)")
+
+    print(f"  🧠 สังเคราะห์เป็นรายงาน ({len(scraped_data)} บทความ)...")
+    # 🆕 (2026-09-16) prompt ไม่มีตัวอย่างฝัง + บังคับอ้างอิง (Ref N) แทน prompt ต้นฉบับของ trend_final.py - เดิมใช้
+    # ต้นฉบับเพราะสรุปว่าต้นเหตุคือโมเดลไม่พอ (Backlog ข้อ 19) แต่ RCA บน GLM-5 พบว่าตัวอย่างใน prompt ยังหลุดเข้า
+    # รายงาน - เจ้าของงานสั่งให้ใช้ prompt เดียวกันทุกสาย ดู generate_trend_report()
+    paper_report = generate_trend_report(topic, scraped_data)
+    if not paper_report or not paper_report.strip():
+        print("❌ สังเคราะห์รายงานไม่สำเร็จ (ว่างเปล่า) - หยุดที่นี่แทนที่จะเดินหน้าไปสกัด triplet จากข้อมูลว่าง")
+        return None
+
+    # 🆕 (2026-09-15, audit M3 ฉบับเต็ม) สกัดทีละเอกสารพร้อมประโยคหลักฐานจากต้นฉบับ แทนการสกัดจากรายงาน
+    print(f"  🧠 สกัด triplet ทีละเอกสาร (พร้อมประโยคหลักฐานจากต้นฉบับ)...")
+    triplets, triplet_provenance = extract_triplets_per_document(scraped_data)
+
+    print(f"  🕸️ Louvain clustering...")
+    G, clusters = build_trend_graph(triplets)
+    print(f"     ได้ {len(clusters)} คลัสเตอร์")
+
+    print(f"  🧠 ตั้งชื่อคลัสเตอร์...")
+    df_trends = summarize_trend_clusters(clusters, triplets, top_n=5)  # bootstrap: เพิ่ม max_tokens แล้ว
+    if df_trends.empty:
+        print("❌ ตั้งชื่อคลัสเตอร์ไม่สำเร็จเลย (df_trends ว่างเปล่า) - หยุดก่อนแตกคีย์เวิร์ด")
+        return None
+
+    # แตกคีย์เวิร์ด SEO/การตลาด 4 หมวด ต่อเทรนด์ - ใช้ฟังก์ชันเดิมจาก trend_final.py ตรงๆ ไม่เขียนใหม่
+    # (ปิดช่องว่างที่ค้างไว้จาก Phase 1 รอบแรก ซึ่งหยุดแค่ตั้งชื่อเทรนด์ ยังไม่ได้แตกคีย์เวิร์ดต่อ)
+    print(f"  🧠 แตกคีย์เวิร์ด SEO/การตลาด ({len(df_trends)} เทรนด์)...")
+    df_keywords = extract_strategic_keywords(df_trends)  # bootstrap: เพิ่ม max_tokens แล้ว (ข้อ 29)
+    if df_keywords.empty:
+        print("⚠️ แตกคีย์เวิร์ดไม่สำเร็จเลย - เทรนด์ยังใช้ได้ แต่ไม่มีคีย์เวิร์ดสำหรับขั้นรวม set/ยิง Google Trends ต่อ")
+
+    return {
+        "topic": topic, "queries": queries, "pool_size": len(pool),
+        "n_scraped": len(scraped_data), "paper_report": paper_report,
+        "n_triplets": len(triplets), "n_clusters": len(clusters),
+        "n_triplets_extracted": len(triplet_provenance), "triplet_provenance": triplet_provenance,
+        "df_trends": df_trends, "df_keywords": df_keywords,
+        "scraped_data": scraped_data,  # 🆕 (2026-09-12, audit M3) ต้องใช้ตอน verify ใน __main__
+    }
+
+
+if __name__ == "__main__":
+    topic, _ = prompt_run_config(default_topic=TOPIC, ask_years=False)
+    # 🆕 (2026-09-15) เปลี่ยนจาก Typhoon -> AWS Bedrock (เจ้าของงานสั่งเลิกใช้ Typhoon/
+    # NVIDIA LLM ทั้งหมด ดู Detail/.../แผนเปลี่ยนโมเดล LLM — Bedrock + Typhoon.md)
+    # 🆕 (2026-09-11) with use_typhoon() ชั่วคราว - เดิม run_paper_stream() ไม่ห่อโมเดลเลย (ใช้ default
+    # client ตรงๆ = GPT-5.6-Luna ผ่าน OpenRouter) เพราะเจ้าของงานตัดสินใจไว้ก่อนหน้าว่าปัญหาหลอนที่เจอ
+    # (Backlog ข้อ 19) มาจากโมเดลไม่พอ ไม่ใช่ตัว prompt เอง เลยไม่อยากแตะ prompt/โมเดินเดิม - แต่ตอนนี้
+    # OpenRouter credit เกือบ 0 จริง (ยิง 1 token ผ่าน แต่ 800 tokens 402) generate_paper_queries() /
+    # generate_trend_report_with_llm() เลยพังก่อนถึงขั้นทดสอบสแครปเปอร์ MDPI/PMC ใหม่ได้เลย -
+    # เจ้าของงานเลือก "ห่อ Typhoon fallback ชั่วคราว" (แทนรอเติมเครดิตจริง) เพื่อให้เทสสายนี้ได้ตอนนี้ -
+    # **ไม่ใช่การเปลี่ยนสถาปัตยกรรมถาวรของสาย Paper** (เพื่อนเจ้าของงานดูแลสายนี้อยู่) ถอดออกได้ง่ายๆ
+    # แค่เอา `with use_typhoon():` ออกเมื่อ OpenRouter มีเครดิตจริงอีกครั้ง หรือเพื่อนทำ setup ของตัวเองเสร็จ
+    with use_bedrock():
+        result = run_paper_stream(topic=topic)
+    if result is None:
+        raise SystemExit(1)
+
+    # 🆕 (2026-09-12, audit m2) กัน "สำเร็จ" ทั้งที่ scrape/สกัดได้แทบไม่มีอะไรเลย
+    if not check_minimum_evidence("Paper", result["n_scraped"], result["n_triplets"], result["n_clusters"]):
+        raise SystemExit(1)
+
+    # 🆕 (2026-09-12, audit M3) เดิมสาย Paper ไม่มีขั้นตรวจสอบรายงานกับแหล่งต้นทางเลยสักจุด (audit ระบุ
+    # ตรงๆ ว่าเป็นสายเดียวที่ไม่มี) เพิ่มตาข่ายนิรภัยแบบเดียวกับ Social/News
+    try:
+        full_texts = [{"title": s["title"], "content": s["content"]} for s in result["scraped_data"]]
+        verification = verify_report_against_source(result["paper_report"], full_texts)
+        n_asserted = len(verification["asserted"])
+        if n_asserted > MAX_ASSERTED_HALLUCINATIONS:
+            print(f"❌ พบคำที่ดูเหมือนหลอน {n_asserted} คำ (เกิน {MAX_ASSERTED_HALLUCINATIONS}) - "
+                  f"ดูรายการ: {verification['asserted']}")
+            raise SystemExit(1)
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"⚠️ verification ล้มเหลว (ไม่กระทบผลหลัก): {e}")
+        verification = None
+
+    out_path = OUTPUTS / "phase1_paper_stream_result.json"
+    import json
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "_verification": verification,  # 🆕 (2026-09-12, audit M3)
+            "topic": result["topic"], "queries": result["queries"],
+            "pool_size": result["pool_size"], "n_scraped": result["n_scraped"],
+            "paper_report": result["paper_report"], "n_triplets": result["n_triplets"],
+            "n_clusters": result["n_clusters"],
+            "n_triplets_extracted": result["n_triplets_extracted"],
+            "triplet_provenance": result["triplet_provenance"],
+            "trends": result["df_trends"].to_dict(orient="records"),
+            "keywords": result["df_keywords"].to_dict(orient="records"),
+        }, f, ensure_ascii=False, indent=2)
+
+    print("\n" + "=" * 80)
+    print(result["df_trends"].to_string())
+    print("-" * 80)
+    print(result["df_keywords"].to_string())
+    print("=" * 80)
+    print(f"\nSaved -> {out_path}")

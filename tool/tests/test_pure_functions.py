@@ -16,8 +16,8 @@ for _p in Path(__file__).resolve().parents:
     if (_p / "common" / "bootstrap.py").exists():
         sys.path.insert(0, str(_p))
         break
-sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step2_forecast")))
-sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "step1_evidence" / "social")))
+sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams")))
+sys.path.insert(0, str((Path(__file__).resolve().parent.parent / "phase2_three_streams" / "social")))
 
 import numpy as np
 import pandas as pd
@@ -532,7 +532,7 @@ def test_collect_top_n_returns_fewer_when_not_enough_trends_have_data():
 # ---------------------------------------------------------------------------
 
 def _import_highlights_module():
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
     import trend_highlights
     return trend_highlights
 
@@ -560,7 +560,7 @@ def test_export_top_n_forecast_skips_quietly_when_forecast_missing(tmp_path):
 
 
 def test_brand_coverage_displays_top_rank_and_falls_back_to_overall_rank_for_old_results():
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
     import brand_coverage as rbc
 
     assert rbc.display_trend_rank({"trend_top_rank": 10, "trend_overall_rank": 11}) == 10
@@ -597,7 +597,7 @@ def test_parse_serpapi_keys(raw, expected):
 # ---------------------------------------------------------------------------
 
 def _brand_coverage_module():
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "step3_products"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
     import brand_coverage
     return brand_coverage
 
