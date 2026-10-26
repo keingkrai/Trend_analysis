@@ -38,8 +38,15 @@ yt-dlp==2026.8.19
 faster_whisper==1.2.1          # transcribe เสียง YouTube เมื่อไม่มี caption
 imageio_ffmpeg==0.6.0          # ffmpeg binary ให้ faster_whisper ใช้
 
+# --- อ่าน/เขียนไฟล์ Excel + PDF (เพิ่มตอนจัด repo 2026-10-26 - โค้ดใช้อยู่แต่เดิมไม่ได้ลงรายการ) ---
+openpyxl==3.1.5               # อ่าน konvy/eveandboy/euromonitor/FDA .xlsx + เขียน Excel ของ ⑬
+pypdf==6.16.2                 # อ่าน PDF ในสายค้นหาตลาด ⑲ (market_search.py) + ตรวจรายงาน (lint_report_language.py)
+pypdfium2==5.13.0             # เรนเดอร์ PDF เป็นภาพ/ข้อความให้ lint_report_language.py
+
 # --- อื่นๆ ---
-matplotlib==3.11.0             # กราฟใน trend.ipynb / v1 report
+matplotlib==3.11.0            # กราฟใน trend.ipynb / v1 report + กราฟพยากรณ์ในรายงาน PDF ⑯
+jinja2==3.1.6                  # 🆕 (2026-09-25) เทมเพลต HTML ของรายงาน PDF ⑯ (พิมพ์เป็น PDF ด้วย playwright ด้านบน)
+pillow==12.2.0                 # 🆕 (2026-09-25) ย่อรูปสินค้าก่อนฝังในรายงาน PDF ⑯
 tavily-python==0.7.27          # web search fallback (Tavily)
 tqdm==4.68.3                   # progress bar
 

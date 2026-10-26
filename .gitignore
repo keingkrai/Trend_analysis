@@ -1,15 +1,39 @@
-# คีย์ API จริง - ห้าม commit เด็ดขาด
+# คีย์ API จริง - ห้าม commit เด็ดขาด (ใช้ .env.example เป็นแบบ)
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.ipynb_checkpoints/
 .venv/
+venv/
+
+# เครื่องมือ/ระบบปฏิบัติการ
+.vscode/
+.idea/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ไฟล์สำรอง/แคชในเครื่อง
+*.bak
+*.bak_*
+*.pkl
+# แคช scrape + log ของ LLM - โค้ดสร้าง memory/ ในโฟลเดอร์ที่สั่งรัน จึงกันทุกระดับ (ไม่มี / นำหน้า)
+memory/
 
 # ผลรันทุกรอบ + cache (มีไฟล์ใหญ่เกินที่ GitHub รับ เช่น embedding 175MB) - เก็บไว้แค่ README อธิบายโครงโฟลเดอร์
 /output/*
 !/output/README.md
 
-# แคช scrape + log ของ LLM - โค้ดสร้าง memory/ ในโฟลเดอร์ที่สั่งรัน จึงกันทุกระดับ (ไม่มี / นำหน้า)
-memory/
+# ข้อมูลสินค้า/ตลาด: ไฟล์ใหญ่เกิน 100MB ที่ GitHub รับ และข้อมูล Euromonitor / FDA / ที่ scrape จากร้านค้า ไม่ควรเผยแพร่
+# (เก็บไว้ในเครื่อง - รายการไฟล์ที่ต้องมีดู tool/product/README.md) ; เหลือ product_category.csv (taxonomy เล็กๆ ที่โค้ดต้องใช้)
+/tool/product/*.csv
+/tool/product/*.xlsx
+/tool/product/*.jsonl
+/tool/product/market_product_summary.json
+!/tool/product/product_category.csv
