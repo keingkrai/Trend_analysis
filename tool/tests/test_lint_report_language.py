@@ -154,3 +154,16 @@ def test_appendix_page_detection():
     assert lint.is_appendix_page("ภาคผนวก | วิธีการ\n1. การรวบรวมหลักฐาน")
     assert lint.is_appendix_page("Appendix | Methodology 1. Evidence")
     assert not lint.is_appendix_page("Trend 3 Glow ...\nAppendix is mentioned later")
+
+
+def test_keyword_phrases_include_google_category_names_and_the_searches_of_the_category_pages(tmp_path):
+    """🆕 (2026-10-28) ชื่อหมวดของ Google ("Jobs & Education") กับคำค้นตัวอย่างบนหน้า "คนกำลังค้นหาอะไรมากขึ้น" เป็นข้อมูลตามต้นฉบับ - ตัดออกก่อนตรวจคำต้องห้าม"""
+    import json
+    (tmp_path / "phase6_report_context.json").write_text(json.dumps({
+        "trends": [{"keywords": ["holistic health"]}],
+        "talk": {"categories": [{"name": "Jobs & Education"}, {"name": "Health"}]},
+        "dive": {"categories": [{"name": "Jobs & Education", "linked": [{"searches": ["best job interview tips"], "shown": ["resume job tips"],
+                                                                          "link": {"evidence": ["job fair near me"]}}], "others": []}]}}), encoding="utf-8")
+    words = lint._keyword_phrases(tmp_path)
+    assert {"holistic health", "Jobs & Education", "Health", "best job interview tips", "resume job tips", "job fair near me"} <= set(words)
+    assert words == sorted(words, key=len, reverse=True)

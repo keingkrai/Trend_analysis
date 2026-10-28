@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ report_title }}</title>
+<style>
+{% include "style.css" %}
+{% include "category_dive.css" %}
+:root { --accent: {{ brand.accent_color }}; }
+</style>
+</head>
+<body class="lang-{{ lang }}">
+{#- 🆕 (2026-10-28) เล่มเจาะรายหมวดของ Google แบบแยกเล่ม (build_category_dive.py) - เนื้อหาเดียวกับ "ส่วนที่ 2" ของรายงานเทรนด์ ⑯ (หน้ารายหมวดมาจาก _dive_pages.j2
+    ชุดเดียวกัน) แต่มีปก + หน้าภาพรวมของตัวเอง + หน้าวิธีอ่าน ข้อความตายตัวมาจาก L (= dive_i18n.dive_strings(lang)) / dv = ข้อมูลรายหมวด
+    (category_dive.load_dive + dive_text.describe_dive + for_lang; dv.pages จาก paginate ใน render.render_dive_html)
+    macro logo/footer/bar_header ซ้ำกับเทมเพลตอื่นโดยตั้งใจ (Jinja macro ข้ามไฟล์เข้าถึง brand/L ไม่ได้ถ้าไม่ส่ง context) -#}
+{%- set meta = ctx.meta -%}
+
+{% macro logo(dark=false) -%}
+  {%- if brand.logo -%}
+    {%- if brand.logo_for_dark_bg -%}
+      {%- if dark -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">
+      {%- else -%}<span class="logo-chip on-black"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>{%- endif -%}
+    {%- elif dark -%}<span class="logo-chip"><img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}"></span>
+    {%- else -%}<img class="logo-img" src="{{ brand.logo }}" alt="{{ brand.company_name }}">{%- endif -%}
+  {%- else -%}<span class="wordmark">{{ brand.company_name }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro footer() -%}
+  <div class="page-no"></div>
+  <div class="footer-copy">{{ L.copyright.format(year=year, company=brand.company_name) }}<br>{{ L.rights }}</div>
+{%- endmacro %}
+
+{% macro bar_header(title) -%}
+  <div class="bar-header on-dark"><h2>{{ title }}</h2>{{ logo(dark=true) }}</div>
+{%- endmacro %}
+
+{#- ======================= 1. ปก ======================= -#}
+<section class="page cover dv-cover" data-label="Cover">
+  <div class="cover-top on-dark">
+    <div class="cover-logo">{{ logo(dark=true) }}</div>
+    <h1>{{ report_title }}</h1>
+    <div class="cover-sub">{{ L.dv_report_kind }}</div>
+    <div class="cover-date">{{ run_date | ddmmyyyy }}</div>
+    <div class="cover-sources">{{ L.dv_cover_sources.format(places=dv.places_text) }}</div>
+  </div>
+</section>
+
+{#- ======================= 2. ภาพรวมรายหมวด ======================= -#}
+{%- set max_n = dv.categories | map(attribute="n") | max -%}
+<section class="page" data-label="Overview">
+  {{ bar_header(L.dv_ov_header) }}
+  <div class="dv-intro">{{ L.dv_ov_intro.format(places=dv.places_text) }}</div>
+  <table class="dv-ov">
+    <thead><tr><th>{{ L.dv_col_cat }}</th><th>{{ L.dv_col_searches }}</th><th class="num">{{ L.dv_col_topics }}</th><th class="num">{{ L.dv_col_linked }}</th><th>{{ L.dv_col_trends }}</th></tr></thead>
+    <tbody>
+    {% for c in dv.categories %}
+    <tr class="{{ '' if c.n_linked else 'none' }}">
+      <td class="nm">{{ c.name }}</td>
+      <td><div class="bar"><div class="trk"><i class="all" style="width: {{ (c.n / max_n * 100) | round(2) }}%"></i><i class="lk" style="width: {{ (c.n_linked_searches / max_n * 100) | round(2) }}%"></i></div><span>{{ "{:,}".format(c.n) }}</span></div></td>
+      <td class="num">{{ c.n_themes }}</td>
+      <td class="num">{{ c.n_linked if c.n_linked else "–" }}</td>
+      <td class="tr">{% for r in c.trend_ranks %}#{{ r }}{{ ", " if not loop.last }}{% else %}–{% endfor %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="dv-side">
+    <div class="dv-stats">
+      <div class="dv-stat"><div class="v">{{ "{:,}".format(dv.n_searches) }}</div><div class="l">{{ L.dv_stat_searches }}</div></div>
+      <div class="dv-stat"><div class="v">{{ "{:,}".format(dv.n_topics) }}</div><div class="l">{{ L.dv_stat_topics.format(k=dv.n_categories) }}</div></div>
+      <div class="dv-stat wide"><div class="v">{{ dv.n_linked_topics }}</div><div class="l">{{ L.dv_stat_linked }} · {{ L.dv_stat_linked_sub.format(pct=dv.linked_pct) }}</div></div>
+    </div>
+    <div class="dv-txt">{{ L.dv_ov_pages.format(k=(dv.categories | selectattr("n_linked") | list | length)) }}</div>
+    {% if dv.none_linked %}<div class="dv-txt">{{ L.dv_ov_none.format(k=dv.none_linked | length, names=dv.none_linked | join(", ")) }}</div>{% endif %}
+    <div class="dv-caveat">{{ L.dv_ov_caveat }}</div>
+  </div>
+  {{ footer() }}
+</section>
+
+{#- ======================= 3. หน้ารายหมวด (ชุดเดียวกับส่วนที่ 2 ของรายงานเทรนด์) ======================= -#}
+{% include "_dive_pages.j2" %}
+
+{#- ======================= 4. วิธีอ่าน ======================= -#}
+<section class="page" data-label="Method">
+  {{ bar_header(L.dv_notes_header) }}
+  <div class="dv-notes">
+    <div class="ap-box fit" data-name="what"><h3>{{ L.dv_m_what_title }}</h3>{{ L.dv_m_what.format(places=dv.places_text) }}</div>
+    <div class="ap-box fit" data-name="topics"><h3>{{ L.dv_m_topics_title }}</h3>{{ L.dv_m_topics }}</div>
+    <div class="ap-box fit" data-name="link"><h3>{{ L.dv_m_link_title }}</h3>{{ L.dv_m_link }}</div>
+    <div class="ap-box fit" data-name="sentences"><h3>{{ L.dv_m_text_title }}</h3>{{ L.dv_m_text }}</div>
+    <div class="ap-box fit" data-name="limits"><h3>{{ L.dv_m_limits_title }}</h3>{{ L.dv_m_limits }}</div>
+  </div>
+  <div class="dv-data">{{ L.dv_m_data.format(run_id=meta.run_id, date=(run_date | date_long)) }}</div>
+  {{ footer() }}
+</section>
+
+<script>
+// เหมือนรายงานเทรนด์ (report.html.j2): ย่อฟอนต์กล่อง .fit จนพอดี แล้วคืนกล่องที่ยังล้นให้ Python เตือน
+window.fitAll = async function () {
+  await document.fonts.ready;
+  const overflow = [];
+  for (const el of document.querySelectorAll(".fit")) {
+    const min = parseFloat(el.dataset.min || "7");
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    while (over() && size > min) {
+      size = Math.max(min, size - 0.25);
+      el.style.fontSize = size + "px";
+    }
+    if (over()) {
+      const page = el.closest(".page");
+      overflow.push((page ? page.dataset.label : "?") + " / " + (el.dataset.name || el.className));
+    }
+  }
+  return overflow;
+};
+</script>
+</body>
+</html>

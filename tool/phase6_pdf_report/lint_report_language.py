@@ -34,7 +34,7 @@ OUTPUT_ROOT = HERE.parents[1] / "output"
 HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
 
 # PDF ที่ pipeline สร้าง: ⑯ trend_report, ⑰ brand_report_<แบรนด์>, ⑱ brand_category_report_<แบรนด์> (+ _TH) - growth_method เป็นเอกสารวิธีการ (เทคนิคโดยเจตนา) จึงไม่ตรวจ
-PIPELINE_PDF_RE = re.compile(r"^phase6_(trend_report|brand_report_[^_.]+|brand_category_report_[^_.]+)(_TH)?\.pdf$")
+PIPELINE_PDF_RE = re.compile(r"^phase6_(trend_report|category_dive|brand_report_[^_.]+|brand_category_report_[^_.]+)(_TH)?\.pdf$")   # 🆕 (2026-10-28) + category_dive (เล่มเจาะรายหมวด)
 
 ERROR, WARN = "ERROR", "WARN"
 Finding = namedtuple("Finding", "source where lang rule level detail excerpt")
@@ -152,13 +152,14 @@ def check_text(source, where, lang, text, allow, appendix=False, prose=True, tem
 def lint_static_strings(allow=None):
     import brand_category_i18n
     import brand_i18n
+    import dive_i18n
     import i18n
     import unit_i18n
 
     allow = BASE_ALLOW if allow is None else allow
     tables = (("i18n.STRINGS", i18n.STRINGS), ("brand_i18n.BRAND_STRINGS", brand_i18n.BRAND_STRINGS),
               ("brand_category_i18n.CATEGORY_STRINGS", brand_category_i18n.CATEGORY_STRINGS),
-              ("unit_i18n.UNIT_STRINGS", unit_i18n.UNIT_STRINGS))
+              ("unit_i18n.UNIT_STRINGS", unit_i18n.UNIT_STRINGS), ("dive_i18n.DIVE_STRINGS", dive_i18n.DIVE_STRINGS))
     out = []
     for name, table in tables:
         for lang in ("en", "th"):
@@ -304,6 +305,16 @@ def _keyword_phrases(run_dir):
     (เช่น "holistic health" ที่เป็นคำค้นจริง)"""
     ctx = _read_json(run_dir / "phase6_report_context.json") or {}
     words = {k.strip() for t in ctx.get("trends") or [] for k in (t.get("keywords") or []) if isinstance(k, str) and k.strip()}
+    # 🆕 (2026-10-28) หน้า "คนกำลังค้นหาอะไรมากขึ้น": ชื่อหมวดของ Google (เช่น "Jobs & Education") และคำค้นตัวอย่างเป็นข้อมูลตามต้นฉบับ ไม่ใช่ศัพท์ที่เราเลือกใช้
+    talk = ctx.get("talk") or {}
+    words |= {c["name"] for c in talk.get("categories") or [] if c.get("name")}
+    # 🆕 (2026-10-28) ส่วนที่ 2 เจาะรายหมวด (และเล่มแยก): ชื่อหมวด + คำค้นของหัวข้อที่แสดง (รวมหลักฐานการโยง) เป็นข้อมูลตามต้นฉบับเช่นกัน
+    dive = ctx.get("dive") or _read_json(run_dir / "phase6_category_dive_context.json") or {}
+    for c in dive.get("categories") or []:
+        words.add(str(c.get("name") or "").strip())
+        for t in (c.get("linked") or []) + (c.get("others") or []):
+            words |= {s.strip() for s in (t.get("searches") or []) + (t.get("shown") or []) + ((t.get("link") or {}).get("evidence") or []) if str(s).strip()}
+    words.discard("")
     return sorted(words, key=len, reverse=True)
 
 

@@ -34,6 +34,9 @@ Thin orchestrator — รันไปป์ไลน์ v2 ทั้งชุด
 🆕 (2026-09-25) ⑯ รายงาน PDF 2 ไฟล์ อังกฤษ + ไทย (เฉพาะเทรนด์ ไม่มีหน้าแบรนด์/⑬) รันท้ายโหมด 1 - ข้ามด้วย
 --skip-pdf / สร้างใหม่ทีหลังด้วย `python tool/phase6_pdf_report/build_pdf_report.py --run <ชื่อรอบ>`
 
+🆕 (2026-10-28) รอบสาย Search: ⑯ มี "ส่วนที่ 2 เจาะรายหมวดของ Google" ต่อท้ายหน้าเทรนด์อยู่ในไฟล์เดียวกัน (ไม่มีขั้นแยก) - เล่มแยกเฉพาะส่วนนี้สร้างเองได้ด้วย
+`python tool/phase6_pdf_report/build_category_dive.py --run <ชื่อรอบ>`
+
 🆕 (2026-09-26) ⑰ รายงานแบรนด์ x เทรนด์ PDF (อังกฤษ + ไทย) 1 ไฟล์ต่อแบรนด์ - สร้างต่อจาก ⑬ ของแต่ละแบรนด์ในลูปถามแบรนด์
 ทั้งโหมด 1 และโหมด 2 (โหมด 1 ข้ามด้วย --skip-pdf) / สร้างใหม่ทีหลังด้วย
 `python tool/phase6_pdf_report/build_brand_report.py --run <ชื่อรอบ> --brand <แบรนด์>`
@@ -49,6 +52,11 @@ Thin orchestrator — รันไปป์ไลน์ v2 ทั้งชุด
 🆕 (2026-10-26) ⑳ ส่งออกผลของรอบให้ LLM (brief ต่อลูกค้า + ตารางรวมลูกค้า/เทรนด์ CSV + SQLite) รันอัตโนมัติ **ครั้งเดียว** หลัง ⑰ ของทุกแบรนด์ในรอบ
 ทั้งโหมด 1/2/3 (ส่งออกทุกแบรนด์ที่มีผล ⑰ ในโฟลเดอร์รอบ จึงไม่รันต่อแบรนด์) - ข้ามเมื่อไม่ได้รัน ⑰ (ไม่มีแบรนด์ / --skip-pdf) ; ไม่เรียก API ไม่บังคับ /
 รันเองด้วย `python tool/phase8_llm_export/export_llm_data.py --run <ชื่อรอบ>`
+
+🆕 (2026-10-27) ①-⑤ เปลี่ยนจาก 3 สาย Paper / Social / News เป็นสาย Search (Google Trends คำค้นที่กำลังขึ้นรายหมวด,
+tool/phase9_search_stream/search_stream.py) ตามที่เจ้าของงานสั่ง - เริ่มจากสิ่งที่คนค้นเพิ่มขึ้นจริงทุกหมวด ไม่ใช้หัวข้อตั้งต้นค้นหา
+(หัวข้อยังถามไว้ใช้ตั้งชื่อรอบ) มีจุดหยุดให้ตรวจรายชื่อเทรนด์ก่อน ⑦ (phase2_search_candidates.csv) / ⑩ ใช้กับ 3 สายเดิมเท่านั้น
+จึงไม่ถามในรอบใหม่ / โหมด 2-3 และการสร้างรายงานใหม่ของรอบเก่ายังใช้ผล 3 สายเดิมของรอบนั้นได้ตามเดิม (common/streams.py)
 
 Usage:
     python main.py                    # เจอเมนูเลือกโหมด 1/2/3 ก่อน
@@ -69,6 +77,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 TOOL_DIR = PROJECT_ROOT / "tool"
 OUTPUT_ROOT = PROJECT_ROOT / "output"
+# 🆕 (2026-10-27) รายชื่อสายที่เดียว (โมดูลเบา ไม่โหลดไปป์ไลน์) - รอบใหม่ = Search, รอบเก่า = Paper/Social/News
+sys.path.insert(0, str(TOOL_DIR))
+from common.streams import LEGACY_STREAMS, SEARCH_STREAM, STREAM_FILES as _STREAM_FILES  # noqa: E402
 # 🆕 (2026-09-16) จำนวนเทรนด์ที่ใช้ต่อหลังพยากรณ์ (⑪ เป็นต้นไป) คัดด้วย Rank Score ของ ⑥ - ต้องตรงกับ
 # tool/common/bootstrap.py's TOP_N_TRENDS_DEFAULT (ไม่ import มาตรงๆ เพราะ main.py เป็นตัวเรียก subprocess
 # บางๆ ไม่โหลดโมดูลหนักของ pipeline)
@@ -84,10 +95,10 @@ def slugify(text, max_len=50):
 # (label, script path relative to TOOL_DIR, required?) - required=False แปลว่าพังแล้วไปต่อได้
 # (สคริปต์ต่อจากนี้จะเช็ค input file เองแล้ว error ชัดเจนถ้าขั้นก่อนหน้าไม่ผ่านจริง)
 STAGES = [
-    ("①-⑤ สาย Paper", "phase1_paper_stream/paper_stream.py", True),
-    ("①-⑤ สาย Social", "phase2_three_streams/social/social_stream.py", True),
-    ("①-⑤ สาย News", "phase2_three_streams/news/news_stream.py", True),
-    ("ยืนยัน 3 สายต่างกันจริง (sanity check)", "phase2_three_streams/compare_all_streams.py", False),
+    # 🆕 (2026-10-27) แทน 3 สายเดิม (phase1_paper_stream/paper_stream.py, phase2_three_streams/social/social_stream.py,
+    # phase2_three_streams/news/news_stream.py + compare_all_streams.py - สคริปต์ยังอยู่ ไม่ได้ลบ แค่ไม่รันแล้ว)
+    ("①-⑤ สาย Search (Google Trends คำค้นกำลังขึ้นรายหมวด - เสีย quota ถ้ายังไม่มี cache เดือนนี้)",
+     "phase9_search_stream/search_stream.py", True),
     ("⑦ Google Trends จริง (SerpAPI - เสีย quota)", "phase2_three_streams/fetch_trends_worldwide_serpapi.py", True),
     ("⑧-⑨ ชั้นหมวด + ภาพรวม", "phase2_three_streams/run_category_aggregation.py", True),
     # 🆕 (2026-09-16) เปลี่ยนเป็นขั้นที่ต้องผ่าน - ⑪ เป็นต้นไปใช้ผลนี้คัด Top N เทรนด์ (ดู bootstrap.select_top_trends)
@@ -111,12 +122,23 @@ PDF_STAGE = ("⑯ รายงาน PDF (อังกฤษ + ไทย)", "pha
 
 # 🆕 (2026-10-07) โหมด 3 อัปเดตรอบเดิม - ผล ①-⑤ ที่สำเนาจากรอบเดิม (ไฟล์เปรียบเทียบ 3 สายไม่บังคับ) แล้วเริ่มรันที่ ⑦
 HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
-STREAM_FILES = ("phase1_paper_stream_result.json", "phase2_social_stream_result.json", "phase2_news_stream_result.json")
-REFRESH_OPTIONAL_FILES = ("phase2_all_streams_comparison.json",)
+# 🆕 (2026-10-27) รอบหนึ่งมีผล ①-⑤ ได้ 2 แบบ: สาย Search (รอบใหม่) หรือ 3 สายเดิมครบ (รอบเก่า)
+LEGACY_STREAM_FILES = tuple(_STREAM_FILES[s] for s in LEGACY_STREAMS)
+SEARCH_STREAM_FILES = (_STREAM_FILES[SEARCH_STREAM],)
+STREAM_FILES = LEGACY_STREAM_FILES + SEARCH_STREAM_FILES
+REFRESH_OPTIONAL_FILES = ("phase2_all_streams_comparison.json", "phase2_search_candidates.csv")
 REFRESH_FIRST_STAGE = next(i for i, s in enumerate(STAGES) if s[1].endswith("fetch_trends_worldwide_serpapi.py"))
 REFRESH_ENV = "TREND_REFRESH_FROM"   # ต้องตรงกับ tool/common/bootstrap.py's REFRESH_ENV
 REFRESH_KEY = "_refresh"             # entry ใน _manifest.json ของรอบใหม่ (ขีดล่างนำหน้า = ไม่ใช่ชื่อขั้น)
-SOURCE_STREAM_STAGES = ("paper_stream", "social_stream", "news_stream")
+SOURCE_STREAM_STAGES = ("paper_stream", "social_stream", "news_stream", "search_stream")
+
+
+def _stream_files_of(run_dir):
+    """ไฟล์ผล ①-⑤ ของรอบ: สาย Search ถ้ามี ไม่งั้น 3 สายเดิมถ้ามีครบ ไม่งั้น () (ผล ①-⑤ ไม่ครบ)"""
+    for files in (SEARCH_STREAM_FILES, LEGACY_STREAM_FILES):
+        if all((run_dir / name).exists() for name in files):
+            return files
+    return ()
 
 def run_stage(label, rel_path, required, env, base=TOOL_DIR, extra_args=()):
     """base = โฟลเดอร์ที่ rel_path นับจาก (ค่าเริ่มต้น tool/ - สคริปต์กราฟอยู่ที่ root จึงส่ง base=PROJECT_ROOT)"""
@@ -163,15 +185,18 @@ def _get_run_topic(run_dir):
     (ตัดวรรค/ตัดความยาว 50 ตัวอักษร) จนบางทีอ่านแล้วไม่รู้เรื่องว่าหัวข้อจริงคืออะไร
 
     คืน "" ถ้าอ่านไม่ได้ (ไฟล์ไม่มี/parse ไม่ได้/ไม่มีฟิลด์ topic) - ไม่ error ให้ caller ใช้ label เดิม
-    แทนถ้าอ่านหัวข้อจริงไม่ได้"""
-    path = run_dir / "phase1_paper_stream_result.json"
-    if not path.exists():
-        return ""
-    try:
-        with open(path, encoding="utf-8") as f:
-            return (json.load(f).get("topic") or "").strip()
-    except (json.JSONDecodeError, OSError):
-        return ""
+    แทนถ้าอ่านหัวข้อจริงไม่ได้
+    🆕 (2026-10-27) รอบใหม่ไม่มีสาย Paper - อ่านจากผลสาย Search แทน"""
+    for name in ("phase1_paper_stream_result.json",) + SEARCH_STREAM_FILES:
+        path = run_dir / name
+        if not path.exists():
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                return (json.load(f).get("topic") or "").strip()
+        except (json.JSONDecodeError, OSError):
+            return ""
+    return ""
 
 
 def _refreshed_from(run_dir):
@@ -342,7 +367,10 @@ def run_mode_full_pipeline(args):
             _print_stage_fix(label, rel_path, run_vars, "รัน main.py ใหม่ทั้งหมด = เริ่มรอบใหม่ (รันขั้นก่อนหน้าซ้ำด้วย)")
             sys.exit(1)
 
-    if not args.skip_discovery:
+    # 🆕 (2026-10-27) ⑩ หาเทรนด์ข้ามหมวดจาก 3 สายเดิม - รอบใหม่ใช้สาย Search จึงไม่มีอะไรให้ ⑩ ทำ
+    if not args.skip_discovery and _stream_files_of(run_dir) != LEGACY_STREAM_FILES:
+        print("\n  ⏭️  ข้าม ⑩ (ใช้กับ 3 สายเดิม Paper/Social/News เท่านั้น - รอบนี้ใช้สาย Search)")
+    elif not args.skip_discovery:
         ans = input("\nรัน ⑩ รอบค้นพบเพิ่มไหม (optional, เสีย SerpAPI quota เล็กน้อย)? [y/N]: ").strip().lower()
         if ans == "y":
             run_stage(*DISCOVERY_STAGE, env)
@@ -420,12 +448,12 @@ def _prepare_refresh_run(source_dir, run_dir, config):
     - models_used = โมเดลที่ 3 สายของรอบเดิมใช้ (รวม entry _refresh ของรอบเดิมถ้ารอบเดิมก็เป็นรอบอัปเดต) ให้รายชื่อโมเดล
       ในรายงานครบเหมือนรอบปกติ / evidence_collected = วันที่เก็บหลักฐาน 3 สายจริง
     คืนรายชื่อไฟล์ที่สำเนา - ผล ①-⑤ ไม่ครบ = หยุดก่อนสร้างโฟลเดอร์"""
-    missing = [name for name in STREAM_FILES if not (source_dir / name).exists()]
-    if missing:
-        raise SystemExit(f"❌ รอบ {source_dir.name} ไม่มีผล ①-⑤ ครบ: {missing}")
+    stream_files = _stream_files_of(source_dir)   # 🆕 (2026-10-27) สาย Search (รอบใหม่) หรือ 3 สายเดิมครบ (รอบเก่า)
+    if not stream_files:
+        raise SystemExit(f"❌ รอบ {source_dir.name} ไม่มีผล ①-⑤ ครบ (ต้องมี {SEARCH_STREAM_FILES[0]} หรือ 3 สายเดิมครบ)")
     run_dir.mkdir(parents=True)
     copied = []
-    for name in STREAM_FILES + REFRESH_OPTIONAL_FILES:
+    for name in stream_files + REFRESH_OPTIONAL_FILES:
         if (source_dir / name).exists():
             shutil.copyfile(source_dir / name, run_dir / name)
             copied.append(name)
@@ -462,7 +490,10 @@ def run_mode_refresh(args):
     if args.refresh:
         source_id = args.refresh
     else:
-        runs = _list_available_runs(required=STREAM_FILES, include_legacy=False)
+        # 🆕 (2026-10-27) รอบใหม่ (สาย Search) + รอบเก่า (3 สายเดิมครบ) รวมกัน เรียงจากล่าสุด
+        runs = sorted(_list_available_runs(required=SEARCH_STREAM_FILES, include_legacy=False)
+                      + _list_available_runs(required=LEGACY_STREAM_FILES, include_legacy=False),
+                      key=lambda c: c[2], reverse=True)
         if not runs:
             print("❌ ไม่มีรอบไหนมีผล ①-⑤ ครบ - รันโหมด 1 อย่างน้อย 1 รอบก่อน")
             sys.exit(1)

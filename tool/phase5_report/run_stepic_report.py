@@ -56,11 +56,11 @@ from openai import OpenAI  # noqa: E402
 # Paper/Social/News (ดู TOPIC ใน paper_stream.py) เพื่ออ่าน TREND_TOPIC ก่อน ตกมาที่ default นี้ถ้าไม่มี
 DEFAULT_USER_QUERY = "Global beauty and personal care trends"
 REPORT_CHAR_LIMIT = 8000  # ต่อสาย - เหตุผลเดียวกับ CONTENT_CHAR_LIMIT ที่ใช้ทุกจุดในโปรเจกต์นี้
-STREAM_FILES = {
-    "Paper": "phase1_paper_stream_result.json",
-    "Social": "phase2_social_stream_result.json",
-    "News": "phase2_news_stream_result.json",
-}
+# 🆕 (2026-10-27) รายชื่อสายที่เดียว (common/streams.py) - รอบใหม่ = สาย Search (Google Trends), รอบเก่า = Paper/Social/News
+from common.streams import SEARCH_STREAM, STREAM_FILES  # noqa: E402
+from common.match_quality import no_close_product  # noqa: E402
+# 🆕 (2026-10-27) รอบที่มีแต่สาย Search (Google Trends คำค้นกำลังขึ้น): STEPIC ใช้เฉพาะสิ่งที่คำค้นยืนยัน - ดู stepic_evidence.py
+import stepic_evidence as se  # noqa: E402
 
 
 @contextmanager
@@ -428,7 +428,8 @@ def build_strategix_context(streams, selected=None):
     อันดับในบรรทัดนั้นชวนสับสนกับอันดับเทรนด์ ข้อมูลสินค้ายังอยู่ครบในหัวข้อ 5"""
     longevity_override = load_cross_source_longevity()
     pairs = [(stream, t) for stream, data in streams.items() for t in data.get("trends", [])]
-    lines = ["# Top Trend Clusters (Paper + Social + News)\n"]
+    search_only = set(streams) == {SEARCH_STREAM}   # 🆕 (2026-10-27) รอบสาย Search: ไม่มีคะแนน Longevity (ไม่มีการยืนยันข้ามสาย)
+    lines = ["# Top Trend Clusters (Google Trends rising searches)\n" if search_only else "# Top Trend Clusters (Paper + Social + News)\n"]
     rank_line = {}
     if selected is not None:
         by_key = {(stream, t.get("Trend Name")): (stream, t) for stream, t in pairs}
@@ -447,8 +448,14 @@ def build_strategix_context(streams, selected=None):
         lines.append(f"- Key Ingredients: {t.get('Key Ingredients', '')}")
         lines.append(f"- Key Benefits: {t.get('Key Benefits', '')}")
         lines.append(f"- Target: {t.get('Target', '')}")
-        lines.append(f"- Longevity: {lv.get('Longevity Score')} ({lv.get('Longevity Band')})\n")
+        lines.append("" if search_only else f"- Longevity: {lv.get('Longevity Score')} ({lv.get('Longevity Band')})\n")
     return "\n".join(lines)
+
+
+def search_evidence_text(streams, selected, growth_facts, product_context):
+    """ชุดหลักฐานของรอบสาย Search (คำค้นจริง + พื้นที่ + ตัวเลขการเติบโต + สินค้าจริง) - ดู stepic_evidence.build_evidence"""
+    names = {s["trend"] for s in selected} if selected is not None else None
+    return se.build_evidence(streams.get(SEARCH_STREAM) or {}, names, growth_facts, product_context)
 
 
 def load_master_report_json(selected=None):
@@ -517,6 +524,9 @@ def load_supply_layer_results():
     context_lines, product_rows = [], []
     for key, r in results.items():
         name = r.get("trend_name", key)
+        if no_close_product(r):   # 🆕 (2026-10-28) สินค้าใกล้เทรนด์ที่สุดส่วนใหญ่ไม่อยู่ในหมวดหลัก (common/match_quality) - ไม่ส่งเป็นหลักฐาน "สินค้าที่ใกล้ที่สุด"
+            print(f"  ⏭️ ไม่ส่งสินค้าที่จับคู่ของ '{name}' เข้า STEPIC: สินค้าที่ใกล้ที่สุดส่วนใหญ่ไม่อยู่ในหมวดหลักของเทรนด์")
+            continue
         cov = coverage_by_name[key]
         top1 = r["top_matches"][0]
         # 🆕 (2026-09-14, แก้ตามที่เจ้าของงานสั่ง) top1 อาจมี match_reason - LLM ให้แค่คำอธิบาย ไม่ตัดสิน
@@ -568,6 +578,9 @@ if __name__ == "__main__":
         print("❌ ไม่มีผลลัพธ์สายไหนเลย")
         sys.exit(1)
     print(f"โหลด {len(streams)} สาย: {list(streams.keys())}")
+    SEARCH_ONLY = set(streams) == {SEARCH_STREAM}
+    if SEARCH_ONLY:
+        print("ℹ️ รอบนี้มีแต่สาย Search (Google Trends) - STEPIC ใช้เฉพาะสิ่งที่คำค้นยืนยัน (ไม่มี = \"No data\")")
 
     product_context_str, product_results, coverage_by_name = load_supply_layer_results()
     print(f"⑫ supply-layer: {len(product_results)} product rows (จาก {len(coverage_by_name)} เทรนด์)")
@@ -621,10 +634,24 @@ if __name__ == "__main__":
         if REINTEGRATE:
             print(f"\n🧠 [Step 9b] สังเคราะห์รวม (integrate_stepic)...")
             with use_bedrock_v2():
-                final_stepic_insight = integrate_stepic(stepic_raw_analysis, USER_QUERY)
+                if SEARCH_ONLY:
+                    final_stepic_insight = se.integrate_evidence(
+                        _chat_json, search_evidence_text(streams, selected_trends, master_report_str, product_context_str),
+                        stepic_raw_analysis, USER_QUERY)
+                else:
+                    final_stepic_insight = integrate_stepic(stepic_raw_analysis, USER_QUERY)
         else:
             with open(out_dir / "phase4_stepic_final_insight.json", encoding="utf-8") as f:
                 final_stepic_insight = json.load(f)
+    elif SEARCH_ONLY:
+        # 🆕 (2026-10-27) สาย Search: ชุดหลักฐานชุดเดียว + บังคับอ้างข้อความจริง (ตรวจด้วยโค้ด) - มิติที่ไม่มีหลักฐาน = "No data"
+        evidence_text = search_evidence_text(streams, selected_trends, master_report_str, product_context_str)
+        print(f"\n🧠 [Step 9a] STEPIC 6 มิติจากหลักฐานคำค้น (ชุดหลักฐาน {len(evidence_text):,} ตัวอักษร)...")
+        with use_bedrock_v2():
+            stepic_raw_analysis = se.analyze_dimensions(_chat_json, evidence_text, USER_QUERY, STEPIC_FIELDS)
+        print(f"\n🧠 [Step 9b] สังเคราะห์รวมจากหลักฐาน...")
+        with use_bedrock_v2():
+            final_stepic_insight = se.integrate_evidence(_chat_json, evidence_text, stepic_raw_analysis, USER_QUERY)
     else:
         print(f"\n🧠 [Step 9a] STEPIC 6 มิติ (Society/Technology/Environment/Policy/Industry/Creativity)...")
         with use_bedrock_v2():
@@ -665,11 +692,23 @@ if __name__ == "__main__":
             facts_list = [f for f in (ta.trend_facts(by_trend[name], words.get(name, []), longevity.get((stream, name)))
                                       for stream, name in picked if name in by_trend) if f]
             written = {}
-            if facts_list and not FROM_SAVED:
-                print(f"\n🧠 [Step 9d] ข้อความวิเคราะห์ต่อเทรนด์ {len(facts_list)} เทรนด์จากโมเดลการเติบโต...")
-                with use_bedrock_v2():
-                    written = write_trend_analysis(facts_list, USER_QUERY)
-            entries = [ta.analysis_entry(f, written.get(f["trend"])) for f in facts_list]
+            if SEARCH_ONLY:
+                # 🆕 (2026-10-28) รอบสาย Search: LLM เขียนได้เฉพาะประโยคว่าคนค้นหาอะไร (คำค้นจริงของเทรนด์ + ข้อความที่คัดลอกต้องตรงหลักฐาน - stepic_evidence.write_intents)
+                # ส่วนสรุป / คำอธิบายแรงขับ / ความเสี่ยงประกอบจากตัวเลขของโมเดลล้วน - ไม่ส่งส่วนผสม/ประโยชน์/กลุ่มเป้าหมายที่ LLM เขียนไว้ในขั้นสายหลักฐานให้เขียนต่อ
+                search_rows = {r_.get("Trend Name"): r_ for r_ in (streams.get(SEARCH_STREAM) or {}).get("trends") or []}
+                intents = {}
+                if facts_list and not FROM_SAVED:
+                    print(f"\n🧠 [Step 9d] ประโยค consumer intent ต่อเทรนด์ {len(facts_list)} เทรนด์จากคำค้นจริง (ส่วนที่เหลือประกอบจากตัวเลขของโมเดล)...")
+                    with use_bedrock_v2():
+                        intents = se.write_intents(_chat_json, search_rows, [f["trend"] for f in facts_list])
+                entries = [ta.search_analysis_entry(f, se.trend_searches(search_rows.get(f["trend"]) or {}, 12), intents.get(f["trend"]))
+                           for f in facts_list]
+            else:
+                if facts_list and not FROM_SAVED:
+                    print(f"\n🧠 [Step 9d] ข้อความวิเคราะห์ต่อเทรนด์ {len(facts_list)} เทรนด์จากโมเดลการเติบโต...")
+                    with use_bedrock_v2():
+                        written = write_trend_analysis(facts_list, USER_QUERY)
+                entries = [ta.analysis_entry(f, written.get(f["trend"])) for f in facts_list]
             trend_analysis = {"cluster_analysis": entries}
             print("  ข้อความจาก LLM: " + ", ".join(f"{e['cluster_name'][:24]}={e['text_source']}" for e in entries))
         if trend_analysis.get("cluster_analysis"):

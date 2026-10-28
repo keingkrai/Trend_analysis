@@ -37,11 +37,11 @@ OUTPUT_ROOT = TOOL_DIR.parent / "output"
 sys.path.insert(0, str(TOOL_DIR))
 sys.path.insert(0, str(TOOL_DIR / "phase6_pdf_report"))
 
-from brand_data import FIT_LEVELS, QUADRANTS, SALES_STATES, safe_file_part  # noqa: E402
+from brand_data import FIT_LEVELS, QUADRANTS, safe_file_part  # noqa: E402
 from common.horizons import LONG_YEAR, SHORT_YEAR, YEARS  # noqa: E402
 from report_data import read_json  # noqa: E402
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"   # 1.1 (2026-10-27): sales fields removed from the grade and from every table
 CONTEXT_FILE = "phase6_report_context.json"
 BRAND_GLOB = "phase6_brand_context_*.json"
 EXPORT_DIR = "llm_export"
@@ -62,6 +62,10 @@ TREND_COLUMNS = [
     ("above_market_line", "int", f"1 if the year-{SHORT_YEAR} growth score is above the market median (0.5)."),
     ("in_product_analysis", "int", "1 if the trend was matched against products (it has customer fit grades and top products). "
                                    "0 = below the market line: only forecast numbers exist."),
+    ("no_close_product", "int", "1 = the trend was matched but no Konvy product is close enough to show: the 5 products closest to it are mostly outside "
+                                "the trend's main category. It then has no top products and no customer fit grades. 0 = matched normally. Empty = not matched."),
+    ("match_basis", "text", "What the trend's text matched against products was built from: 'need' = the beauty need an AI inferred from the searches (product types and "
+                            "benefits - used first) followed by what the searches show; 'evidence' = what the searches show only. Empty = not matched."),
     *[(f"expected_pct_y{y}", "real", f"Expected search interest in year {y} vs the last 12 months, % (e.g. 53 = 53% higher). Cumulative level, not a yearly change.")
       for y in YEARS],
     *[(f"growth_score_y{y}", "real", f"Growth score at year {y}, 0-1: percentile of the trend's keywords against all keywords of the run (0.5 = market median).")
@@ -117,8 +121,6 @@ CUSTOMER_COLUMNS = [
     ("n_average", "int", "Trends graded average."),
     ("n_below_average", "int", "Trends graded below_average."),
     ("one_trend_from_level", "text", "If set: one more trend at or above this level would lift overall_level to it."),
-    ("sales_raised_trends", "int", "Trends whose grade went UP because of Konvy sales."),
-    ("sales_lowered_trends", "int", "Trends whose grade went DOWN because of Konvy sales (includes the cap of an excellent match at good)."),
     ("strongest_trend_id", "text", "Trend where the customer's best product is graded best."),
     ("opportunity_trend_id", "text", "Fastest-growing trend where the customer is not yet ready (quadrant build)."),
     ("quick_win_trend_id", "text", "Trend (below excellent) where the customer's best product is closest to the market leader."),
@@ -131,9 +133,7 @@ CUSTOMER_TREND_COLUMNS = [
     ("trend_id", "text", "Trend id (join to trends)."),
     ("trend", "text", "Display name of the trend."),
     ("checked", "int", "1 = the customer was checked on this trend; 0 = no result (fit columns are empty)."),
-    ("fit_level", "text", f"Customer's grade on the trend: {' / '.join(FIT_LEVELS)}. Best product in the trend's main category after the sales adjustment."),
-    ("fit_level_before_sales", "text", "Grade from description similarity alone, before Konvy sales are taken into account."),
-    ("sales_effect", "text", "raised / lowered / none: whether Konvy sales changed the grade."),
+    ("fit_level", "text", f"Customer's grade on the trend: {' / '.join(FIT_LEVELS)}. Best product in the trend's main category, by similarity alone."),
     ("quadrant", "text", f"Action group: {' / '.join(QUADRANTS)}. defend = growing trend and customer ready; build = growing, not ready; "
                          "maintain = slower, ready; monitor = slower, not ready."),
     ("main_category", "text", "Category (L2) the customer was compared in."),
@@ -151,12 +151,6 @@ CUSTOMER_TREND_COLUMNS = [
     ("own_rank_in_category", "int", "Its similarity rank among all Konvy products in the category (1 = closest)."),
     ("own_category_size", "int", "Number of Konvy products in the category."),
     ("own_top_pct_in_category", "real", "Its similarity position as 'top X%' of the category (0.58 = top 0.58%)."),
-    ("own_sales_state", "text", f"Konvy sales level against the category: {' / '.join(SALES_STATES)}."),
-    ("own_sales_basis", "text", "sales = units sold counter; reviews = product is sold out so review count is used; none = no data."),
-    ("own_units_sold", "int", "Lifetime units sold shown on Konvy. Empty when sold out (Konvy hides the counter then; it does NOT mean zero sales)."),
-    ("own_reviews", "int", "Review count on Konvy (empty when not recorded)."),
-    ("own_sold_out", "int", "1 = out of stock on Konvy."),
-    ("own_sales_top_pct", "int", "Sales position as 'top X%' of the category (by units sold, or reviews if sold out)."),
     ("own_reason_en", "text", "Why the product matches the trend (English)."),
     ("own_reason_th", "text", "Same in Thai (empty if the Thai report was not built)."),
     ("leader_brand", "text", "Brand of the closest Konvy product to the trend in that category."),
@@ -242,6 +236,8 @@ def build_trends(ctx):
             "trend_id": tid, "name": g["name"], "display_name": g.get("display_name") or t.get("display_name") or g["name"],
             "stream": g.get("stream"), "rank_short": g.get("rank"), "rank_long": g.get("long_rank"),
             "above_market_line": _flag(g.get("above_line")), "in_product_analysis": int(g.get("detail_rank") is not None),
+            "no_close_product": int(bool(t.get("no_close_product"))) if t else None,   # 🆕 (2026-10-28) common/match_quality.py
+            "match_basis": t.get("match_basis") if t else None,   # 🆕 (2026-10-28) need = ความต้องการความงามที่ AI อนุมาน / evidence = คำค้นอย่างเดียว
             "cagr_pct_short": _num(_at(g.get("cagr_pct"), SHORT_YEAR)), "cagr_pct_long": _num(_at(g.get("cagr_pct"), LONG_YEAR)),
             "past_growth_pct": _num(g.get("past_growth_pct")), "recent_decline": _flag(g.get("recent_decline")),
             "main_category": (t.get("l2") or {}).get("category") or ((g.get("categories") or [None])[0]),
@@ -257,7 +253,7 @@ def build_trends(ctx):
             row[f"expected_pct_y{y}"] = _num(_at(g.get("expected_pct"), y))
             row[f"growth_score_y{y}"] = _num(_at(g.get("scores"), y))
         rows.append(row)
-        for pos, p in enumerate((t.get("products") or [])[:5], start=1):
+        for pos, p in enumerate([] if t.get("no_close_product") else (t.get("products") or [])[:5], start=1):   # ไม่มีสินค้าที่ใกล้พอ = ไม่ส่งสินค้า "ใกล้เทรนด์ที่สุด"
             tops.append({"trend_id": tid, "pos": pos, "brand": p.get("brand"), "product": p.get("name") or p.get("name_full"),
                          "price_thb": _num(p.get("price_thb")), "size": _num(p.get("size")), "unit_label": p.get("unit_label"),
                          "unit_price_thb": _num(p.get("unit_price"), 2), "is_mini": _flag(p.get("is_mini")),
@@ -278,15 +274,6 @@ def _own_reason_th(bctx, row):
     return None
 
 
-def _sales_effect(row):
-    base, level = row.get("base_level"), row.get("level")
-    if not row.get("checked"):
-        return None
-    if base in FIT_LEVELS and level in FIT_LEVELS and base != level:
-        return "raised" if FIT_LEVELS.index(level) < FIT_LEVELS.index(base) else "lowered"
-    return "none"
-
-
 def build_customer(bctx, by_name, trends_by_id):
     """phase6_brand_context_<แบรนด์>.json -> (แถว customers, [แถว customer_trends])"""
     brand = bctx["brand"]
@@ -299,10 +286,9 @@ def build_customer(bctx, by_name, trends_by_id):
         tid_of[r.get("rank")] = tid
         tr = trends_by_id[tid]
         g, leader = r.get("graded") or {}, r.get("leader") or {}
-        s = g.get("sales") or {}
         ct_rows.append({
             "customer": brand, "trend_id": tid, "trend": tr["display_name"], "checked": int(bool(r.get("checked"))),
-            "fit_level": r.get("level"), "fit_level_before_sales": r.get("base_level"), "sales_effect": _sales_effect(r),
+            "fit_level": r.get("level"),
             "quadrant": r.get("quadrant"), "main_category": (r.get("key_categories") or [None])[0],
             "has_product_in_category": None if not r.get("checked") else int(not r.get("no_key_product")),
             "expected_pct_short": tr[f"expected_pct_y{SHORT_YEAR}"], "expected_pct_long": tr[f"expected_pct_y{LONG_YEAR}"],
@@ -310,15 +296,13 @@ def build_customer(bctx, by_name, trends_by_id):
             "own_product": g.get("name"), "own_price_thb": _num(g.get("price_thb")), "own_size": _num(g.get("size")),
             "own_unit_label": g.get("unit_label"), "own_unit_price_thb": _num(g.get("unit_price"), 2), "own_is_mini": _flag(g.get("is_mini")) if g else None,
             "own_similarity": _num(g.get("similarity"), 4), "own_rank_in_category": g.get("rank_in_tier"), "own_category_size": g.get("n_tier"),
-            "own_top_pct_in_category": _num(g.get("pct"), 2), "own_sales_state": g.get("sales_state"), "own_sales_basis": s.get("basis"),
-            "own_units_sold": None if s.get("soldout") else s.get("sold"), "own_reviews": s.get("reviews"), "own_sold_out": _flag(s.get("soldout")) if g else None,
-            "own_sales_top_pct": s.get("top_pct"), "own_reason_en": g.get("reason"), "own_reason_th": _own_reason_th(bctx, r),
+            "own_top_pct_in_category": _num(g.get("pct"), 2), "own_reason_en": g.get("reason"), "own_reason_th": _own_reason_th(bctx, r),
             "leader_brand": leader.get("brand"), "leader_product": leader.get("name"), "leader_price_thb": _num(leader.get("price_thb")),
             "leader_similarity": _num(leader.get("similarity"), 4), "leader_is_customer": _flag(leader.get("is_you")) if leader else None,
             "gap_to_leader": _num(r.get("gap_to_leader"), 4),
         })
     port, overall, counts = bctx.get("portfolio") or {}, bctx.get("overall") or {}, bctx.get("counts") or {}
-    hl, effect = bctx.get("highlights") or {}, bctx.get("sales_effect") or {}
+    hl = bctx.get("highlights") or {}
     cust = {
         "customer": brand, "n_skus": bctx.get("n_skus"),
         "portfolio_categories": "; ".join(f"{c['name']}:{c['n']}" for c in port.get("top_subcategories") or []) or None,
@@ -326,7 +310,6 @@ def build_customer(bctx, by_name, trends_by_id):
         "overall_level": overall.get("level"), "overall_trends_at_level": overall.get("k"), "n_trends_checked": bctx.get("n_checked"),
         "n_excellent": counts.get("excellent"), "n_good": counts.get("good"), "n_average": counts.get("average"),
         "n_below_average": counts.get("below_average"), "one_trend_from_level": (overall.get("next") or {}).get("level"),
-        "sales_raised_trends": effect.get("up"), "sales_lowered_trends": effect.get("down"),
         "strongest_trend_id": tid_of.get(hl.get("strongest")), "opportunity_trend_id": tid_of.get(hl.get("opportunity")),
         "quick_win_trend_id": tid_of.get(hl.get("quick_win")),
         "build_trend_ids": "; ".join(tid_of[x] for x in bctx.get("opportunities") or [] if x in tid_of) or None,
@@ -340,7 +323,7 @@ def build_customer(bctx, by_name, trends_by_id):
 # ---------------------------------------------------------------------------
 BRIEF_NOTES = [
     "Levels (best to worst): excellent, good, average, below_average. A level compares the customer's best product in the trend's main category "
-    "(L2) with all Konvy products of that category by closeness to the trend, then adjusts for Konvy sales. It is a relative rank, not product quality.",
+    "(L2) with all Konvy products of that category by closeness to the trend. It is a relative rank, not product quality.",
     "Forecast numbers are expected Google Trends search interest vs the last 12 months, not sales. Use them to order trends; do not present year-4/5 "
     "percentages as promises (see meta.json reliability_notes).",
     "Use the levels and numbers as given; do not re-grade. Fields with no value are left out (unknown, not zero). Do not mix this customer's data "
@@ -370,7 +353,7 @@ def build_brief(meta, bctx, cust, ct_rows, trends_by_id, tops_by_id):
             "forecast": {"search_change_pct_vs_last_12m": {SY: ct["expected_pct_short"], LY: ct["expected_pct_long"]},
                          "growth_score": {SY: ct["growth_score_short"], LY: tr[f"growth_score_y{LONG_YEAR}"]},
                          "past_12m_change_pct": tr["past_growth_pct"]},
-            "fit": {"level": ct["fit_level"], "level_before_sales": ct["fit_level_before_sales"], "sales_effect": ct["sales_effect"],
+            "fit": {"level": ct["fit_level"],
                     "action_group": ct["quadrant"], "category": ct["main_category"], "has_product_in_category": bool(ct["has_product_in_category"])
                     if ct["checked"] else None},
             "best_product": None if not has else {
@@ -378,8 +361,6 @@ def build_brief(meta, bctx, cust, ct_rows, trends_by_id, tops_by_id):
                 "unit_price_thb": ct["own_unit_price_thb"], "is_mini": bool(ct["own_is_mini"]),
                 "similarity": ct["own_similarity"], "rank_in_category": ct["own_rank_in_category"], "category_size": ct["own_category_size"],
                 "top_pct_in_category": ct["own_top_pct_in_category"],
-                "sales": {"level": ct["own_sales_state"], "basis": ct["own_sales_basis"], "units_sold": ct["own_units_sold"],
-                          "reviews": ct["own_reviews"], "sold_out": bool(ct["own_sold_out"]), "top_pct_in_category": ct["own_sales_top_pct"]},
                 "why_it_matches": ct["own_reason_en"], "why_it_matches_th": ct["own_reason_th"]},
             "closest_market_products": None if ct["leader_product"] or not ct["checked"] else [
                 {"brand": t["brand"], "product": t["product"], "price_thb": t["price_thb"], "similarity": t["similarity"], "why_it_matches": t["reason"]}
@@ -404,7 +385,6 @@ def build_brief(meta, bctx, cust, ct_rows, trends_by_id, tops_by_id):
             "overall_meaning": overall_meaning(overall),
             "one_more_trend_would_lift_to": cust["one_trend_from_level"],
             "trends_by_level": {lv: cust[f"n_{lv}"] for lv in FIT_LEVELS},
-            "sales_raised_trends": cust["sales_raised_trends"], "sales_lowered_trends": cust["sales_lowered_trends"],
             "strongest_trend": named(cust["strongest_trend_id"]),
             "growth_opportunity_not_ready": named(cust["opportunity_trend_id"]),
             "quick_win_closest_to_market_leader": named(cust["quick_win_trend_id"]),
@@ -426,13 +406,12 @@ def build_meta(run_dir, ctx, bctxs, customers):
     m, growth = ctx.get("meta") or {}, ctx.get("growth") or {}
     first = bctxs[0] if bctxs else {}
     top = first.get("top_pct") or {"excellent": 1, "good": 5, "average": 20}
-    scfg = first.get("sales_cfg") or {"strong_top_pct": 20, "slow_bottom_pct": 25}
     band = growth.get("band") or {}
     market = growth.get("market_pct") or []
     products = (m.get("sources") or {}).get("products") or {}
     warnings = []
     for b in bctxs[1:]:
-        if (b.get("top_pct"), b.get("sales_cfg")) != (first.get("top_pct"), first.get("sales_cfg")):
+        if b.get("top_pct") != first.get("top_pct"):
             warnings.append(f"{b.get('brand')}: grading thresholds differ from {first.get('brand')} (⑰ built under another config) - rerun ⑰ for consistent grades")
     notes = [
         "The forecast is expected worldwide Google Trends search interest, not sales or revenue. It has never been checked against real sales data.",
@@ -442,8 +421,8 @@ def build_meta(run_dir, ctx, bctxs, customers):
         f"at year {SHORT_YEAR} and {band.get('long', [None, None])[0]}% to +{band.get('long', [None, None])[1]}% at year {LONG_YEAR} in 80% of cases "
         f"(forecast_band_80_pct). Years 4-5 are the least reliable; never quote them as promises.",
         "Past growth (past_growth_pct) is inflated for every trend by a jump in the Google Trends data from Aug 2025; compare trends with each other." if growth.get("past_inflated") else None,
-        "Fit grades are relative: they rank the customer's products against Konvy's catalogue only (one online retailer). Sales signals are Konvy "
-        "counters (lifetime units sold; review counts when sold out), not the customer's own sales.",
+        "Fit grades are relative: they rank the customer's products against Konvy's catalogue only (one online retailer). They use description "
+        "similarity only - sales are not part of the grade.",
     ]
     return {
         "schema_version": SCHEMA_VERSION, "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -461,16 +440,13 @@ def build_meta(run_dir, ctx, bctxs, customers):
             "levels": list(FIT_LEVELS),
             "product_level": (f"The customer's products in a trend's main category (L2) are ranked by similarity to the trend against all Konvy products "
                               f"of that category: top {top['excellent']}% = excellent, top {top['good']}% = good, top {top['average']}% = average, "
-                              f"otherwise below_average. Konvy sales then move the level by at most one step: strong sales (top {scfg['strong_top_pct']}% "
-                              f"of the category) lift average to good only; slow sales (bottom {scfg['slow_bottom_pct']}% or zero sales while in stock) "
-                              f"lower it one step; excellent needs strong sales, so an excellent match with steady or unknown sales is capped at good."),
+                              f"otherwise below_average. Sales are not used."),
             "trend_level": "Best product level of the customer in the trend's main category; no product there = below_average (has_product_in_category = 0).",
             "overall_level": "Highest level reached by MORE than half of the checked trends (exactly half does not count).",
             "action_groups": {"growth_split": first.get("momentum_split"),
                               "meaning": "growth = year-%d growth score of the trend vs the median of the listed trends; ready = excellent or good. "
                                          "defend = high growth & ready; build = high growth & not ready; maintain = lower growth & ready; "
                                          "monitor = lower growth & not ready." % SHORT_YEAR},
-            "sales_states": list(SALES_STATES),
         },
         "usage_notes": [
             "Read this file first. Each customer brief in briefs/ stands alone; the CSV tables and llm_export.sqlite hold the same facts for queries across customers.",

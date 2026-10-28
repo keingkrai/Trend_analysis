@@ -94,10 +94,10 @@ def test_build_context_requires_highlights(tmp_path):
 
 
 def test_validate_llm_output():
-    ok = {"headline": "A", "trend": "B", "insight": "C", "workshop_question": "How can your brand do X?"}
+    ok = {"headline": "A", "trend": "B", "insight": "C"}
     assert validate(ok) == ok
     assert validate({**ok, "trend": "มีภาษาไทย"}) is None
-    assert validate({**ok, "workshop_question": "How can your brand do X"}) is None
+    assert validate({**ok, "workshop_question": "How can your brand do X?"}) == ok   # cache เก่าที่ยังมีคำถามเวิร์กช็อป: ช่องนี้ถูกทิ้ง ไม่ทำให้ตกการตรวจ
     assert validate({"headline": "A"}) is None
 
 
@@ -109,13 +109,12 @@ def test_enrich_uses_cache_and_falls_back(run_dir):
         calls.append(user)
         if "Stable Retinol" in user:
             raise RuntimeError("boom")
-        return json.dumps({"headline": "H", "trend": "T", "insight": "I",
-                           "workshop_question": "How can your brand win?"})
+        return json.dumps({"headline": "H", "trend": "T", "insight": "I"})
 
     cache, counts = enrich_trends(ctx["trends"], {}, llm_call=fake_llm, max_workers=1, log=lambda *_: None)
     assert counts == {"llm": 1, "fallback": 1}
-    assert ctx["trends"][0]["text"]["workshop_question"] == "How can your brand win?"
-    assert ctx["trends"][1]["text"]["workshop_question"].endswith("?")
+    assert ctx["trends"][0]["text"]["headline"] == "H"
+    assert all("workshop_question" not in t["text"] for t in ctx["trends"])
 
     # รอบสอง: ข้อมูลเดิม -> ใช้ cache ไม่เรียก LLM ซ้ำสำหรับเทรนด์ที่สำเร็จแล้ว
     ctx2, _ = build_context(run_dir)
@@ -132,7 +131,7 @@ def test_fallback_texts_are_sentences():
     out = fallback_texts(t)
     assert out["headline"] == "Demand is rising. More detail here."
     assert "Seeking gentle care. Target consumer" in out["insight"]
-    assert out["workshop_question"] == "How can your brand lead the Barrier Care trend for sensitive-skin consumers?"
+    assert "workshop_question" not in out
 
 
 def test_render_page_count(run_dir):
@@ -249,7 +248,7 @@ def test_trend_pages_use_growth_kpis_and_no_z_delta(run_dir):
     html = render_html(ctx, BRAND, {"Barrier Care": "data:image/svg+xml;base64,AAAA"}, "T", datetime(2026, 1, 1), "x")
     assert 'data-label="Workshop' not in html                        # ไม่มีหน้า Workshop เดี่ยวแล้ว
     assert len(re.findall(r'data-label="Trend \d', html)) == 2 and html.count('data-label="Evidence ') == 2
-    assert html.count('class="ws"') == 2 and ctx["trends"][0]["text"]["workshop_question"] in html
+    assert 'class="ws"' not in html and "Workshop Question" not in html    # 🆕 (2026-10-28) ตัดแถบคำถามเวิร์กช็อปออกจากหน้าเทรนด์
     for gone in ("Trend Dashboard", "Strategy Matrix", "Trend Map", "Rank Trajectory"):
         assert f'data-label="{gone}"' not in html
     assert "Z_Delta" not in html and "Invest" not in html and "Harvest" not in html
@@ -485,7 +484,7 @@ def test_brand_reports_use_display_names(run_dir):
 # เฟส C: Means-End 3 บรรทัด (แทนย่อหน้า Trend/Insight) และ heatmap เทรนด์ x แรงขับ STEPIC / persona
 # ============================================================================
 from enrich import condense_means_end, validate_ladder  # noqa: E402
-from trend_links import link_trends, validate_links  # noqa: E402
+from trend_links import SYSTEM_PROMPT_LINKS_FORCES, link_trends, validate_links  # noqa: E402
 
 LADDER_PAYLOAD = {"trend_name": "Barrier Care", "profile_th": {"point_of_difference": "ซ่อมเกราะผิว",
                                                                "functional_consequence": "ลดการระคายเคือง"},
@@ -568,7 +567,21 @@ def test_link_trends_summary_and_cache(run_dir):
     assert s["stepic"]["Society"] == {"main": 1, "any": 2} and s["stepic"]["Technology"] == {"main": 0, "any": 0}
     assert s["personas"][0] == {"main": 0, "any": 2} and s["n_trends"] == 2
     assert link_trends(ctx, cache, llm_call=None, log=lambda *_: None) == {"llm (cached)": 2}
-    ctx["personas"] = []                                            # ไม่มี persona -> ไม่มีหน้า heatmap
+    # 🆕 (2026-10-28) ไม่มี persona (รอบสาย Search) -> ถามเฉพาะแรงขับ (cache เดิมใช้ไม่ได้เพราะข้อมูลที่ส่งต่างกัน) และ heatmap ไม่มีคอลัมน์ persona
+    ctx["personas"] = []
+    prompts = []
+
+    def forces_only(system, user, max_tokens=1500):
+        prompts.append(system)
+        return json.dumps({"stepic": _links_answer(society=2 if "Barrier Care" in user else 1)["stepic"]})
+
+    assert link_trends(ctx, cache, llm_call=forces_only, max_workers=1, log=lambda *_: None) == {"llm": 2}
+    assert set(prompts) == {SYSTEM_PROMPT_LINKS_FORCES} and "persona" not in SYSTEM_PROMPT_LINKS_FORCES.lower()
+    s = ctx["links_summary"]
+    assert s["personas"] == [] and s["stepic"]["Society"] == {"main": 1, "any": 2} and all(t["links"]["personas"] == [] for t in ctx["trends"])
+    payload = {"stepic_forces": [{"force": f["dimension"]} for f in STEPIC], "personas": []}
+    assert validate_links({"stepic": _links_answer()["stepic"]}, payload)["personas"] == []
+    ctx["stepic"] = []                                               # ไม่มีแรงขับให้จับคู่ -> ไม่มีหน้า heatmap
     assert link_trends(ctx, cache, llm_call=None, log=lambda *_: None) == {} and "links_summary" not in ctx
 
 
@@ -607,14 +620,14 @@ from enrich import fallback_texts_th, translate_report_texts, validate_same_shap
 from i18n import date_long, dimensions, enum, localize, month_year  # noqa: E402
 
 TH_OK = {"headline": "ตลาดโต", "trend": "เทรนด์ดี", "insight": "ผู้บริโภคต้องการ",
-         "workshop_question": "แบรนด์ของคุณจะทำอย่างไร?", "target": "ผู้หญิงผิวแพ้ง่าย", "product_reasons": ["ช่วยปลอบผิว"]}
+         "target": "ผู้หญิงผิวแพ้ง่าย", "product_reasons": ["ช่วยปลอบผิว"]}
 TH_PAYLOAD = {"context_en": {"target_consumer": "Sensitive-skin women"}, "product_match_reasons_en": ["Soothes skin"]}
 
 
 def test_validate_th():
     assert validate_th(TH_OK, TH_PAYLOAD)["product_reasons"] == ["ช่วยปลอบผิว"]
     assert validate_th({**TH_OK, "trend": "English only"}, TH_PAYLOAD) is None          # ต้องมีอักษรไทย
-    assert validate_th({**TH_OK, "workshop_question": "แบรนด์ของคุณ"}, TH_PAYLOAD) is None  # ต้องลงท้ายด้วย ?
+    assert "workshop_question" not in validate_th({**TH_OK, "workshop_question": "แบรนด์ของคุณ"}, TH_PAYLOAD)   # cache เก่า: ช่องคำถามถูกทิ้ง
     assert validate_th({**TH_OK, "product_reasons": []}, TH_PAYLOAD) is None               # เหตุผลต้องครบทุกสินค้า
     assert validate_th({**TH_OK, "target": "Sensitive women"}, TH_PAYLOAD) is None
 
@@ -628,7 +641,7 @@ def test_fallback_texts_th_uses_thai_profile():
     out = fallback_texts_th(t)
     assert out["trend"] == "ลดการระคายเคือง"            # ข้าม "ข้อมูลไม่พอ"
     assert out["insight"] == "ฟื้นฟูผิว"
-    assert out["workshop_question"] == "แบรนด์ของคุณจะคว้าโอกาสจากเทรนด์ Barrier Care ได้อย่างไร?"
+    assert "workshop_question" not in out
     assert out["product_reasons"] == ["Soothes skin"]   # ไม่มีต้นฉบับไทย -> คงภาษาอังกฤษ
 
 
@@ -678,7 +691,7 @@ def test_localize_th_does_not_touch_english_context(run_dir):
     th = localize(ctx, "th")
     assert th["trends"][0]["products"][0] == {"name": "Cream 50 ml. ครีม", "name_full": "Cream 50 ml. ครีม",
                                               "reason": "ช่วยปลอบผิว"}
-    assert th["trends"][0]["text"]["workshop_question"].startswith("แบรนด์ของคุณ")
+    assert "workshop_question" not in th["trends"][0]["text"]
     assert th["excluded"][0]["reason"].startswith("เทรนด์ประเภทช่องทาง")   # เหตุผลต้นฉบับจาก ⑪
     assert th["missing"][0].startswith("คะแนนจัดอันดับ")
     assert localize(ctx, "en") is ctx
@@ -718,10 +731,15 @@ def test_validate_condensed_enforces_word_limits():
     src = {"items": [{"headline": "h", "body": "b"}]}
     ok = {"items": [{"headline": "Clinical Wellness Shift", "body": "Consumers now pick products by evidence."}]}
     assert validate_condensed("stepic", src, ok) == ok
-    too_long = {"items": [{"headline": "one two three four five six seven eight nine", "body": "fine"}]}
-    assert validate_condensed("stepic", src, too_long) is None                # เกิน 6 คำ x 1.25
+    too_long = {"items": [{"headline": " ".join(["word"] * 12), "body": "fine"}]}
+    assert validate_condensed("stepic", src, too_long) is None                # เกินขีดจำกัดหัวข้อ x 1.25
     assert validate_condensed("stepic", src, {"items": []}) is None             # จำนวนข้อไม่ตรง
     assert validate_condensed("stepic", src, {"items": [{"headline": "ไทย", "body": "b"}]}) is None
+    # 🆕 (2026-10-28) คำค้นภาษาไทยที่คัดจากต้นฉบับผ่านได้ (มีเครื่องหมายคำพูดหรือไม่ก็ตาม) - ท่อนไทยที่ไม่มีในต้นฉบับยังไม่ผ่าน
+    src_th = {"items": [{"headline": "h", "body": "People search for 'ทรง ผม 2026' and more."}]}
+    assert validate_condensed("stepic", src_th, {"items": [{"headline": "Hair", "body": "People search for 'ทรง ผม 2026'."}]})
+    assert validate_condensed("stepic", src_th, {"items": [{"headline": "Hair", "body": "People search for ทรง ผม 2026."}]})
+    assert validate_condensed("stepic", src_th, {"items": [{"headline": "Hair", "body": "People search for ทรง ผมยาว."}]}) is None
 
 
 def test_fallback_condensed_trims_to_first_sentence_and_limit():
@@ -778,7 +796,7 @@ from render import render_brand_html  # noqa: E402
 CUTS = rank_cuts(1000, DEFAULT_CONFIG["fit_top_pct"])   # กลุ่มปลอม 1,000 ชิ้น (_fit) -> 10 / 50 / 200
 
 
-def _fit(rank=20, n_tier=1000, reason="Soothes skin.", sales=None):
+def _fit(rank=20, n_tier=1000, reason="Soothes skin."):
     """🆕 (2026-10-07) category_fit ของ 1 เทรนด์ในรูปที่ category_fit.category_fit คืน: 🆕 (2026-10-08) หมวดหลักหมวดเดียว (Skin Care -
     LLM เลือก) / Zenith Cream (ราคา 199) อยู่ช่วงราคากลางที่อันดับ rank (None = ไม่มีสินค้าในหมวดนี้) ทุกกลุ่มมี n_tier ชิ้น"""
     def tier(label, lo, hi, best_rank=None, name=None, price=None):
@@ -788,8 +806,6 @@ def _fit(rank=20, n_tier=1000, reason="Soothes skin.", sales=None):
         if best_rank:
             bb = {"product_name": name, "brand": "Zenith", "sale_price_thb": price, "similarity": 0.30,
                   "rank_in_tier": best_rank, "rank_in_market": best_rank * 3}
-            if sales:    # 🆕 (2026-10-21) ยอดขายดิบ (sales_level.market_sales) - Excellent ต้องขายดีด้วย
-                bb["sales"] = sales
             if best_rank <= 5:
                 top[best_rank - 1] = dict(bb)
         return {"label": label, "price_from": lo, "price_to": hi, "n_total": n_tier, "n_brand": 1 if best_rank else 0,
@@ -898,14 +914,10 @@ def test_brand_context_grades_main_category_only(run_dir):
     ctx, cov, cat = _brand_fixture(run_dir, rank=300)       # อันดับ 300 จาก 1,000 ในกลุ่ม = เกิน top 20%
     first = build_brand_context(ctx, cov, cat, DEFAULT_CONFIG)["rows"][0]
     assert first["level"] == "below_average" and first["graded"]["category"] == "Skin Care"
-    # 🆕 (2026-10-21) Excellent ต้องใกล้เทรนด์ top 1% และขายดีทั้งคู่: อันดับ 1 แต่ไม่มีข้อมูลยอดขาย = Good (จำกัดที่ Good)
+    # 🆕 (2026-10-27) เกรดตามอันดับล้วน (ตัดยอดขายออก): อันดับ 1 ของกลุ่ม = Excellent ไม่ต้องมีข้อมูลยอดขาย (จำกัดที่ Good)
     ctx, cov, cat = _brand_fixture(run_dir, rank=1)
     first = build_brand_context(ctx, cov, cat, DEFAULT_CONFIG)["rows"][0]
-    assert first["level"] == "good" and first["graded"]["base_level"] == "excellent" and first["graded"]["sales_move"] == "cap"
-    strong = {"pct": 0.95, "zero": False, "soldout": False, "basis": "sales", "sold": 900, "value": 90000, "reviews": 20}
-    ctx, cov, cat = _brand_fixture(run_dir, rank=1, sales=strong)   # อันดับ 1 ของกลุ่ม + ขายดี = Excellent, ติด top 5 ของกลุ่มจึงไฮไลต์
-    first = build_brand_context(ctx, cov, cat, DEFAULT_CONFIG)["rows"][0]
-    assert first["level"] == "excellent" and first["graded"]["sales_move"] is None
+    assert first["level"] == "excellent" and "base_level" not in first["graded"] and "sales_move" not in first["graded"]
     assert first["cell"]["you_in_top"] and [m["is_you"] for m in first["cell"]["top"]] == [True, False, False, False, False]
     assert first["cell"]["top"][0]["level"] == "excellent"
     assert any(m["is_you"] for m in first["categories"][0]["top"])       # และติด top 5 ของทั้งหมวด
@@ -974,7 +986,7 @@ def test_render_brand_report_both_languages(run_dir):
     # ระดับ 4 ขั้น + กล่องเกรดรวม + ภาคผนวกอธิบายเทรนด์ -> หมวด -> ช่วงราคา -> สินค้า
     assert all(f'fit-{lv}"></span>{nm}' in en for lv, nm in (("excellent", "Excellent"), ("good", "Good"),
                                                              ("average", "Average"), ("below_average", "Below average")))
-    assert "best product is in the top 1% of its type &amp; price group and top 20% in sales" in en
+    assert "best product is in the top 1% of its type &amp; price group" in en and "in sales" not in en
     assert "Overall fit" in en and "Good or better in 1 of 1 trends - most trends have a product in the top 5% of products of the same type" in en
     assert "complementary categories are not counted" in en and "#1 of a group always counts as top 1%" in en and "are key" not in en
     assert "Strongest fit - Barrier Care: Zenith Cream ranks #20 of 1,000 products in Skin Care · Mid price." in en
@@ -1462,7 +1474,7 @@ def test_brand_reports_unit_price_basis(run_dir):
     en = render_brand_html(ctx, b, brand_style, {}, "T", datetime(2026, 10, 12))
     body = html.unescape(re.sub(r"<style>.*?</style>", "", en, flags=re.S))
     assert "Mid unit price" in body and "THB 160-395" not in body and "(THB" not in body.split("Compared with products in")[1][:200]
-    assert "30 ml · THB 6.63/ml" in body and "of its type & unit-price group and top 20% in sales" in body and "unit-price groups" in body.lower()
+    assert "30 ml · THB 6.63/ml" in body and "of its type & unit-price group" in body and "in sales" not in body and "unit-price groups" in body.lower()
     th = render_brand_html(localize(ctx, "th"), b, brand_style, {}, "T", datetime(2026, 10, 12), lang="th")
     assert "ราคาต่อปริมาณกลาง" in th and "ช่วงราคาต่อปริมาณ" in th and "160-395 บาท" not in th
     # ผลเก่า (ไม่มี tier_basis) -> ราคาขายเหมือนเดิม
@@ -2054,3 +2066,255 @@ def test_scatter_page_uses_display_names_and_switch_off(run_dir, monkeypatch):
     monkeypatch.setattr(rd, "SHOW_SCATTER_PAGE", False)
     off = render_html(_with_growth_files(run_dir), BRAND, {}, "T", datetime(2026, 1, 1), "x")
     assert 'data-label="All Trends CAGR and YoY"' not in off and 'data-label="Top 5 Short vs Long"' in off
+
+
+# 🆕 (2026-10-28) สินค้าที่ใกล้เทรนด์ที่สุด 5 ชิ้นของทั้งร้านอยู่ในหมวดหลักน้อยกว่า 2 ชิ้น = หน้าสินค้าบอกว่าไม่มีสินค้าที่ใกล้พอ (common/match_quality.py)
+from common.match_quality import category_agreement, no_close_product, result_agreement  # noqa: E402
+
+
+def test_category_agreement_counts_top_five_groups_in_main_category():
+    assert category_agreement(["Skin Care"] * 5, "Skin Care") == {"category": "Skin Care", "top_n": 5, "in_main": 5, "min_required": 2, "ok": True}
+    assert category_agreement(["Skin Care", "Hair Care", "Skin Care", "Hair Care", "Hair Care", "Skin Care"], "Skin Care")["in_main"] == 2   # นับแค่ 5 อันดับแรก
+    assert category_agreement(["Hair Care"] * 4 + ["Skin Care"], "Skin Care")["ok"] is False
+    assert category_agreement(["Hair Care"] * 4 + ["Skin Care"], "Skin Care")["in_main"] == 1
+    assert category_agreement(["Hair Care"] * 5, None) is None and category_agreement([], "Skin Care") is None     # ตัดสินไม่ได้ = ไม่ซ่อน
+    assert category_agreement(["Skin Care"], "Skin Care")["min_required"] == 1                                    # สินค้าน้อยกว่า 5 ชิ้น
+    r = {"main_category": {"category": "Skin Care"}, "top_matches": [{"group": "Hair Care"}] * 5}
+    assert result_agreement(r)["in_main"] == 0 and no_close_product(r) and not no_close_product({"top_matches": r["top_matches"]})
+    assert result_agreement({"main_category": "Skin Care", "top_matches": [{"category": "Skin Care"}] * 3})["ok"]   # รูปแบบเก่า: main_category เป็นข้อความ
+
+
+def test_trend_without_close_product_gets_notice_page_in_both_languages(run_dir):
+    _write(run_dir, "phase3_scale_validation_nvidia_result.json", {"n_products_total": 1000, "results": {
+        "Social::Barrier Care": {"n_products_compared": 1000, "main_category": {"category": "Skin Care"},
+                                 "top_matches": [_match_product(f"Shampoo {i}", "Hair Care", 0.3 - i / 100, i + 1) for i in range(5)]},
+        "Paper::Stable Retinol": {"n_products_compared": 1000, "main_category": {"category": "Skin Care"},
+                                  "top_matches": [_match_product(f"Serum {i}", "Skin Care", 0.35 - i / 100, i + 1) for i in range(5)]},
+    }})
+    ctx = _rendered_ctx(run_dir)
+    assert [t["no_close_product"] for t in ctx["trends"]] == [True, False]
+    assert ctx["trends"][0]["category_agreement"]["in_main"] == 0 and ctx["trends"][0]["l2"] is None
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    ev = html[html.index('data-label="Evidence 1"'):]
+    ev = ev[:ev.index("</section>")]
+    assert "No close product in the market" in ev and "none of the 5 closest products are" in ev and "Skin Care" in ev and "Shampoo" not in ev
+    assert html.count("No close product in the market") == 1                               # เทรนด์ 2 ไม่ถูกกระทบ
+    th = render_html(localize(ctx, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert "ไม่มีสินค้าที่ใกล้เทรนด์พอในตลาด" in th and "ไม่มีสักชิ้นใน 5 ชิ้นที่ใกล้ที่สุด" in th
+
+
+def test_brand_report_leaves_out_trends_without_close_product_and_says_so(run_dir):
+    """🆕 (2026-10-28) ⑰: เทรนด์ที่ไม่มีสินค้าที่ใกล้พอไม่ถูกให้เกรด (ตัดออกจาก rows เลขอันดับคงตามรายงานเทรนด์) และหน้าสรุปบอกชื่อ"""
+    ctx, coverage, catalog = _brand_fixture(run_dir, rank=20)
+    ag = {"category": "Skin Care", "top_n": 5, "in_main": 0, "min_required": 2, "ok": False}
+    marked = {**ctx, "trends": [ctx["trends"][0], {**ctx["trends"][1], "no_close_product": True, "category_agreement": ag}]}
+    out = product_trends(marked)
+    second = ctx["trends"][1]["name"]
+    assert [t["name"] for t in out["trends"]] == [ctx["trends"][0]["name"]]
+    assert out["no_close_trends"] == [{"rank": 2, "name": second, "display_name": second, "category": "Skin Care"}]
+    b = build_brand_context(out, coverage, catalog, DEFAULT_CONFIG)
+    assert len(b["rows"]) == 1 and b["n_checked"] == 1 and b["no_close_trends"] == out["no_close_trends"]
+    html = render_brand_html(out, b, {**BRAND, "company_name": "S&J"}, {}, "T", datetime(2026, 9, 26))
+    note = html[html.index('class="nc-note"'):]
+    assert "Not graded (no close product in the market)" in note[:note.index("</div>")] and second in note[:note.index("</div>")]
+    plain = build_brand_context(product_trends(ctx), coverage, catalog, DEFAULT_CONFIG)       # ไม่มีเทรนด์ที่ถูกธง = ไม่มีหมายเหตุ
+    assert plain["no_close_trends"] == [] and 'class="nc-note"' not in render_brand_html(
+        product_trends(ctx), plain, {**BRAND, "company_name": "S&J"}, {}, "T", datetime(2026, 9, 26))
+    from brand_i18n import brand_strings
+    assert "ไม่ได้ให้เกรด" in brand_strings("th")["no_close_note"].format(trends="x")
+
+
+# 🆕 (2026-10-28) รอบสาย Search: หน้า "คนกำลังค้นหาอะไรมากขึ้น" 2 หน้าแทนหน้า persona (search_talk.py) และตารางแรงขับไม่มีคอลัมน์ persona
+TALK = {"n_searches": 10701, "n_categories": 3, "places": ["TH", "WW"], "places_text": "Thailand and worldwide", "month": "2026-10",
+        "n_link_check": 810, "n_trends_built": 15, "n_trends_shown": 2, "n_fed": 210, "fed_pct": 2.0, "n_no_fed": 1,
+        "top_fed": [{"name": "Health", "fed": 81}, {"name": "Beauty & Fitness", "fed": 92}],
+        "categories": [{"name": "Health", "n": 841, "th": 379, "ww": 384, "both": 78, "fed": 81},
+                       {"name": "Beauty & Fitness", "n": 406, "th": 189, "ww": 172, "both": 45, "fed": 92},
+                       {"name": "Finance", "n": 382, "th": 177, "ww": 164, "both": 41, "fed": 0}]}
+
+
+def test_search_run_has_talk_pages_and_no_personas_page(run_dir):
+    ctx = _rendered_ctx(run_dir)
+    ctx["stepic"], ctx["personas"], ctx["talk"] = STEPIC, [], TALK
+    link_trends(ctx, {}, llm_call=lambda s, u, max_tokens=0: json.dumps({"stepic": _links_answer()["stepic"]}), max_workers=1,
+                log=lambda *_: None)
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    assert 'data-label="Search Talk"' in html and 'data-label="Search Talk Examples"' not in html and 'data-label="Personas"' not in html
+    page = html[html.index('data-label="Search Talk"'):]
+    page = page[:page.index("</section>")]
+    assert "What People Are Searching For" in page and "10,701" in page and "(Thailand and worldwide)" in page
+    assert "2.0% of all" in page and "810 of these searches" in page and "Health (81) and Beauty &amp; Fitness (92)" in page
+    assert page.count('class="talk-row"') == 3 and page.count('class="fed"') == 2                  # แถบ "เป็นที่มาของเทรนด์" เฉพาะหมวดที่มี
+    drivers = html[html.index('data-label="Trend Drivers"'):]
+    drivers = drivers[:drivers.index("</section>")]
+    assert "Trend Drivers | Macro Forces<" in drivers and "personas" not in drivers.lower() and 'class="lv2 per"' in drivers   # legend ยังมี; ไม่มีคอลัมน์ persona
+    assert 'class="p"' not in drivers
+    th = render_html(localize(ctx, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert "คนกำลังค้นหาอะไรมากขึ้น" in th and "(ไทยและทั่วโลก)" in th and "เป็นที่มาของเทรนด์ในรายงาน" in th
+    assert th.count('<section class="page') == html.count('<section class="page')
+
+
+def _dive():
+    """🆕 (2026-10-28) ส่วนที่ 2 เจาะรายหมวดของ Google (category_dive.py) - ข้อมูลทำมือ: 1 หมวดใหญ่ (หน้าเต็ม) + 1 หมวดเล็ก + 1 หมวดไม่มีหัวข้อโยง"""
+    def card(key, **kw):
+        return {"key": key, "n": 20, "places": ["TH", "WW"], "has_th": True, "where": "both", "breakout": 2, "breakout_share": .1,
+                "searches": ["best sunscreen for kids"], "ids": [1], "link": None, "trends": [], "topic": "Searches for sunscreen",
+                "topic_th": "คำค้นเรื่องครีมกันแดด", "shown": ["best sunscreen for kids"], **kw}
+
+    linked = card("S", link={"path": 1, "cats": ["Sun Care"], "evidence": ["best sunscreen for kids"]},
+                  trends=[{"rank": 1, "name": "Barrier Care", "display_name": "Barrier Care"}])
+
+    def cat(name, full, n_linked=1):
+        return {"name": name, "key": name, "n": 841, "th": 1, "ww": 1, "both": 1, "n_themes": 3, "n_linked": n_linked, "n_linked_searches": 20,
+                "full": full, "linked": [linked] if n_linked else [], "n_more": 0, "others": [card("O", topic=None, shown=["realme c100"])] if n_linked else [],
+                "trend_ranks": [1] if n_linked else []}
+    return {"places": ["TH", "WW"], "places_text": "Thailand and worldwide", "month": "2026-10", "n_searches": 10701, "n_linked_searches": 810,
+            "linked_pct": 7.6, "n_categories": 3, "n_topics": 90, "n_linked_topics": 2,
+            "categories": [cat("Health", True), cat("News", False), cat("Finance", False, 0)], "none_linked": ["Finance"]}
+
+
+def test_search_run_report_has_part_two_category_pages_and_a_linked_column_on_the_talk_page(run_dir):
+    ctx = _rendered_ctx(run_dir)
+    ctx["stepic"], ctx["personas"], ctx["dive"] = STEPIC, [], _dive()
+    ctx["talk"] = {**TALK, "categories": [{**c, "n_linked": n} for c, n in zip(TALK["categories"], (16, 13, 0))]}
+    link_trends(ctx, {}, llm_call=lambda s, u, max_tokens=0: json.dumps({"stepic": _links_answer()["stepic"]}), max_workers=1, log=lambda *_: None)
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    # ส่วนที่ 2: หน้าเต็มของหมวดใหญ่ + 1 หน้ารวมหมวดเล็ก (หมวดที่ไม่มีหัวข้อโยงไม่มีหน้า) อยู่หลังหน้าเทรนด์ก่อนภาคผนวก
+    labels = re.findall(r'<section class="page[^"]*" data-label="([^"]+)"', html)
+    i = labels.index("Category Health")
+    assert labels[i:i + 3] == ["Category Health", "Categories News", "Methodology"] and "Category Finance" not in labels
+    assert max(i for i, label in enumerate(labels) if label.startswith("Evidence ")) < labels.index("Category Health")
+    part2 = html[html.index('data-label="Category Health"'):html.index('data-label="Methodology"')]
+    assert "Searches for sunscreen" in part2 and "In this report: #1 Barrier Care" in part2 and "Link: Direct beauty → Sun Care" in part2
+    assert "'best sunscreen for kids'" in part2 and "Topics linked to beauty" in part2
+    talk = html[html.index('data-label="Search Talk"'):]
+    talk = talk[:talk.index("</section>")]
+    assert talk.count('class="talk-row lk4"') == 3 and talk.count('class="lk"') == 3 and "Part 2 starts on page" in talk
+    assert 'data-ref="Category Health"' in talk and "In 1 categories no topic links to beauty products: Finance." in talk
+    method = html[html.index('data-label="Methodology"'):]
+    method = method[:method.index("</section>")]
+    assert 'ap-grid dv-ext' in method and "Part 2: inside each Google category" in method
+    th = render_html(localize(ctx, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert "คำค้นเรื่องครีมกันแดด" in th and "Searches for sunscreen" not in th and "ส่วนที่ 2 เริ่มที่หน้า" in th and "ในรายงานหลัก: #1 Barrier Care" in th
+    assert th.count('<section class="page') == html.count('<section class="page')
+    without = dict(ctx, dive=None)                                                           # รอบที่ไม่มีส่วนเจาะรายหมวด (รอบเก่า / ไม่มีไฟล์ของ ①)
+    plain = render_html(without, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    assert 'data-label="Category' not in plain and "ap-grid dv-ext" not in plain and "Part 2 starts on page" not in plain
+    assert plain.count('<section class="page') == html.count('<section class="page') - 2
+
+
+def test_search_run_merges_forces_heatmap_and_signals_into_one_page_when_at_most_three_forces_have_data(run_dir):
+    """🆕 (2026-10-28) รอบสาย Search: STEPIC + Trend Drivers + Signals 3 หน้าว่างเกินไป (คำค้นยืนยันแรงขับได้น้อย) - รวมเป็นหน้า "Macro Forces" หน้าเดียว"""
+    def build(with_data):
+        ctx = _rendered_ctx(run_dir)
+        ctx["meta"]["search_stream"] = True
+        ctx["personas"] = []
+        ctx["stepic"] = [{**s, "no_data": s["dimension"] not in with_data} for s in STEPIC]
+        ctx["signals"] = [{"dimensions": "SOCIETY + INDUSTRY", "signal": "Searches for hair styling show high expected growth.", "implication": ""}]
+        link_trends(ctx, {}, llm_call=lambda s, u, max_tokens=0: json.dumps({"stepic": _links_answer()["stepic"]}), max_workers=1, log=lambda *_: None)
+        return ctx
+
+    few = build({"Society", "Industry", "Creativity"})
+    html = render_html(few, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    labels = re.findall(r'<section class="page[^"]*" data-label="([^"]+)"', html)
+    assert "Macro Forces" in labels and not {"STEPIC", "Trend Drivers", "Signals"} & set(labels)
+    page = html[html.index('data-label="Macro Forces"'):]
+    page = page[:page.index("</section>")]
+    assert page.count('class="st-tile') == 3 and "No evidence in this run&#39;s searches for: Technology, Environment, Policy." in page
+    assert page.count("<tr>") == len(few["trends"]) + 1 and "Searches for hair styling show high expected growth." in page   # แถวเทรนด์ + แถวรวม (แถวหัวตารางมี class)
+    assert page.count('<th class="f">') == 3 and "Signals &amp; outlook" in page                  # heatmap เฉพาะแรงขับที่มีข้อมูล
+    th = render_html(localize(few, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert th.count('<section class="page') == html.count('<section class="page') and "คำค้นรอบนี้ไม่มีหลักฐานเกี่ยวกับ" in th
+    many = build({"Society", "Industry", "Creativity", "Technology"})                              # มีข้อมูล 4 ช่อง = ใช้ 3 หน้าเดิม
+    old = render_html(many, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    old_labels = re.findall(r'<section class="page[^"]*" data-label="([^"]+)"', old)
+    assert {"STEPIC", "Trend Drivers", "Signals"} <= set(old_labels) and "Macro Forces" not in old_labels
+    assert len(old_labels) == len(labels) + 2
+
+
+def test_pages_say_when_products_are_matched_to_a_beauty_need_an_ai_inferred(run_dir):
+    """🆕 (2026-10-28) เทรนด์สาย Search จับคู่สินค้าด้วยความต้องการความงามที่ AI อนุมาน (beauty_need) - หน้าเทรนด์ติดป้ายว่าไม่ใช่สิ่งที่คนค้นหาโดยตรง"""
+    ctx = _rendered_ctx(run_dir)
+    ctx["meta"]["search_stream"] = True
+    need = {"source": "ai_inferred", "product_keywords": ["sport sunscreen", "sweat-proof deodorant"], "key_benefits": "sweat resistance"}
+    p = {"name": "Banana Boat Sport Sunscreen", "brand": "Banana Boat", "price_thb": 299, "image": None, "rank": 3}
+    ctx["trends"][0].update(beauty_need=need, match_basis="need", no_close_product=False, l2={
+        "n": 1200, "category": "Sun Care", "cuts": {"excellent": 1, "good": 5, "average": 20},
+        "cols": [{"level": lv, "product": p} for lv in ("excellent", "good", "average", "below_average")], "take": {"close_pct": 4, "n_close": 50}})
+    ctx["trends"][1].update(beauty_need=None, match_basis="evidence")
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    page1 = html[html.index('data-label="Trend 1"'):]
+    page1 = page1[:page1.index("</section>")]
+    assert 'class="bn"' in page1 and "Beauty need" in page1 and "sport sunscreen · sweat-proof deodorant" in page1
+    assert "AI-inferred" not in page1 and "Not what people searched" not in page1                       # เจ้าของงานสั่งเอาป้าย "(AI อนุมาน)" และบรรทัดหมายเหตุออกจากกล่อง
+    page2 = html[html.index('data-label="Evidence 1"'):]
+    page2 = page2[:page2.index("</section>")]
+    assert "inferred from this trend&#39;s searches (sport sunscreen, sweat-proof deodorant)" in page2
+    other = html[html.index('data-label="Trend 2"'):]
+    assert 'class="bn"' not in other[:other.index("</section>")]                                     # เทรนด์ที่จับคู่จากคำค้นอย่างเดียวไม่มีป้าย
+    method = html[html.index('data-label="Methodology"'):]
+    assert "starts from the beauty need an AI inferred" in method[:method.index("</section>")]
+    th = render_html(localize(ctx, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert "ความต้องการความงาม" in th and "อนุมานจากคำค้น และใช้จับคู่" not in th and "สินค้าถูกจับคู่กับความต้องการความงามที่ AI อนุมาน" in th
+    ctx["trends"][0].update(beauty_need=None, match_basis="evidence")
+    plain = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    assert 'class="bn"' not in plain and "starts from the beauty need an AI inferred" not in plain   # ไม่มีเทรนด์ที่ใช้ความต้องการ = ไม่มีป้ายและไม่มีประโยควิธีการ
+
+
+def test_old_three_stream_runs_keep_the_personas_page_and_have_no_talk_pages(run_dir):
+    ctx = _rendered_ctx(run_dir)
+    ctx["stepic"], ctx["personas"] = STEPIC, PERSONAS
+    assert not ctx.get("talk")
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    assert 'data-label="Personas"' in html and "The Curator" in html and 'data-label="Search Talk"' not in html
+    assert "What People Are Searching For" not in html
+
+
+def test_build_context_drops_personas_and_adds_talk_only_for_search_runs(run_dir):
+    final = {"emerging_personas": [{"name": "P", "description": "d", "value_driver": "", "channel_preference": "",
+                                    "evidence": ["q"]}], "mega_trend_name": "x"}
+    _write(run_dir, "phase4_stepic_final_insight.json", final)
+    old, _ = build_context(run_dir)
+    assert [p["name"] for p in old["personas"]] == ["P"] and old["talk"] is None            # รอบ 3 สายเดิมยังมี persona
+    work = run_dir / "search_stream_work" / "themes"
+    work.mkdir(parents=True)
+    (work / "Health.json").write_text(json.dumps({"themes": [{"name": "T", "ids": [1]}], "queries": [
+        {"query_norm": "best sunscreen", "query": "best sunscreen", "geos": "TH"}]}), encoding="utf-8")
+    from common.streams import SEARCH_STREAM, STREAM_FILES
+    _write(run_dir, STREAM_FILES[SEARCH_STREAM], {"search_meta": {"places": ["TH", "WW"], "n_queries": 1, "n_categories": 1},
+                                                  "trends": [], "documents": []})
+    new, _ = build_context(run_dir)
+    assert new["personas"] == [] and new["meta"]["search_stream"]
+    assert new["talk"]["n_searches"] == 1 and new["talk"]["places_text"] == "Thailand and worldwide"
+    assert new["talk"]["categories"][0]["name"] == "Health"
+
+
+# 🆕 (2026-10-28) กล่อง "คนกำลังค้นหาอะไร" ในหน้าแรกของเทรนด์ (trend_talk.py): หัวข้อ 2 ภาษา + คำค้นจริง; ไม่มีผล LLM = ตัวอย่างคำค้นล้วน; รอบ 3 สายเดิมยังมีบรรทัดกลุ่มเป้าหมาย
+def test_trend_page_shows_what_people_search_with_real_searches_in_both_languages(run_dir):
+    ctx = _rendered_ctx(run_dir)
+    ctx["trends"][0]["talk"] = {"n": 27, "categories": ["Beauty & Fitness", "Health"], "examples": ["a1", "a2"], "points": [
+        {"topic": "2026 hairstyles", "topic_th": "ทรงผมปี 2026", "searches": ["ทรง ผม 2026", "สี ผม 2026"]},
+        {"topic": "fixing frizz", "topic_th": "แก้ผมชี้ฟู", "searches": ["how to fix frizzy hair"]}]}
+    ctx["trends"][1]["talk"] = {"n": None, "categories": [], "points": [], "examples": ["example search one", "example search two"]}
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    first = html[html.index('data-label="Trend 1"'):]
+    first = first[:first.index("</section>")]
+    assert "What people are searching" in first and "27 rising searches in Beauty &amp; Fitness, Health" in first
+    assert "2026 hairstyles" in first and "<i>ทรง ผม 2026</i>" in first and "<i>how to fix frizzy hair</i>" in first
+    assert 'class="tgt"' not in first                                             # แทนบรรทัดกลุ่มเป้าหมายที่ซ้ำกันทุกเทรนด์
+    second = html[html.index('data-label="Trend 2"'):]
+    second = second[:second.index("</section>")]
+    assert "Example searches" in second and "<i>example search one</i>" in second and "rising searches in" not in second   # ไม่มีผล LLM = ตัวอย่างล้วน ไม่มีจำนวน
+    th = render_html(localize(ctx, "th"), BRAND, {}, "T", datetime(2026, 1, 1), "x", lang="th")
+    assert "ทรงผมปี 2026" in th and "2026 hairstyles" not in th and "<i>ทรง ผม 2026</i>" in th and "คนกำลังค้นหาอะไร" in th
+    assert "27 คำค้นที่กำลังขึ้นในหมวด Beauty &amp; Fitness, Health" in th
+    assert th.count('<section class="page') == html.count('<section class="page')
+
+
+def test_trend_page_without_talk_keeps_the_target_consumer_line(run_dir):
+    ctx = _rendered_ctx(run_dir)
+    ctx["trends"][0]["target"] = "Skin-care minded shoppers"
+    assert "talk" not in ctx["trends"][0]
+    html = render_html(ctx, BRAND, {}, "T", datetime(2026, 1, 1), "x")
+    first = html[html.index('data-label="Trend 1"'):]
+    assert 'class="tgt"' in first[:first.index("</section>")] and "What people are searching" not in first[:first.index("</section>")]

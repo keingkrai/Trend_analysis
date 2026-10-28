@@ -3,8 +3,8 @@
 ⑰ Brand × Trend Fit Report — รายงาน PDF 1 ไฟล์ต่อ 1 แบรนด์ลูกค้า (อังกฤษ + ไทย) แยกจากรายงานเทรนด์ (⑯)
 
 อ่านผล ⑬ ของแบรนด์ (phase3_brand_coverage_<แบรนด์>.json) + ข้อมูลเทรนด์ชุดเดียวกับรายงานเทรนด์ของรอบนั้น แล้วจัดหน้า:
-ปก → สรุปผู้บริหาร → สินค้าตามเทรนด์ เทียบคู่แข่ง → เทรนด์ละ 3 หน้า (top 5 สินค้าใกล้เทรนด์ที่สุดของตลาด + อันดับของสินค้าแบรนด์
-+ 🆕 2026-10-21 หน้าที่ 3 = แผนที่ ความใกล้เทรนด์ x ยอดขาย ต่อกลุ่มราคา ดู fit_sales_map.py; เทรนด์ที่แบรนด์ไม่มีสินค้าในหมวดไม่มีหน้านี้)
+ปก → สรุปผู้บริหาร → สินค้าตามเทรนด์ เทียบคู่แข่ง → เทรนด์ละ 2 หน้า (top 5 สินค้าใกล้เทรนด์ที่สุดของตลาด + อันดับของสินค้าแบรนด์;
+🆕 2026-10-27 ตัดหน้าที่ 3 "แผนที่ ความใกล้เทรนด์ x ยอดขาย" ออกพร้อมยอดขายทั้งหมด - เกรดใช้ความใกล้เทรนด์ล้วน)
 → โอกาสพัฒนาสินค้า → ภาคผนวก - ระดับความพร้อม (Excellent/Good/Average/Below average) คิดแบบ เทรนด์ -> หมวด ->
 ช่วงราคาตลาด -> สินค้า (🆕 2026-10-07 ดู brand_data.build_brand_context) ตามเกณฑ์ใน config/brand_report.json
 (ไม่ใช้ tier ของ ⑬ - ดูเหตุผลใน brand_data.py)
@@ -150,7 +150,7 @@ def build_one(coverage_path, run_dir, ctx, catalog, cfg, style, langs, bs, args,
             b = apply_th(b, translations)
         attach_images(b)
         # 🆕 (2026-10-14) หน้าสินค้าต่อเทรนด์ที่รวมมาจาก ⑱ - ข้อมูลชุดเดียวกับที่ ⑱ ใช้ (category_fit ของ ⑬)
-        cat = build_category_context(lctx, coverage, catalog, cfg, ranges, l2_data)
+        cat = build_category_context(lctx, coverage, catalog, cfg, ranges)
         if lang == "th":
             cat = apply_category_th(cat)
         attach_category_images(cat)
@@ -217,11 +217,11 @@ def main():
     from brand_category_data import load_group_ranges
     ranges = load_group_ranges(trend_report.PRODUCT_CSV)
     print(f"ช่วงราคาต่อปริมาณต่อกลุ่ม: {len(ranges)} กลุ่ม (หมวด x ต่ำ/กลาง/สูง)")
-    # 🆕 (2026-10-21) แผนที่ตลาดระดับหมวด L2 ของรอบ (⑫ --l2-map-only) - หน้าที่ 3 ของเทรนด์ (ความใกล้เทรนด์ x ยอดขายในหมวด L2); ไม่มีไฟล์ = ไม่มีหน้านั้น
+    # 🆕 (2026-10-21) แผนที่ตลาดระดับหมวด L2 ของรอบ (⑫ --l2-map-only) - ใช้จัดอันดับความใกล้เทรนด์ในหมวด L2 (เกรดของ ⑰); ไม่มีไฟล์ = เกรดแบบกลุ่มราคาเดิม
     from l2_map import load_map as load_l2_map
     l2_data = load_l2_map(run_dir)
     print(f"แผนที่ตลาดระดับหมวด L2: {len((l2_data or {}).get('trends') or {})} เทรนด์" if l2_data
-          else "⚠️ ไม่มีแผนที่ตลาดระดับหมวด L2 ของรอบนี้ (รัน ⑫ --l2-map-only ก่อน) - ไม่มีหน้าที่ 3 ของเทรนด์")
+          else "⚠️ ไม่มีแผนที่ตลาดระดับหมวด L2 ของรอบนี้ (รัน ⑫ --l2-map-only ก่อน) - เกรดคิดแบบกลุ่มหมวด x ช่วงราคาเดิม")
 
     saved = []
     for path in targets:

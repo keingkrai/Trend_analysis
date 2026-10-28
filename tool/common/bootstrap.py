@@ -173,9 +173,11 @@ STAGE_IO_MAP = {
     "paper_stream": {"inputs": [], "outputs": ["phase1_paper_stream_result.json"]},
     "social_stream": {"inputs": [], "outputs": ["phase2_social_stream_result.json"]},
     "news_stream": {"inputs": [], "outputs": ["phase2_news_stream_result.json"]},
+    # 🆕 (2026-10-27) สาย Search (Google Trends คำค้นกำลังขึ้นรายหมวด) ใช้แทน 3 สายด้านบนในรอบใหม่ - tool/phase9_search_stream/
+    "search_stream": {"inputs": [], "outputs": ["phase2_search_stream_result.json", "phase2_search_candidates.csv"]},
     "fetch_trends_worldwide_serpapi": {
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
-                   "phase2_news_stream_result.json"],
+                   "phase2_news_stream_result.json", "phase2_search_stream_result.json"],
         "outputs": ["phase2_paper_social_z_delta_result.json"],
     },
     "run_category_aggregation": {
@@ -186,6 +188,7 @@ STAGE_IO_MAP = {
         # 🆕 (2026-09-30) + ค่าการค้นหารายเดือนของ ⑦ ใช้คำนวณคะแนนการเติบโต (growth_score.py) แทน Z_Delta
         "inputs": ["phase1_paper_stream_result.json",
                    "phase2_social_stream_result.json", "phase2_news_stream_result.json",
+                   "phase2_search_stream_result.json",
                    "serpapi_forecast_run/step5a_monthly_trends.xlsx",
                    "serpapi_forecast_run/step5b_df_keyword_processed.xlsx"],
         "outputs": ["phase2_rank_score_final_mode_result.json", "phase2_longevity_cross_source_result.json",
@@ -195,7 +198,8 @@ STAGE_IO_MAP = {
         # 🆕 (2026-09-16) + ผล ⑥ ใช้คัด Top N เทรนด์ + ผลพยากรณ์ของ ⑦ ใช้ทำสำเนา step5c_..._top{N}.xlsx
         # (ไฟล์สำเนาชื่อเปลี่ยนตาม N จึงไม่ได้ใส่ใน outputs ที่ต้องเป็นชื่อตายตัว)
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
-                   "phase2_news_stream_result.json", "phase2_rank_score_final_mode_result.json",
+                   "phase2_news_stream_result.json", "phase2_search_stream_result.json",
+                   "phase2_rank_score_final_mode_result.json",
                    "serpapi_forecast_run/step5c_df_cluster_forecast.xlsx"],
         "outputs": ["phase3_trend_highlights_result.json"],
     },
@@ -210,7 +214,8 @@ STAGE_IO_MAP = {
     "run_stepic_report": {
         # 🆕 (2026-09-16) + ผล ⑪ ใช้อ่านชุด Top N ที่คัดไว้ (selected_trends) ให้รายงานตรงกับ ⑪-⑫
         "inputs": ["phase1_paper_stream_result.json", "phase2_social_stream_result.json",
-                   "phase2_news_stream_result.json", "phase3_scale_validation_nvidia_result.json",
+                   "phase2_news_stream_result.json", "phase2_search_stream_result.json",
+                   "phase3_scale_validation_nvidia_result.json",
                    "phase2_paper_social_z_delta_result.json", "phase2_longevity_cross_source_result.json",
                    "phase3_trend_highlights_result.json",
                    # 🆕 (2026-10-01) + คะแนนการเติบโตของ ⑥ ใช้ทำข้อมูลพยากรณ์เข้า STEPIC และภาพรวมตลาด
@@ -286,11 +291,16 @@ def _write_stage_manifest():
         except (json.JSONDecodeError, OSError):
             manifest = {}
 
+    # 🆕 (2026-10-27) ไฟล์ผลของสายหลักฐาน: แต่ละรอบมีแค่สายที่รอบนั้นใช้ (รอบใหม่ = Search, รอบเก่า = Paper/Social/News)
+    # ไม่มีไฟล์ของสายอื่นไม่ใช่ปัญหา จึงไม่เตือน
+    from common.streams import STREAM_FILES as _STREAM_FILES
+    stream_files = set(_STREAM_FILES.values())
     input_hashes, input_warnings = {}, []
     for fname in io["inputs"]:
         fp = OUTPUTS / fname
         if not fp.exists():
-            input_warnings.append(f"{fname}: ไม่เจอไฟล์ (ขั้นก่อนหน้ายังไม่ได้รันในรอบนี้)")
+            if fname not in stream_files:
+                input_warnings.append(f"{fname}: ไม่เจอไฟล์ (ขั้นก่อนหน้ายังไม่ได้รันในรอบนี้)")
             continue
         try:
             actual_hash = _sha256_file(fp)

@@ -5,6 +5,7 @@
 <title>{{ report_title }}</title>
 <style>
 {% include "style.css" %}
+{% include "category_dive.css" %}
 :root { --accent: {{ brand.accent_color }}; }
 </style>
 </head>
@@ -219,7 +220,7 @@
     <div class="brief-logo">{{ logo() }}</div>
     <div class="brief-text fit" data-name="briefing">
       <p><b>{{ L.prepared_by }}</b> {{ brand.prepared_by or brand.company_name }}</p>
-      <p><b>{{ L.briefing }}</b> {{ L.briefing_text.format(n=meta.top_n, topic=(meta.title if lang == "th" else meta.topic),
+      <p><b>{{ L.briefing }}</b> {{ (L.briefing_search_text if meta.search_stream else L.briefing_text).format(n=meta.top_n, topic=(meta.title if lang == "th" else meta.topic),
                                                           total=(meta.n_trends_total or L.briefing_total_na), end=end_clause) }}</p>
     </div>
   </div>
@@ -282,8 +283,14 @@
       <div class="val">{{ bs.median_change_pct_short | signed(0) }}%</div><div class="sub">{{ L.mo_short_sub.format(n=nb) }}</div></div>
     <div class="stat"><div class="lbl">{{ L.mo_long }}</div>
       <div class="val">{{ (bs.median_change_pct_long | signed(0)) ~ "%" if bs.median_change_pct_long is not none else L.na }}</div><div class="sub">{{ L.mo_long_sub.format(n=nb) }}</div></div>
+    {%- if meta.search_stream and meta.sources.rising %}
+    {#- 🆕 (2026-10-27) สาย Search ไม่มีคะแนนความทนทาน - แสดงจำนวนคำค้นที่กำลังขึ้นที่ใช้หาเทรนด์แทน -#}
+    <div class="stat"><div class="lbl">{{ L.mo_rising }}</div>
+      <div class="val">{{ "{:,}".format(meta.sources.rising.n_queries) }}</div><div class="sub">{{ L.mo_rising_sub.format(c=meta.sources.rising.n_categories) }}</div></div>
+    {%- else %}
     <div class="stat"><div class="lbl">{{ L.mo_dur }}</div>
       <div class="val">{{ (bs.median_durability | round | int) ~ "/100" if bs.median_durability is not none else L.na }}</div><div class="sub">{{ L.mo_dur_sub.format(n=nb) }}</div></div>
+    {%- endif %}
     {%- else %}
     <div class="stat"><div class="lbl">{{ L.trend_strength }}</div>
       <div class="val">{{ ov.market.current_trend_strength or L.na }}</div><div class="sub">{{ L.current_signal }}</div></div>
@@ -299,6 +306,57 @@
   </div>
   {{ footer() }}
 </section>
+
+{#- ======================= 4b2. คนกำลังค้นหาอะไรมากขึ้น (🆕 2026-10-28 รอบสาย Search - แทนหน้า persona; ข้อมูลจาก search_talk.py) ======================= -#}
+{% if ctx.talk %}
+{%- set tk2 = ctx.talk -%}
+{%- set max_n = tk2.categories | map(attribute="n") | max -%}
+<section class="page" data-label="Search Talk">
+  {{ bar_header(L.talk_header) }}
+  <div class="intro">{{ L.talk_intro.format(places=tk2.places_text) }}</div>
+  <div class="talk-chart">
+    <div class="h">{{ L.talk_chart }}{% if tk2.categories[0].n_linked is defined %}<span class="lkh">{{ L.dv_talk_col }}</span>{% endif %}</div>
+    {% for c in tk2.categories %}
+    <div class="talk-row{{ ' lk4' if tk2.categories[0].n_linked is defined }}">
+      <div class="nm">{{ c.name }}</div>
+      <div class="track">
+        <div class="stack" style="width: {{ (c.n / max_n * 100) | round(2) }}%">
+          <i class="i-th" style="flex: {{ c.th }} 0 0"></i><i class="i-ww" style="flex: {{ c.ww }} 0 0"></i><i class="i-both" style="flex: {{ c.both }} 0 0"></i>
+        </div>
+        {% if c.fed %}<div class="fed" style="width: {{ (c.fed / max_n * 100) | round(2) }}%"></div>{% endif %}
+      </div>
+      <div class="n">{{ "{:,}".format(c.n) }}</div>
+      {% if c.n_linked is defined %}<div class="lk">{{ c.n_linked if c.n_linked else "–" }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="talk-leg">
+      <span><i class="i-th"></i>{{ L.talk_leg_th }}</span><span><i class="i-ww"></i>{{ L.talk_leg_ww }}</span>
+      <span><i class="i-both"></i>{{ L.talk_leg_both }}</span><span><i class="i-fed"></i>{{ L.talk_leg_fed }}</span>
+    </div>
+  </div>
+  <div class="talk-side">
+    <div class="talk-stats">
+      <div class="talk-stat"><div class="v">{{ "{:,}".format(tk2.n_searches) }}</div><div class="l">{{ L.talk_stat_searches }}</div></div>
+      <div class="talk-stat"><div class="v">{{ tk2.n_categories }}</div><div class="l">{{ L.talk_stat_categories }}</div></div>
+      <div class="talk-stat wide"><div class="v">{{ "{:,}".format(tk2.n_fed) }}</div>
+        <div class="l">{{ L.talk_stat_fed }} · {{ L.talk_stat_fed_sub.format(pct=tk2.fed_pct) }}</div></div>
+    </div>
+    {% if tk2.n_trends_built and tk2.n_trends_shown %}
+    <div class="talk-txt">{{ L.talk_funnel.format(check="{:,}".format(tk2.n_link_check), built=tk2.n_trends_built, shown=tk2.n_trends_shown) }}</div>
+    {% endif %}
+    {% if tk2.top_fed %}
+    {%- set tf = tk2.top_fed -%}
+    <div class="talk-txt"><b>{% if tf | length > 1 %}{{ L.talk_take.format(a=tf[0].name, na=tf[0].fed, b=tf[1].name, nb=tf[1].fed, z=tk2.n_no_fed, k=tk2.n_categories) }}
+      {%- else %}{{ L.talk_take_one.format(a=tf[0].name, na=tf[0].fed, z=tk2.n_no_fed, k=tk2.n_categories) }}{% endif %}</b></div>
+    {% endif %}
+    {% if ctx.dive and ctx.dive.pages %}
+    <div class="talk-txt">{{ L.dv_part2_a }} <span class="pgref" data-ref="{{ ctx.dive.pages[0].label }}"></span> {{ L.dv_part2_b.format(k=(ctx.dive.categories | selectattr("n_linked") | list | length)) }}{% if ctx.dive.none_linked %} {{ L.dv_ov_none.format(k=ctx.dive.none_linked | length, names=ctx.dive.none_linked | join(", ")) }}{% endif %}</div>
+    {% endif %}
+    <div class="talk-caveat">{{ L.talk_caveat }}</div>
+  </div>
+  {{ footer() }}
+</section>
+{% endif %}
 
 {#- ======================= 4c. Top 5 ระยะสั้น x ระยะยาว (🆕 2026-09-30 แทนหน้า Rank Trajectory) =======================
     คะแนนการเติบโตของ ⑥ (report_data.build_growth_pages) - ฝั่งซ้ายปีที่ 2 ฝั่งขวาปีที่ 5 (🆕 2026-10-02 เดิม 1 / 3)
@@ -451,14 +509,75 @@
 </section>
 {% endif %}
 
+{#- ======================= 5. STEPIC + Trend Drivers + Signals รวมหน้าเดียว (🆕 2026-10-28 รอบสาย Search) =======================
+    คำค้นยืนยันแรงขับได้น้อย (รอบ 164405: 3 จาก 6 เป็น "No data") 3 หน้าเดิมจึงว่างเกินไป - รวมเป็นหน้าเดียวเมื่อแรงขับที่มีข้อมูลไม่เกิน 3 ช่อง:
+    แถวบน = ช่องที่มีข้อมูล (ข้อความเต็ม) · บรรทัดเดียวบอกแรงขับที่ไม่มีหลักฐาน · ซ้าย = heatmap เฉพาะแรงขับที่มีข้อมูล · ขวา = สัญญาณ/แนวโน้ม
+    แรงขับที่มีข้อมูลเกิน 3 ช่อง (หรือรอบ 3 สายเดิม) ใช้ 3 หน้าเดิมด้านล่าง -#}
+{%- set st_data = (ctx.stepic or []) | rejectattr("no_data") | list -%}
+{%- set st_none = (ctx.stepic or []) | selectattr("no_data") | list -%}
+{%- set merge_forces = meta.search_stream and st_data and (st_data | length) <= 3 -%}
+{% if merge_forces %}
+{%- set ls = ctx.links_summary -%}
+{%- set mf_h = [22, (132 // ([trends | length, 1] | max))] | min -%}
+<section class="page" data-label="Macro Forces">
+  {{ bar_header(L.mf_header) }}
+  <div class="intro">{{ L.mf_intro }}</div>
+  <div class="mf-tiles n{{ st_data | length }}">
+    {% for s in st_data %}
+    <div class="st-tile dim-{{ s.dimension | lower }}">
+      <div class="st-head">{{ s.dimension_label or s.dimension }}</div>
+      <div class="st-body fit" data-name="forces {{ s.dimension }}">{% if s.headline %}<div class="hl">{{ s.headline }}</div>{% endif %}{{ s.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if st_none %}{% set none_names %}{% for s in st_none %}{{ s.dimension_label or s.dimension }}{{ ", " if not loop.last }}{% endfor %}{% endset %}
+  <div class="mf-none">{{ L.mf_none.format(names=none_names) }}</div>{% endif %}
+  {% if ls %}
+  <div class="mf-hm">
+    <table class="hm" style="--rh: {{ mf_h }}px">
+      <colgroup><col class="w-r"><col class="w-nm">{% for s in st_data %}<col class="w-f">{% endfor %}</colgroup>
+      <thead>
+        <tr class="grp"><th colspan="2"></th><th colspan="{{ st_data | length }}">{{ L.dr_forces }}</th></tr>
+        <tr class="cols"><th class="r">#</th><th class="nm"></th>{% for s in st_data %}<th class="f">{{ s.dimension_label or s.dimension }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+      {% for t in trends %}
+      <tr>
+        <td class="r">{{ t.rank }}</td><td class="nm">{{ t.display_name or t.name }}</td>
+        {% for s in st_data %}<td class="c"><i class="lv{{ t.links.stepic[s.dimension].level if t.links else 'x' }} dim-{{ s.dimension | lower }}"></i></td>{% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td></td><td class="nm">{{ L.dr_total }}</td>{% for s in st_data %}<td class="c">{{ ls.stepic[s.dimension].main }}</td>{% endfor %}</tr></tfoot>
+    </table>
+    <div class="hm-legend"><span><i class="lv2 per"></i>{{ L.dr_main }}</span><span><i class="lv1 per"></i>{{ L.dr_some }}</span>
+      <span><i class="lv0"></i>{{ L.dr_none }}</span></div>
+  </div>
+  {% endif %}
+  {% if ctx.signals or tk.projection %}
+  <div class="mf-sig">
+    <div class="mf-sig-h">{{ L.mf_signals }}</div>
+    <div class="mf-sig-list fit" data-name="signals">
+      {% for s in ctx.signals[:4] %}
+      <div class="mf-s"><div class="dims">{{ s.dimensions }}</div><div>{{ s.signal }}{% if s.implication %}<div class="imp">{{ s.implication }}</div>{% endif %}</div></div>
+      {% endfor %}
+      {% if tk.projection %}<div class="mf-s"><div class="dims">{{ L.next_3_months }}</div><div>{{ tk.projection }}</div></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if ls %}<div class="ev-note">{{ L.dr_note }}</div>{% endif %}
+  {{ footer() }}
+</section>
+{% endif %}
+
 {#- ======================= 5. STEPIC ======================= -#}
-{% if ctx.stepic %}
+{% if ctx.stepic and not merge_forces %}
 <section class="page" data-label="STEPIC">
   {{ bar_header(L.stepic_header) }}
   <div class="intro">{{ L.stepic_intro }}</div>
   <div class="stepic-grid">
     {% for s in ctx.stepic %}
-    <div class="st-tile dim-{{ s.dimension | lower }}">
+    <div class="st-tile dim-{{ s.dimension | lower }}{% if s.no_data %} nodata{% endif %}">
       <div class="st-head">{{ s.dimension_label or s.dimension }}</div>
       <div class="st-body fit" data-name="stepic {{ s.dimension }}"><div class="hl">{{ s.headline }}</div>{{ s.body }}</div>
     </div>
@@ -490,36 +609,38 @@
 
 {#- ======================= 6b. Trend Drivers (heatmap เทรนด์ x แรงขับ STEPIC + persona) ======================= -#}
 {#- ระดับต่อช่องจาก trend_links.link_trends (LLM ตัดสิน 0/1/2 พร้อมหลักฐาน) - lvx = เทรนด์ที่ไม่ได้ผล -#}
-{% if ctx.links_summary %}
+{% if ctx.links_summary and not merge_forces %}
 {%- set ls = ctx.links_summary -%}
 {%- set pers = ctx.personas[:3] -%}
+{#- 🆕 (2026-10-27) แรงขับที่คำค้นไม่ยืนยัน (no_data) ไม่อยู่ในตาราง -#}
+{%- set forces = ctx.stepic | rejectattr("no_data") | list -%}
 <section class="page" data-label="Trend Drivers">
-  {{ bar_header(L.dr_header) }}
-  <div class="intro">{{ L.dr_intro }}</div>
+  {{ bar_header(L.dr_header if pers else L.dr_header_forces) }}
+  <div class="intro">{{ L.dr_intro if pers else L.dr_intro_forces }}</div>
   <table class="hm">
     {#- table-layout: fixed เอาความกว้างจากแถวแรก (แถวหัวกลุ่มที่เป็น colspan) - ต้องกำหนดผ่าน colgroup -#}
-    <colgroup><col class="w-r"><col class="w-nm">{% for s in ctx.stepic %}<col class="w-f">{% endfor %}<col class="w-gap">
-      {%- for p in pers %}<col class="w-p">{% endfor %}</colgroup>
+    <colgroup><col class="w-r"><col class="w-nm">{% for s in forces %}<col class="w-f">{% endfor %}{% if pers %}<col class="w-gap">
+      {%- for p in pers %}<col class="w-p">{% endfor %}{% endif %}</colgroup>
     <thead>
-      <tr class="grp"><th colspan="2"></th><th colspan="{{ ctx.stepic | length }}">{{ L.dr_forces }}</th><th class="gap"></th>
-        <th colspan="{{ pers | length }}">{{ L.dr_personas }}</th></tr>
+      <tr class="grp"><th colspan="2"></th><th colspan="{{ forces | length }}">{{ L.dr_forces }}</th>{% if pers %}<th class="gap"></th>
+        <th colspan="{{ pers | length }}">{{ L.dr_personas }}</th>{% endif %}</tr>
       <tr class="cols"><th class="r">#</th><th class="nm"></th>
-        {% for s in ctx.stepic %}<th class="f">{{ s.dimension_label or s.dimension }}</th>{% endfor %}<th class="gap"></th>
-        {% for p in pers %}<th class="p">{{ p.name }}</th>{% endfor %}</tr>
+        {% for s in forces %}<th class="f">{{ s.dimension_label or s.dimension }}</th>{% endfor %}{% if pers %}<th class="gap"></th>
+        {% for p in pers %}<th class="p">{{ p.name }}</th>{% endfor %}{% endif %}</tr>
     </thead>
     <tbody>
     {% for t in trends %}
     <tr>
       <td class="r">{{ t.rank }}</td><td class="nm">{{ t.display_name or t.name }}</td>
-      {% for s in ctx.stepic %}<td class="c"><i class="lv{{ t.links.stepic[s.dimension].level if t.links else 'x' }} dim-{{ s.dimension | lower }}"></i></td>{% endfor %}
-      <td class="gap"></td>
-      {% for p in pers %}<td class="c"><i class="lv{{ t.links.personas[loop.index0].level if t.links else 'x' }} per"></i></td>{% endfor %}
+      {% for s in forces %}<td class="c"><i class="lv{{ t.links.stepic[s.dimension].level if t.links else 'x' }} dim-{{ s.dimension | lower }}"></i></td>{% endfor %}
+      {% if pers %}<td class="gap"></td>
+      {% for p in pers %}<td class="c"><i class="lv{{ t.links.personas[loop.index0].level if t.links else 'x' }} per"></i></td>{% endfor %}{% endif %}
     </tr>
     {% endfor %}
     </tbody>
     <tfoot><tr><td></td><td class="nm">{{ L.dr_total }}</td>
-      {% for s in ctx.stepic %}<td class="c">{{ ls.stepic[s.dimension].main }}</td>{% endfor %}<td class="gap"></td>
-      {% for p in pers %}<td class="c">{{ ls.personas[loop.index0].main }}</td>{% endfor %}</tr></tfoot>
+      {% for s in forces %}<td class="c">{{ ls.stepic[s.dimension].main }}</td>{% endfor %}{% if pers %}<td class="gap"></td>
+      {% for p in pers %}<td class="c">{{ ls.personas[loop.index0].main }}</td>{% endfor %}{% endif %}</tr></tfoot>
   </table>
   <div class="hm-legend"><span><i class="lv2 per"></i>{{ L.dr_main }}</span><span><i class="lv1 per"></i>{{ L.dr_some }}</span>
     <span><i class="lv0"></i>{{ L.dr_none }}</span></div>
@@ -529,7 +650,7 @@
 {% endif %}
 
 {#- ======================= 7. Signals + Outlook ======================= -#}
-{% if ctx.signals or tk.projection %}
+{% if (ctx.signals or tk.projection) and not merge_forces %}
 <section class="page" data-label="Signals">
   {{ bar_header(L.signals_header) }}
   <div class="sig-list">
@@ -562,14 +683,18 @@
     <div class="legend">
       <b>{{ L.short_term }}</b><span>{{ L.short_term_def }}</span>
       <b>{{ L.long_term }}</b><span>{{ L.long_term_def }}</span>
+      {%- if meta.search_stream %}
+      <b>{{ L.kpi_places }}</b><span>{{ L.places_def }}</span>
+      {%- else %}
       <b>{{ L.durability }}</b><span>{{ L.durability_def }}</span>
       <b>{{ L.breadth }}</b><span>{{ L.breadth_def }}</span>
+      {%- endif %}
     </div>
   </div>
   {{ footer() }}
 </section>
 
-{#- ======================= 9. เทรนด์ละ 2 หน้า (เดิม 3 - คำถาม Workshop ย้ายมาเป็นแถบล่างของหน้าแรก) ======================= -#}
+{#- ======================= 9. เทรนด์ละ 2 หน้า (คำถาม Workshop เคยเป็นแถบล่างของหน้าแรก - เจ้าของงานสั่งเอาออก 2026-10-28) ======================= -#}
 {% for t in trends %}
 <section class="page" data-label="Trend {{ t.rank }}">
   {{ trend_head(t, t.text.headline) }}
@@ -587,20 +712,40 @@
     <div class="kpi"><span class="l">{{ L.kpi_past }}{{ L.past_mark if past_inflated }}</span>
       <span class="v">{{ pct(g.past_growth_pct) }}<small>{{ L.vs_prev12 }}</small></span>
       <span class="s">{% if g.recent_decline %}<b class="warn">{{ L.ov_decline }}</b>{% elif g.recent_change_pct is number %}{{ L.kpi_recent.format(v=pct(g.recent_change_pct)) }}{% endif %}</span></div>
+    {%- if meta.search_stream %}
+    {#- 🆕 (2026-10-27) สาย Search: ไม่มี 3 แหล่งให้ยืนยัน และไม่มีคะแนนความทนทาน - แสดงพื้นที่ที่คำค้นขึ้น + ทางโยงแทน -#}
+    <div class="kpi"><span class="l">{{ L.kpi_places }}</span>
+      <span class="v">{{ (t.places | join(" · ")) if t.places else L.na }}</span>
+      <span class="s">{% for p in t.link_paths %}{{ L["link_path_" ~ p] }}{{ " · " if not loop.last }}{% endfor %}</span></div>
+    {%- else %}
     <div class="kpi"><span class="l">{{ L.kpi_sources }}</span>
       <span class="v">{{ t.stream_count or L.na }}<small>{{ L.of_3 }}</small>{{ src_dots(t.stream_count) }}</span>
       <span class="s">{{ L.kpi_longevity.format(v=(t.longevity_score if t.longevity_score is number else L.na)) }}{{ grade(t.long_term_grade) }}</span></div>
+    {%- endif %}
   </div>
   {% if past_inflated %}<div class="kpi-note">{{ L.past_note }}</div>{% endif %}
   <div class="t-row">
     <div class="t-chart">
       <div class="cap"><b>{{ L.chart_caption }}{% if meta.data_as_of %}{{ L.chart_caption_end.format(end=meta.data_as_of) }}{% endif %}</b>
         <span class="lg"><i class="cagr"></i>{{ L.legend_cagr }}</span><span class="lg"><i class="yoy"></i>{{ L.legend_yoy }}</span></div>
-      {% if charts[t.name] %}<img src="{{ charts[t.name] }}" alt="{{ L.chart_alt }}">{% else %}<div class="ph" style="height:188px;font-size:12px">{{ L.no_history }}</div>{% endif %}
+      {% if charts[t.name] %}<img src="{{ charts[t.name] }}" alt="{{ L.chart_alt }}">{% else %}<div class="ph" style="height:268px;font-size:12px">{{ L.no_history }}</div>{% endif %}
       <div class="kw"><span class="k">{{ L.tracked_keywords }}</span>{% for k in t.keywords[:4] %}<span class="chip">{{ k }}</span>{% endfor %}</div>
     </div>
     <div class="t-text fit" data-name="trend text">
-      {% if t.target %}<p class="tgt"><span class="k">{{ L.target_consumer }}</span>{{ t.target }}</p>{% endif %}
+      {#- 🆕 (2026-10-28) รอบสาย Search: กล่อง "คนกำลังค้นหาอะไร" (trend_talk.py) แทนบรรทัดกลุ่มเป้าหมายที่ซ้ำกันทุกเทรนด์ -#}
+      {% if t.talk %}
+      {%- set tkk = t.talk -%}
+      <div class="tk">
+        <div class="tk-h"><b>{{ L.trend_talk_title }}</b>{% if tkk.n %}<span>{{ L.trend_talk_sub.format(n=tkk.n, cats=(tkk.categories | join(", "))) }}</span>{% endif %}</div>
+        {% if tkk.points %}
+        {% for p in tkk.points %}
+        <div class="tk-p"><div class="tk-t">{{ p.topic }}</div><div class="tk-s">{% for s in p.searches %}<i>{{ s }}</i>{% endfor %}</div></div>
+        {% endfor %}
+        {% else %}
+        <div class="tk-p"><div class="tk-t">{{ L.trend_talk_examples }}</div><div class="tk-s">{% for s in tkk.examples %}<i>{{ s }}</i>{% endfor %}</div></div>
+        {% endif %}
+      </div>
+      {% elif t.target %}<p class="tgt"><span class="k">{{ L.target_consumer }}</span>{{ t.target }}</p>{% endif %}
       {#- Means-End 3 บรรทัด (enrich.condense_means_end) - ไม่มีผล LLM ใช้ย่อหน้า Trend/Insight เดิม -#}
       {% if t.ladder %}
       <div class="ladder">
@@ -612,11 +757,11 @@
       <p><b>{{ L.trend_label }}</b> {{ t.text.trend }}</p>
       <p><b>{{ L.insight_label }}</b> {{ t.text.insight }}</p>
       {% endif %}
+      {#- 🆕 (2026-10-28) ความต้องการความงามที่ AI อนุมาน = ข้อความหลักที่ใช้จับคู่สินค้า (match_supply.match_basis) ติดป้ายว่าไม่ใช่สิ่งที่คนค้นหาโดยตรง -#}
+      {% if t.beauty_need %}
+      <div class="bn"><span class="k">{{ L.bn_title }}</span><span class="v">{{ t.beauty_need.product_keywords | join(" · ") }}</span></div>
+      {% endif %}
     </div>
-  </div>
-  <div class="ws">
-    <div class="k">{{ L.workshop_question }}<span>{{ L.overlooked.format(n=t.rank) }}</span></div>
-    <div class="q fit" data-name="workshop question" data-min="9">{{ t.text.workshop_question }}</div>
   </div>
   {#- คะแนนปีที่ 2 (ระยะสั้น) = สัดส่วนคีย์เวิร์ดในตลาดที่คาดว่าเพิ่มน้อยกว่าเทรนด์นี้ (growth_score) -> แสดงเป็น % แทนเลข 0-1 -#}
   {%- set s1 = g.scores[sy - 1] if g.scores and g.scores | length >= sy else none -%}
@@ -626,49 +771,45 @@
   {{ footer() }}
 </section>
 
-{% if t.l2 %}
-{#- 🆕 (2026-10-21) หน้าสินค้า = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 อย่างเดียว (เจ้าของงานสั่ง - ไม่แยกชนิดสินค้า/ช่วงราคา):
-    สินค้าทุกชิ้นของหมวดหลักถูกวางตามอันดับความใกล้เทรนด์ในหมวด (คอลัมน์ 4 ระดับ) x ยอดขาย Konvy เทียบในหมวด (แถว ขายดี/ปานกลาง/ขายช้า) ทุกช่องแสดงสินค้าที่ใกล้เทรนด์
-    ที่สุดในช่อง - ไม่แสดงจำนวนสินค้าต่อช่อง/คอลัมน์/แถว และไม่มีแถว "ไม่มีข้อมูลยอดขาย" (เจ้าของงานสั่ง); ข้อมูลจาก ⑫ --l2-map-only (l2_map.py)
+{% if t.no_close_product %}
+{#- 🆕 (2026-10-28) สินค้าที่ใกล้เทรนด์ที่สุด 5 ชิ้นของทั้งร้านอยู่ในหมวดหลักของเทรนด์น้อยกว่า 2 ชิ้น (common/match_quality.py): จัดอันดับในหมวดนั้นแล้วไม่สะท้อนเทรนด์
+    จึงไม่แสดงสินค้า บอกเหตุผลแทน (คำอธิบายเทรนด์อยู่ในหน้าแรกของเทรนด์) -#}
+<section class="page" data-label="Evidence {{ t.rank }}">
+  {{ trend_head(t, L.np_sub) }}
+  <div class="np-box">
+    <div class="np-h">{{ L.ncp_title }}</div>
+    <div class="np-b">{{ (L.ncp_body_none if t.category_agreement.in_main == 0 else L.ncp_body).format(category=t.category_agreement.category, k=t.category_agreement.in_main, n=t.category_agreement.top_n) }}</div>
+  </div>
+  {{ footer() }}
+</section>
+{% elif t.l2 %}
+{#- 🆕 (2026-10-27) หน้าสินค้า = ความใกล้เทรนด์ระดับหมวด L2 อย่างเดียว แถวเดียว 4 ระดับ (เจ้าของงานสั่งตัดยอดขายออก): สินค้าทุกชิ้นของหมวดหลักถูกจัดอันดับตามความใกล้เทรนด์
+    ในหมวด (คอลัมน์ 4 ระดับ) แต่ละช่องแสดงสินค้าที่ใกล้เทรนด์ที่สุดในระดับ - ไม่แสดงจำนวนสินค้าต่อระดับ; ข้อมูลจาก ⑫ --l2-map-only (l2_map.py)
     รอบที่ไม่มีไฟล์แผนที่ใช้หน้าแบบเดิมด้านล่าง -#}
 {%- set l2 = t.l2 -%}
-{%- set final_of = {"strong": {"excellent": "excellent", "good": "good", "average": "good", "below_average": "below_average"},
-                    "steady": {"excellent": "good", "good": "good", "average": "average", "below_average": "below_average"},
-                    "slow": {"excellent": "good", "good": "average", "average": "below_average", "below_average": "below_average"}} -%}
 {%- set x_sub = {"excellent": L.l2_x_first.format(p=l2.cuts.excellent), "good": L.l2_x_mid.format(a=l2.cuts.excellent, b=l2.cuts.good),
                  "average": L.l2_x_mid.format(a=l2.cuts.good, b=l2.cuts.average), "below_average": L.l2_x_last.format(p=l2.cuts.average)} -%}
-{%- set y_sub = {"strong": L.l2_y_strong_sub.format(p=l2.sales.strong_top_pct), "steady": L.l2_y_steady_sub,
-                 "slow": L.l2_y_slow_sub.format(p=l2.sales.slow_bottom_pct)} -%}
 <section class="page" data-label="Evidence {{ t.rank }}">
   {{ trend_head(t, L.l2_sub.format(n="{:,}".format(l2.n), category=l2.category)) }}
   <div class="l2-map">
-    <div class="l2-corner">{{ L.l2_corner_y }}<br>{{ L.l2_corner_x }}</div>
     {% for c in l2.cols %}
     <div class="l2-ch"><i class="lv-{{ c.level }}"></i><b>{{ L["l2_lv_" ~ c.level] }}</b><span>{{ x_sub[c.level] }}</span></div>
     {% endfor %}
-    {% for r in l2.rows if r.state != "unknown" %}
-    <div class="l2-rh r-{{ r.state }}"><b>{{ L["l2_y_" ~ r.state] }}</b><span>{{ y_sub[r.state] }}</span></div>
     {% for c in l2.cols %}
-    {%- set p = l2.cells[r.state ~ "|" ~ c.level].product -%}
-    <div class="l2-cell tint-{{ final_of[r.state][c.level] }}">
+    {%- set p = c.product -%}
+    <div class="l2-cell tint-{{ c.level }}">
       {% if p %}
-      {%- set sv = p.sales -%}
       <div class="card"><div class="im">{% if p.image %}<img src="{{ p.image }}" alt="">{% else %}<div class="ph"></div>{% endif %}</div>
         <div class="tx"><div class="nm">{% set br = p.brand or "" %}{% if br and p.name.lower().startswith(br.lower()) %}<b>{{ p.name[:br | length] }}</b>{{ p.name[br | length:] }}{% else %}{% if br %}<b>{{ br }}</b> {% endif %}{{ p.name }}{% endif %}</div>
           <div class="mt">{{ p.price_thb | thb }}{% if (p | ulabel) %} · {{ p | ulabel }}{% endif %}</div>
-          <div class="mt">{{ L.l2_card_match.format(rank="{:,}".format(p.rank)) }}</div>
-          <div class="mt">{% if sv.soldout %}{{ L.l2_soldout }}{% elif sv.zero %}{{ L.l2_zero }}{% else %}{{ L.l2_sales_top.format(p=sv.top_pct) }}{% endif %}</div>
-          {#- ยอดขายแยกบรรทัด (ข้อความไทยยาว - ช่องแคบ 4 คอลัมน์) -#}
-          {% if sv.soldout and sv.reviews is number %}<div class="mt">{{ L.l2_review1 if sv.reviews == 1 else L.l2_reviews.format(n="{:,}".format(sv.reviews)) }}</div>
-          {% elif not sv.soldout and not sv.zero and sv.sold is number and sv.sold %}<div class="mt">{{ L.l2_sold.format(n="{:,}".format(sv.sold)) }}</div>{% endif %}</div></div>
+          <div class="mt">{{ L.l2_card_match.format(rank="{:,}".format(p.rank)) }}</div></div></div>
       {% else %}<div class="empty">{{ L.l2_empty }}</div>{% endif %}
     </div>
     {% endfor %}
-    {% endfor %}
   </div>
-  <div class="l2-take">{{ L.l2_take.format(p=l2.take.close_pct, s=l2.take.strong_close, l=l2.take.slow_close, category=l2.category,
-                                           sa=l2.take.strong_all, la=l2.take.slow_all) }}</div>
-  <div class="ev-note">{{ L.l2_note.format(category=l2.category, total="{:,}".format(l2.n), p1=l2.cuts.excellent) }}</div>
+  <div class="l2-take">{{ L.l2_take.format(p=l2.take.close_pct, k="{:,}".format(l2.take.n_close), total="{:,}".format(l2.n), category=l2.category) }}</div>
+  <div class="ev-note">{{ L.l2_note.format(category=l2.category, total="{:,}".format(l2.n), p1=l2.cuts.excellent) }}
+    {%- if t.beauty_need %} {{ L.l2_basis.format(kw=(t.beauty_need.product_keywords | join(", "))) }}{% endif %}</div>
   {{ footer() }}
 </section>
 {% elif t.categories %}
@@ -778,29 +919,43 @@
 {% endif %}
 {% endfor %}
 
+{#- ======================= 9b. ส่วนที่ 2: เจาะรายหมวดของ Google (🆕 2026-10-28 รอบสาย Search - category_dive.py; หน้าชุดเดียวกับเล่มแยก) ======================= -#}
+{% if ctx.dive and ctx.dive.pages %}
+{%- set dv = ctx.dive -%}
+{% include "_dive_pages.j2" %}
+{% endif %}
+
 {#- ======================= 10. Appendix ======================= -#}
 <section class="page" data-label="Methodology">
   {{ bar_header(L.method_header) }}
-  <div class="ap-grid">
+  <div class="ap-grid{{ ' dv-ext' if ctx.dive and ctx.dive.pages }}">
     <div class="ap-box fit" data-name="method 1"><h3>{{ L.method_1_title }}</h3>
+      {#- 🆕 (2026-10-27) รอบสาย Search ใช้ข้อความของตัวเอง (ไม่พูดถึง 3 แหล่งอิสระ/Louvain) -#}
+      {%- if meta.search_stream and meta.sources.rising %}
+      {{ L.method_1_search.format(c=meta.sources.rising.n_categories, places=(meta.sources.rising.places | join(", ")), total=(L.method_1_total.format(n=meta.n_trends_total) if meta.n_trends_total else "")) }}</div>
+      {%- else %}
       {{ L.method_1.format(total=(L.method_1_total.format(n=meta.n_trends_total) if meta.n_trends_total else "")) }}</div>
+      {%- endif %}
     <div class="ap-box fit" data-name="method 2"><h3>{{ L.method_2_title }}</h3>
       {{ L.method_2.format(years=(meta.years or L.few)) }}</div>
     <div class="ap-box fit" data-name="method 3"><h3>{{ L.method_3_title }}</h3>
       {%- set n_np = trends | selectattr("no_products") | list | length -%}
-      {{ L.method_3.format(n=meta.top_n, np_note=(L.method_3_np.format(k=n_np) if n_np else L.method_3_np_none)) }}</div>
+      {{ (L.method_3_search if meta.search_stream else L.method_3).format(n=meta.top_n, np_note=(L.method_3_np.format(k=n_np) if n_np else L.method_3_np_none)) }}</div>
     <div class="ap-box fit" data-name="method 4"><h3>{{ L.method_4_title }}</h3>
       {%- set cat_trends = trends | selectattr("categories") | list -%}
       {%- set l2_trends = trends | selectattr("l2") | list -%}
       {#- 🆕 (2026-10-21) มีหน้าแผนที่หมวด L2 = คำอธิบายวิธีของหน้านั้น (เส้นตัดมาจาก config เดียวกับ ⑰) -#}
       {% if l2_trends %}{%- set ref = l2_trends[0].l2 -%}
-      {{ L.method_4_l2.format(n="{:,}".format(meta.n_products_compared or 0), p1=ref.cuts.excellent, p2=ref.cuts.good, p3=ref.cuts.average,
-                              s1=ref.sales.strong_top_pct, s2=ref.sales.slow_bottom_pct) }}
+      {{ L.method_4_l2.format(n="{:,}".format(meta.n_products_compared or 0), p1=ref.cuts.excellent, p2=ref.cuts.good, p3=ref.cuts.average) }}
       {% else %}
       {{ (L.method_4_main if cat_trends | map(attribute="categories") | selectattr("main_category") | list
           else (L.method_4_tiers if cat_trends | map(attribute="categories") | selectattr("has_tiers") | list
           else (L.method_4_cat if cat_trends else L.method_4))).format(n="{:,}".format(meta.n_products_compared or 0)) }}
-      {% endif %}</div>
+      {% endif %}
+      {%- if trends | selectattr("beauty_need") | list %} {{ L.method_4_need }}{% endif %}</div>
+    {% if ctx.dive and ctx.dive.pages %}
+    <div class="ap-box fit" data-name="method part 2"><h3>{{ L.dv_m_part2_title }}</h3>{{ L.dv_m_part2 }}</div>
+    {% endif %}
   </div>
   {{ footer() }}
 </section>

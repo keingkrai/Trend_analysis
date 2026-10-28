@@ -1,0 +1,87 @@
+/* ⑯ เล่มเจาะรายหมวดของ Google (category_dive.py) - ส่วนเพิ่มจาก style.css; ขนาดตัวอักษรในการ์ดเป็นหน่วย em เพื่อให้ .fit ย่อตามกล่องได้ */
+.dv-cover .cover-top { inset: 0; }
+/* ชื่อเล่มยาว (2 บรรทัด) - เลื่อนบรรทัดรองลงไม่ให้ทับ */
+.dv-cover .cover-top h1 { top: 128px; }
+.dv-cover .cover-sub { top: 246px; font-size: 22px; }
+.dv-cover .cover-date { top: 294px; }
+.dv-cover .cover-sources { top: 340px; }
+
+/* ---------- ภาพรวมรายหมวด ---------- */
+.dv-intro { position: absolute; left: 24px; right: 24px; top: 68px; height: 30px; font-size: 10.5px; line-height: 1.4; color: var(--ink-2); }
+table.dv-ov { position: absolute; left: 24px; top: 104px; width: 620px; border-collapse: collapse; font-size: 9.5px; table-layout: fixed; }
+.dv-ov th { text-align: left; font-weight: 700; font-size: 9px; color: var(--ink-2); padding: 0 6px 3px; border-bottom: 1.5px solid var(--ink); height: 19px; vertical-align: bottom; }
+.dv-ov td { height: 14.6px; padding: 0 6px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-ov th:nth-child(1), .dv-ov td:nth-child(1) { width: 150px; }
+.dv-ov th:nth-child(2), .dv-ov td:nth-child(2) { width: 214px; }
+.dv-ov th:nth-child(3), .dv-ov td:nth-child(3) { width: 56px; }
+.dv-ov th:nth-child(4), .dv-ov td:nth-child(4) { width: 76px; }
+.dv-ov .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dv-ov tr.none td { color: var(--ink-3); }
+.dv-ov .tr { color: var(--accent); font-weight: 600; }
+.dv-ov .bar { display: flex; align-items: center; gap: 6px; }
+.dv-ov .trk { position: relative; width: 160px; height: 8px; flex: none; }
+.dv-ov .trk i { position: absolute; left: 0; top: 0; height: 8px; display: block; }
+.dv-ov .trk i.all { background: #9ec3f0; }
+.dv-ov .trk i.lk { background: var(--accent); }
+.dv-ov .bar span { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.dv-side { position: absolute; left: 668px; right: 24px; top: 104px; bottom: 40px; display: flex; flex-direction: column; gap: 10px; }
+.dv-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dv-stat { background: var(--card); padding: 9px 12px; }
+.dv-stat.wide { grid-column: 1 / -1; border-left: 4px solid var(--accent); }
+.dv-stat .v { font-size: 24px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dv-stat .l { font-size: 10px; color: var(--ink-2); margin-top: 2px; line-height: 1.3; }
+.dv-txt { font-size: 10.5px; line-height: 1.5; }
+.dv-caveat { font-size: 9px; line-height: 1.4; color: var(--ink-2); margin-top: auto; }
+.lang-th .dv-txt, .lang-th .dv-intro { line-height: 1.55; }
+
+/* ---------- การ์ดหัวข้อ ---------- */
+.dv-card { background: var(--card); display: flex; min-height: 0; border-top: 3px solid var(--accent); }
+.dv-card.dv-other { background: #ffffff; border: 1px solid var(--line); border-top: 3px solid var(--ink-3); }
+.dv-body { flex: 1; padding: 7px 10px; font-size: 11px; line-height: 1.38; min-height: 0; min-width: 0; }
+.dv-sent { font-size: 1.08em; font-weight: 600; line-height: 1.3; }
+.dv-other .dv-sent { font-weight: 400; font-size: 1em; }
+.dv-k { font-size: .82em; font-weight: 700; color: var(--ink-2); }
+.dv-chips { display: flex; flex-wrap: wrap; gap: .25em .35em; margin-top: .35em; }
+.dv-chips i { font-style: normal; background: #ffffff; padding: .05em .5em; font-size: .88em; color: var(--ink-2); }
+.dv-other .dv-chips i { background: var(--card); }
+.dv-link { font-size: .82em; color: var(--ink-2); margin-top: .5em; line-height: 1.3; }
+.dv-meta { font-size: .78em; color: var(--ink-3); margin-top: .35em; }
+.dv-feeds { font-size: .82em; font-weight: 700; color: var(--accent); margin-top: .3em; }
+.lang-th .dv-body { line-height: 1.5; }
+.lang-th .dv-sent { line-height: 1.45; }
+
+/* ---------- หน้ารายหมวด (1 หมวด = 1 หน้า) ---------- */
+.dv-head { position: absolute; left: 24px; right: 24px; top: 66px; font-size: 10px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-h { position: absolute; left: 24px; top: 84px; font-size: 11px; font-weight: 700; }
+.dv-h.o { top: 394px; color: var(--ink-2); }
+.dv-grid.full { position: absolute; left: 24px; right: 24px; top: 102px; height: 286px; display: grid; grid-template-columns: repeat(3, 1fr);
+                grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dv-grid.other { position: absolute; left: 24px; right: 24px; top: 411px; height: 80px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+/* ---------- หน้ารายหมวด (2 หมวดต่อหน้า) ---------- */
+.dv-half { position: absolute; left: 24px; right: 24px; height: 208px; }
+.dv-half.h1 { top: 68px; }
+.dv-half.h2 { top: 284px; }
+.dv-hh { height: 20px; display: flex; gap: 12px; align-items: baseline; border-bottom: 1.5px solid var(--ink); white-space: nowrap; overflow: hidden; }
+.dv-hh b { font-size: 13px; flex: none; }
+.dv-hh span { font-size: 9.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.dv-grid.half { margin-top: 6px; height: 134px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dv-grid.half .dv-body { font-size: 10px; }
+.dv-oth { margin-top: 6px; height: 36px; overflow: hidden; font-size: 9px; line-height: 1.35; color: var(--ink-2); }
+.dv-oth b { color: var(--ink); }
+.dv-oth .o { margin-left: .6em; }
+.dv-oth em { font-style: normal; color: var(--ink-3); }
+
+/* ---------- วิธีอ่าน ---------- */
+.dv-notes { position: absolute; left: 22px; right: 22px; top: 78px; bottom: 54px; display: grid; grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr 0.6fr; gap: 8px; }
+.dv-notes > .ap-box:last-child { grid-column: 1 / -1; }
+.dv-data { position: absolute; left: 24px; right: 24px; bottom: 34px; font-size: 9px; color: var(--ink-2); }
+
+/* ---------- ในรายงานหลัก ⑯ (ส่วนที่ 2 + หน้า Search Talk + หน้า Methodology) ---------- */
+.talk-row.lk4 { grid-template-columns: 142px 1fr 34px 40px; }
+.talk-row .lk { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }
+.talk-chart .h { display: flex; justify-content: space-between; align-items: baseline; }
+.talk-chart .h .lkh { font-weight: 600; font-size: 8.5px; color: var(--accent); }
+.ap-grid.dv-ext { grid-template-rows: 1fr 1fr 0.55fr; }
+.ap-grid.dv-ext > .ap-box:last-child { grid-column: 1 / -1; }

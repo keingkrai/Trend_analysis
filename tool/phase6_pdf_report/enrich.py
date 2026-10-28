@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-⑯ PDF Report — ข้อความต่อเทรนด์ (headline / Trend / Insight / Workshop Question) ภาษาอังกฤษและภาษาไทย
+⑯ PDF Report — ข้อความต่อเทรนด์ (headline / Trend / Insight) ภาษาอังกฤษและภาษาไทย
 + คำแปลภาษาไทยของข้อความระดับรายงาน (Takeaway, STEPIC, Personas, Signals, Market summary)
 
 ทำไมต้องมี: รายงานมี 2 ฉบับ (อังกฤษ + ไทย) แต่ข้อมูลต้นทางปนกัน - จุดเด่นเทรนด์จาก ⑪ (Means-End Chain / JTBD) เป็น
@@ -22,12 +22,14 @@ from datetime import datetime
 
 from plain_text import PLAIN_RULES_EN, PLAIN_RULES_TH, plain_cleanup
 from report_data import first_sentences, has_thai
+from common.evidence_gate import norm as _evidence_norm, numbers_supported
 
 # เปลี่ยนพรอมต์เมื่อไร ให้เพิ่มเลขของภาษานั้น - cache เดิมจะถูกคำนวณใหม่อัตโนมัติ (อยู่ใน hash)
 # 🆕 (2026-10-12) ภาษาง่าย (ขั้น D): พรอมต์ทุกตัวต่อท้ายด้วยกติกาภาษาง่าย (plain_text.py) -> ทุก cache ถูกคำนวณใหม่
 PROMPT_VERSION = 2
 PROMPT_VERSION_TH = 3
-FIELDS = ("headline", "trend", "insight", "workshop_question")
+# 🆕 (2026-10-28) ตัด "คำถามเวิร์กช็อป" (workshop_question) ออก - เจ้าของงานสั่งเอาออกจากรายงาน; cache เก่าที่มีช่องนี้ยังใช้ได้ (validate เก็บเฉพาะช่องใน FIELDS)
+FIELDS = ("headline", "trend", "insight")
 PROFILE_FIELDS = ("attribute", "functional_consequence", "psychosocial_consequence", "job_to_be_done",
                   "point_of_difference", "point_of_parity")
 NOT_ENOUGH_DATA = "ข้อมูลไม่พอ"
@@ -46,8 +48,7 @@ Return JSON only:
 {
   "headline": "one sentence, max 16 words, saying what is happening in the market",
   "trend": "2-3 sentences: what the trend is - the product attribute or technology, what it does for the user, and how it differs from ordinary products in the category",
-  "insight": "2-3 sentences: why consumers want it - the job they need done, in which situation, and how the result makes them feel",
-  "workshop_question": "one question for a brand workshop, starting with 'How can your brand', max 40 words, ending with '?'"
+  "insight": "2-3 sentences: why consumers want it - the job they need done, in which situation, and how the result makes them feel"
 }"""
 
 SYSTEM_PROMPT_TH = """You are the editor of a Thai-language consumer trend report written in the style of Trend Hunter,
@@ -67,7 +68,6 @@ Return JSON only:
   "headline": "one Thai sentence, about 20 Thai words at most, saying what is happening in the market",
   "trend": "2-3 Thai sentences: what the trend is - the product attribute or technology, what it does for the user, and how it differs from ordinary products in the category",
   "insight": "2-3 Thai sentences: why consumers want it - the job they need done, in which situation, and how the result makes them feel",
-  "workshop_question": "one Thai question for a brand workshop, starting with 'แบรนด์ของคุณ' and ending with '?'",
   "target": "the target consumer from the input, translated into one short Thai phrase",
   "product_reasons": ["each product match reason rewritten in plain Thai as one short sentence (not word for word) - same order and same count as the input list"]
 }"""
@@ -89,10 +89,86 @@ def _clean(text):
     return re.sub(r"\s+", " ", str(text or "")).strip()
 
 
+SEARCH_RULES = """Input note: this trend comes from real rising Google searches ("rising_searches"). The profile fields were checked against
+those searches; a field that says ข้อมูลไม่พอ has no support.
+- Describe only what the searches and the profile show. Do not describe how consumers feel, why they want something or what
+  motivates them unless a profile field or a search says it. When the profile is thin, write fewer sentences (one or two per
+  field is enough) instead of filling the gap.
+- Say what the searches are, in their own terms: if they are names of events, shows, people or places, write "searches for
+  <those names>", not searches for products, looks, tips or solutions. Say a search is for a product or a problem only when
+  the search itself names it.
+- Never add ingredients, claims, brands, places or numbers that are not in the input. Quote a percentage only if it appears in
+  expected_search_growth_pct_vs_last_12_months."""
+
+
+def is_search_trend(payload):
+    """เทรนด์ของสาย Search = payload มีคำค้นจริง (rising_searches) - ใช้กติกา/การตรวจหลักฐานชุดนี้แทน"""
+    return bool(payload.get("rising_searches"))
+
+
+def guard_search_numbers(output, payload):
+    """ข้อความต่อเทรนด์ของสาย Search: ตัวเลขหลายหลักทุกตัวต้องอยู่ในข้อมูลที่ส่งให้ LLM - ไม่อยู่ = ไม่รับ (ใช้ข้อความสำรอง) คืน output หรือ None"""
+    if output is None or not is_search_trend(payload):
+        return output
+    evidence = _evidence_norm(json.dumps(payload, ensure_ascii=False))
+    texts = [output.get(f) for f in FIELDS] + [output.get("target")]
+    return output if all(numbers_supported(t, evidence) for t in texts if t) else None
+
+
+# 🆕 (2026-10-28) คำบอกเหตุผล/จุดประสงค์/ผลที่ตามมา/การวางแผน/ความรู้สึก ("เพื่อเตรียมตัว", "to prepare", "because") ในข้อความต่อเทรนด์ของสาย Search - คำค้นบอกแค่ว่าค้นอะไร ไม่บอกว่าทำไมหรือเตรียมอะไร
+# ตรวจช่องที่เป็นข้อความอ้างข้อเท็จจริงทุกช่อง (หัวเรื่อง / Trend / Insight / กลุ่มเป้าหมาย)
+# ตัดคำค้นจริง (และข้อความในเครื่องหมายคำพูดเดี่ยว) ออกก่อนตรวจ - คำค้นอย่าง "how to fix frizzy hair" มีคำพวกนี้ได้ตามต้นฉบับ
+PURPOSE_RE = {
+    "en": re.compile(r"\b(in order to|so that|so (?:they|people|consumers|shoppers) can|because|due to|as a result|therefore|"
+                     r"(?:to|for) prepare|prepare for|prepar(?:e|es|ing|ation) for|in preparation|get(?:ting)? ready|"
+                     r"to plan|planning|plans? ahead|to (?:look|feel)|"
+                     # ความรู้สึกที่คำค้นไม่ได้บอก (SEARCH_RULES ห้ามอยู่แล้วแต่ LLM ยังเขียน)
+                     r"feel(?:s|ing|ings)?|confident|confidence|worr(?:y|ies|ied)|anxious|relief|peace of mind|camera-ready)\b", re.I),
+    "th": re.compile(r"เพื่อ(?!น)|เตรียม|เนื่องจาก|เพราะ|ดังนั้น|จึง|ส่งผลให้|ทำให้|วางแผน|รู้สึก|มั่นใจ|กังวล|สบายใจ|วิตก"),
+}
+PURPOSE_FIELDS = ("headline", "trend", "insight", "target")
+SEARCH_RETRY = ("\n\nYour previous answer was rejected: it says why people search, what they prepare for, how they feel or what causes what "
+                "(for example 'to prepare', 'because', 'planning', 'feel confident', 'เพื่อ', 'เตรียม', 'ทำให้', 'รู้สึก'). Rewrite it and say only what the searches and the "
+                "profile show.")
+
+
+def _without_searches(text, searches):
+    """ข้อความ - คำค้นจริงของเทรนด์ - ข้อความในเครื่องหมายคำพูดเดี่ยว (ยาวก่อน กันตัดซ้อน)"""
+    for q in sorted((q for q in searches or [] if q), key=len, reverse=True):
+        text = re.sub(re.escape(q), " ", text, flags=re.I)
+    return re.sub(r"'[^']*'", " ", text)
+
+
+def purpose_failures(output, payload):
+    """ช่องของข้อความต่อเทรนด์ (สาย Search) ที่มีคำบอกเหตุผล/จุดประสงค์/ความรู้สึก/การวางแผนนอกคำค้นจริง -> list ชื่อช่อง (ว่าง = ผ่าน)"""
+    if not output or not is_search_trend(payload):
+        return []
+    return [f for f in PURPOSE_FIELDS
+            if any(rx.search(_without_searches(str(output.get(f) or ""), payload.get("rising_searches"))) for rx in PURPOSE_RE.values())]
+
+
+def guard_search_purpose(output, payload):
+    """ข้อความต่อเทรนด์ของสาย Search: ช่องอ้างข้อเท็จจริงที่มีคำบอกเหตุผล/จุดประสงค์ (นอกคำค้นจริง) = ไม่รับ (ถามใหม่ / ใช้ข้อความสำรอง) คืน output หรือ None"""
+    if output is None or not is_search_trend(payload):
+        return output
+    return None if purpose_failures(output, payload) else output
+
+
 def build_input(trend):
     """ข้อมูลที่ส่งให้ LLM ต่อเทรนด์ - ใช้คำนวณ hash ของ cache ด้วย (ข้อมูลเปลี่ยน = เรียกใหม่)"""
     a = trend.get("analysis") or {}
     profile = trend.get("profile") or {}
+    if trend.get("rising_searches"):
+        # 🆕 (2026-10-27) เทรนด์ของสาย Search: คำค้นจริง + โปรไฟล์ที่ผ่านเกตหลักฐานแล้ว (⑪) + ตัวเลขการเติบโตจากโมเดลเท่านั้น
+        # ไม่ส่งข้อความตีความของ LLM ที่อื่น (ส่วนผสม/ประโยชน์/กลุ่มเป้าหมายของสาย, executive_summary / consumer_intent_signal ของ ⑭-⑮)
+        # ไม่ส่งชื่อเทรนด์ (ป้ายที่ไปป์ไลน์ตั้ง เช่น "Long-Wear Occasion Beauty") - ชื่อทำให้ LLM เติมคำว่าความงาม/แต่งหน้าที่คำค้นไม่ได้พูดถึง
+        return {
+            "rising_searches": trend["rising_searches"],
+            "context_en": {"expected_search_growth_pct_vs_last_12_months": a.get("expected_search_growth_pct") or {},
+                           "target_consumer": _clean(trend.get("target"))},
+            "profile_th": {k: _clean(profile.get(k)) for k in PROFILE_FIELDS
+                           if profile.get(k) and NOT_ENOUGH_DATA not in _clean(profile.get(k))},
+        }
     return {
         "trend_name": trend["name"],
         "context_en": {
@@ -118,22 +194,21 @@ def input_hash(payload, version=PROMPT_VERSION):
 
 
 def validate(parsed):
-    """คืน dict ข้อความที่ผ่าน หรือ None - ต้องครบทุกช่อง เป็นภาษาอังกฤษล้วน และคำถามลงท้ายด้วย ?"""
+    """คืน dict ข้อความที่ผ่าน หรือ None - ต้องครบทุกช่องและเป็นภาษาอังกฤษล้วน"""
     if not isinstance(parsed, dict):
         return None
     out = {}
     for f in FIELDS:
         value = plain_cleanup(_clean(parsed.get(f)), "en")
-        if not value or has_thai(value):
+        # 🆕 (2026-10-28) คำค้นภาษาไทยในเครื่องหมายคำพูดเดี่ยว ('ปากกา ลด น้ำหนัก') ยกมาตามต้นฉบับได้ในฉบับอังกฤษ
+        if not value or has_thai(re.sub(r"'[^']*'", " ", value)):
             return None
         out[f] = value
-    if not out["workshop_question"].endswith("?"):
-        return None
     return out
 
 
 def validate_th(parsed, payload):
-    """ฉบับไทย: ครบทุกช่อง มีอักษรไทยจริง คำถามลงท้ายด้วย ? และเหตุผลสินค้าครบจำนวนเท่าต้นฉบับ (ลำดับเดียวกัน)"""
+    """ฉบับไทย: ครบทุกช่อง มีอักษรไทยจริง และเหตุผลสินค้าครบจำนวนเท่าต้นฉบับ (ลำดับเดียวกัน)"""
     if not isinstance(parsed, dict):
         return None
     out = {}
@@ -142,8 +217,6 @@ def validate_th(parsed, payload):
         if not value or not has_thai(value):
             return None
         out[f] = value
-    if not out["workshop_question"].endswith("?"):
-        return None
     target = _clean(parsed.get("target"))
     if payload["context_en"]["target_consumer"] and not has_thai(target):
         return None
@@ -158,10 +231,6 @@ def validate_th(parsed, payload):
     return out
 
 
-def _lower_first(text):
-    return text[:1].lower() + text[1:] if text and not text[:2].isupper() else text
-
-
 def _sentence(text):
     """ต่อท้ายด้วยจุดถ้ายังไม่มีเครื่องหมายจบประโยค - ข้อความจาก ⑦ บางช่องไม่มีจุดท้าย พอต่อกันแล้วประโยคชนกัน"""
     text = _clean(text)
@@ -170,6 +239,11 @@ def _sentence(text):
 
 def fallback_texts(trend):
     """ข้อความสำรองจากภาษาอังกฤษที่มีอยู่แล้วในผล ⑦ (ไม่เรียก LLM) - ใช้เมื่อไม่มี/ไม่ผ่านผลจาก LLM"""
+    if trend.get("rising_searches"):
+        # 🆕 (2026-10-27) เทรนด์ของสาย Search: สำรองจากคำค้นจริงล้วน (ไม่ใช้ข้อความตีความของ ⑭-⑮)
+        searches = ", ".join(trend["rising_searches"][:5])
+        return {"headline": trend["name"], "trend": f"Rising searches in this trend include: {searches}.",
+                "insight": _sentence(_clean(trend.get("target"))) or f"{trend['name']} is rising in Google searches."}
     a = trend.get("analysis") or {}
     summary = _clean(a.get("executive_summary"))
     headline = first_sentences(summary, 110) or trend["name"]
@@ -182,17 +256,23 @@ def fallback_texts(trend):
         _sentence(a.get("consumer_intent_signal")),
         _sentence(f"Target consumer: {trend['target']}") if trend.get("target") else "",
     ] if x) or summary
-    target = _clean(trend.get("target")).rstrip(".")
-    question = (f"How can your brand lead the {trend['name']} trend for {_lower_first(target)}?" if target
-                else f"How can your brand lead the {trend['name']} trend?")
     return {"headline": headline, "trend": first_sentences(trend_text, 520),
-            "insight": first_sentences(insight, 520), "workshop_question": question}
+            "insight": first_sentences(insight, 520)}
 
 
 def fallback_texts_th(trend):
     """ข้อความสำรองฉบับไทย (ไม่เรียก LLM): ใช้จุดเด่นเทรนด์ภาษาไทยจาก ⑪ ตรงๆ - ⑪ ไม่มีข้อมูลเลยค่อยใช้ข้อความสำรองอังกฤษ
     กลุ่มเป้าหมายและเหตุผลจับคู่สินค้าไม่มีต้นฉบับภาษาไทย จึงคงภาษาอังกฤษไว้"""
     profile = trend.get("profile") or {}
+    if trend.get("rising_searches"):
+        # 🆕 (2026-10-28) เทรนด์ของสาย Search: สำรองจากคำค้นจริงล้วน - ไม่หยิบข้อความโปรไฟล์ (ช่อง "เตรียมตัว/ถูกมอง" ที่ผ่านเกต ⑪ เพราะมีคำค้นอ้างอิง
+        # อาจเป็นการตีความ) มาเป็นหัวเรื่อง เพราะข้อความจาก LLM ที่มีคำบอกเหตุผลถูกตัวกัน guard_search_purpose ปฏิเสธแล้ว
+        shown = ", ".join(trend["rising_searches"][:5])
+        return {"headline": f"คำค้นที่กำลังขึ้นในเทรนด์นี้ เช่น {', '.join(trend['rising_searches'][:2])}",
+                "trend": f"คำค้นที่กำลังขึ้นในเทรนด์นี้ ได้แก่ {shown}",
+                "insight": "เป็นคำค้นที่กำลังขึ้นบน Google",
+                "target": _clean(trend.get("target")),
+                "product_reasons": [p.get("reason") or "" for p in trend.get("products", [])]}
 
     def val(key):
         v = _clean(profile.get(key))
@@ -205,7 +285,6 @@ def fallback_texts_th(trend):
         "headline": first_sentences(val("functional_consequence") or val("job_to_be_done"), 110) or en["headline"],
         "trend": first_sentences(trend_text, 520) or en["trend"],
         "insight": first_sentences(insight, 520) or en["insight"],
-        "workshop_question": f"แบรนด์ของคุณจะคว้าโอกาสจากเทรนด์ {trend['name']} ได้อย่างไร?",
         "target": _clean(trend.get("target")),
         "product_reasons": [p.get("reason") or "" for p in trend.get("products", [])],
     }
@@ -241,7 +320,7 @@ def _call(llm_call, system, user, max_tokens):
 
 def enrich_trends(trends, cache, llm_call=None, parse=json.loads, refresh=False, max_workers=4, log=print, lang="en"):
     """เติมข้อความต่อเทรนด์ของภาษาที่เลือกให้ทุกเทรนด์: en -> trend["text"], th -> trend["text_th"]
-    ({headline, trend, insight, workshop_question, source} + ฉบับไทยมี target และ product_reasons เพิ่ม)
+    ({headline, trend, insight, source} +ฉบับไทยมี target และ product_reasons เพิ่ม)
 
     cache: dict จากไฟล์ cache ของภาษานั้น (หรือ {}) - แก้ไขในตัว คืนค่ากลับด้วยเพื่อให้ผู้เรียกบันทึก
     llm_call: None = ไม่เรียก LLM (ใช้ cache ที่ hash ตรงก่อน ไม่มีค่อย fallback)
@@ -250,12 +329,16 @@ def enrich_trends(trends, cache, llm_call=None, parse=json.loads, refresh=False,
     key = spec["key"]
     items = cache.setdefault("items", {})
     todo = []
+
+    def valid(parsed, payload):
+        return guard_search_purpose(guard_search_numbers(spec["validate"](parsed, payload), payload), payload)
+
     for t in trends:
         t.pop(key, None)
         payload = spec["build"](t)
         h = input_hash(payload, spec["version"])
         cached = items.get(t["name"])
-        output = spec["validate"](cached.get("output"), payload) if cached and cached.get("input_hash") == h else None
+        output = valid(cached.get("output"), payload) if cached and cached.get("input_hash") == h else None
         if output and not refresh:
             t[key] = {**output, "source": "llm (cached)"}
         else:
@@ -263,12 +346,34 @@ def enrich_trends(trends, cache, llm_call=None, parse=json.loads, refresh=False,
 
     def _one(job):
         t, payload, h = job
-        try:
-            content = _call(llm_call, spec["prompt"], json.dumps(payload, ensure_ascii=False, indent=1),
-                            spec["max_tokens"])
-            return t, h, spec["validate"](parse(content), payload), None
-        except Exception as e:  # noqa: BLE001 - เทรนด์เดียวพังต้องไม่ทำให้ทั้งรายงานพัง
-            return t, h, None, e
+        search = is_search_trend(payload)
+        err, partial = None, None
+        for attempt in range(2 if search else 1):   # 🆕 (2026-10-28) เทรนด์ของสาย Search ถามซ้ำ 1 ครั้งพร้อมบอกเหตุที่ถูกปฏิเสธ (ข้อความมีคำบอกเหตุผล/ตัวเลขที่ไม่มีในข้อมูล)
+            try:
+                prompt = _with_rules(spec["prompt"], SEARCH_RULES) if search else spec["prompt"]
+                content = _call(llm_call, prompt + (SEARCH_RETRY if attempt else ""), json.dumps(payload, ensure_ascii=False, indent=1),
+                                spec["max_tokens"])
+                if not search:
+                    return t, h, valid(parse(content), payload), None
+                base = guard_search_numbers(spec["validate"](parse(content), payload), payload)
+                bad = purpose_failures(base, payload)
+                if base and not bad:
+                    return t, h, base, None
+                if base:
+                    partial = (base, bad)   # โครงครบ ตัวเลขผ่าน แต่บางช่องมีคำบอกเหตุผล - เก็บไว้ใช้ส่วนที่ผ่าน
+            except Exception as e:  # noqa: BLE001 - เทรนด์เดียวพังต้องไม่ทำให้ทั้งรายงานพัง
+                err = e
+                if not search:
+                    return t, h, None, e
+        if partial:
+            # 🆕 (2026-10-28) ถามซ้ำแล้วบางช่องยังมีคำบอกเหตุผล: ใช้ช่องที่ผ่าน + แทนเฉพาะช่องที่ไม่ผ่านด้วยข้อความสำรองจากคำค้นจริง (ดีกว่าทิ้งทั้งชุด)
+            base, bad = partial
+            fallback = spec["fallback"](t)
+            repaired = {**base, **{f: fallback[f] for f in bad}}
+            if not purpose_failures(repaired, payload):
+                log(f"  ℹ️ {t['name']} ({spec['label']}): แทนช่อง {', '.join(bad)} ด้วยข้อความสำรองจากคำค้นจริง")
+                return t, h, repaired, None
+        return t, h, None, err
 
     if todo and llm_call is not None:
         log(f"  เรียบเรียงข้อความ{spec['label']}ด้วย LLM {len(todo)} เทรนด์...")
@@ -299,10 +404,10 @@ def enrich_trends(trends, cache, llm_call=None, parse=json.loads, refresh=False,
 # ย่อเป็นภาษาอังกฤษก่อน แล้วฉบับไทยแปลจากฉบับย่อ (translate_report_texts) เนื้อหาสองภาษาจึงตรงกัน
 # ข้อความเต็มยังอยู่ใน phase4_stepic_*.json / phase4_master_trend_report.md เหมือนเดิม (ไม่แก้ขั้น ⑭-⑮)
 # ============================================================================
-PROMPT_VERSION_CONDENSE = 2
+PROMPT_VERSION_CONDENSE = 3   # 🆕 (2026-10-28) 2 -> 3: ผ่อนขีดจำกัดช่อง STEPIC (หน้า Macro Forces ที่รวมหน้าแล้วมีที่มากขึ้น + LLM ตอบเกินขีดเดิมบ่อยจนต้องตัดที่ประโยคแรก "…")
 # จำนวนคำสูงสุดต่อช่อง (ภาษาอังกฤษ) - ตรวจด้วย validate_condensed ยอมเกินได้ CONDENSE_TOLERANCE เท่า
 CONDENSE_LIMITS = {
-    "stepic": {"headline": 6, "body": 20},
+    "stepic": {"headline": 8, "body": 26},
     "signals": {"signal": 22, "implication": 12, "outlook": 35},
 }
 CONDENSE_TOLERANCE = 1.25
@@ -343,6 +448,12 @@ def build_condense_payloads(ctx):
     return payloads
 
 
+def _thai_only_from(value, source):
+    """ข้อความภาษาอังกฤษที่ย่อแล้วมีอักษรไทยได้เฉพาะท่อนที่คัดจากต้นฉบับ (คำค้นภาษาไทย) - ในเครื่องหมายคำพูดเดี่ยวไม่ตรวจ"""
+    rest = re.sub(r"'[^']*'", " ", value)
+    return all(run.strip() in source for run in re.findall(r"[฀-๿][฀-๿ ]*", rest))
+
+
 def validate_condensed(section, src, out):
     """โครงเดียวกับต้นฉบับ (คีย์/จำนวนข้อ) ทุกช่องที่ต้นฉบับมีข้อความต้องไม่ว่าง เป็นภาษาอังกฤษ และไม่เกินจำนวนคำ"""
     limits = CONDENSE_LIMITS[section]
@@ -355,7 +466,9 @@ def validate_condensed(section, src, out):
         value = plain_cleanup(_clean(value), "en")
         if not source:
             return ""
-        if not value or has_thai(value) or _word_count(value) > limits[field] * CONDENSE_TOLERANCE:
+        # 🆕 (2026-10-28) คำค้นภาษาไทย ('ทรง ผม 2026') ยกมาตามต้นฉบับได้ ทั้งในเครื่องหมายคำพูดเดี่ยวและที่ LLM ตัดเครื่องหมายออก (ท่อนไทยต้องมีอยู่ในต้นฉบับ)
+        # - เดิมถูกปฏิเสธเพราะมีอักษรไทย ทำให้ย่อไม่สำเร็จเกือบทุกรอบ (ตัดที่ประโยคแรก "…")
+        if not value or not _thai_only_from(value, source) or _word_count(value) > limits[field] * CONDENSE_TOLERANCE:
             return None
         return value
 
@@ -403,15 +516,20 @@ def condense_report_texts(ctx, cache, llm_call=None, parse=json.loads, refresh=F
     def _one(job):
         section, payload, h = job
         request = {"limits": {f: f"max {n} words" for f, n in CONDENSE_LIMITS[section].items()}, "content": payload}
-        try:
-            content = llm_call(SYSTEM_PROMPT_CONDENSE, json.dumps(request, ensure_ascii=False, indent=1),
-                               max_tokens=1500)
-            parsed = parse(content)
-            if isinstance(parsed, dict) and isinstance(parsed.get("content"), dict):
-                parsed = parsed["content"]  # บางครั้งโมเดลห่อคำตอบกลับมาใน "content" เหมือนคำขอ
-            return section, h, validate_condensed(section, payload, parsed), None
-        except Exception as e:  # noqa: BLE001 - ส่วนเดียวพังต้องไม่ทำให้ทั้งรายงานพัง
-            return section, h, None, e
+        err = None
+        for _ in range(2):   # 🆕 (2026-10-28) ถามซ้ำ 1 ครั้งถ้าคำตอบไม่ผ่านการตรวจ (LLM เปลี่ยนคำตอบทุกครั้ง - เจอจริงว่าครั้งแรกตก ครั้งที่สองผ่าน)
+            try:
+                content = llm_call(SYSTEM_PROMPT_CONDENSE, json.dumps(request, ensure_ascii=False, indent=1),
+                                   max_tokens=1500)
+                parsed = parse(content)
+                if isinstance(parsed, dict) and isinstance(parsed.get("content"), dict):
+                    parsed = parsed["content"]  # บางครั้งโมเดลห่อคำตอบกลับมาใน "content" เหมือนคำขอ
+                output = validate_condensed(section, payload, parsed)
+                if output:
+                    return section, h, output, None
+            except Exception as e:  # noqa: BLE001 - ส่วนเดียวพังต้องไม่ทำให้ทั้งรายงานพัง
+                err = e
+        return section, h, None, err
 
     if todo and llm_call is not None:
         log(f"  ย่อข้อความหน้า STEPIC / Signals ด้วย LLM {len(todo)} ส่วน...")
@@ -430,7 +548,8 @@ def condense_report_texts(ctx, cache, llm_call=None, parse=json.loads, refresh=F
             counts["trimmed (fallback)"] = counts.get("trimmed (fallback)", 0) + 1
 
     for tile, short in zip(ctx.get("stepic") or [], (results.get("stepic") or {}).get("items", [])):
-        tile.update(short)
+        if not tile.get("no_data"):   # 🆕 (2026-10-27) "No data" ใช้ข้อความตายตัวของ report_data/i18n ไม่ให้ LLM เรียบเรียงใหม่
+            tile.update(short)
     if "signals" in results:
         for sig, short in zip(ctx.get("signals") or [], results["signals"]["items"]):
             sig.update(short)

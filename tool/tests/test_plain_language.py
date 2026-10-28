@@ -55,10 +55,10 @@ def test_prompts_carry_plain_rules_and_versions_were_bumped():
 
 
 def test_validators_apply_plain_cleanup():
-    en = {"headline": "A language model finds SKUs", "trend": "t", "insight": "i", "workshop_question": "How can your brand win?"}
+    en = {"headline": "A language model finds SKUs", "trend": "t", "insight": "i"}
     assert enrich.validate(en)["headline"] == "An AI finds products"
     th_payload = {"context_en": {"target_consumer": ""}, "product_match_reasons_en": ["x"]}
-    th = {"headline": "ใช้โมเดลภาษา", "trend": "เทรนด์", "insight": "ข้อมูล", "workshop_question": "แบรนด์ของคุณ?", "target": "",
+    th = {"headline": "ใช้โมเดลภาษา", "trend": "เทรนด์", "insight": "ข้อมูล", "target": "",
           "product_reasons": ["ตรงกับเทรนด์ 12 SKU"]}
     out = enrich.validate_th(th, th_payload)
     assert out["headline"] == "ใช้ AI" and out["product_reasons"] == ["ตรงกับเทรนด์ 12 ชิ้น"]

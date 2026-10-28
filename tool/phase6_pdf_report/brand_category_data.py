@@ -11,9 +11,7 @@
 import copy
 
 from brand_data import (DEFAULT_CONFIG, FIT_LEVELS, SHORT_IDX, _CatalogIndex, _grade_fields, _price,  # noqa: F401  (ส่งต่อให้สคริปต์)
-                        best_in_tier, find_coverage_file, fit_level, grade_product, list_coverage_files, load_catalog, load_config, sales_state, sales_view,
-                        rank_cuts, safe_file_part, tier_products)
-from l2_map import brand_tier, category_products
+                        best_in_tier, find_coverage_file, list_coverage_files, load_catalog, load_config, safe_file_part)
 from report_data import read_json, strip_thai  # noqa: F401
 
 STATUS_OK, STATUS_NO_BRAND, STATUS_NO_TIERS, STATUS_UNCHECKED = "ok", "no_brand", "no_tiers", "unchecked"
@@ -103,108 +101,26 @@ def _item(p, index, brand=None):
             "image_url": cat.get("image_url"), "is_you": bool(brand) and p.get("brand") == brand}
 
 
-def _fit_sales_map(tier, index, brand, top_pct, scfg, best):
-    """🆕 (2026-10-21) ข้อมูลกราฟ "ความใกล้เทรนด์ x ยอดขาย" ของ 1 กลุ่ม (วาดโดย fit_sales_map.render_svg): จุด = สินค้าของแบรนด์ทุกชิ้นในกลุ่ม
-    (เจ้าของงานสั่งเอา top 5 ของตลาดออกจากกราฟ - ยังเห็นในหน้า 2 ของเทรนด์), ตำแหน่งในช่อง (fx = ซ้ายไปขวาตามอันดับในช่องระดับ,
-    fy = ล่างขึ้นบนตามเปอร์เซ็นไทล์ยอดขายในแถว), จำนวนสินค้าของแบรนด์ต่อช่อง, จำนวนต่อโซน และสินค้าไฮไลต์ A/B/C ใต้กราฟ:
-      A = ชิ้นที่ให้เกรดของกลุ่ม (best_in_tier) · B = ใกล้เทรนด์ (Excellent/Good) แต่ยอดขายไม่ถึงขายดี - ชิ้นที่ใกล้ที่สุด
-      C = ขายดีแต่ห่างเทรนด์ (ไม่ถึง top 20% ของกลุ่ม) - ชิ้นที่ยอดขายสูงสุด
-    ไม่มีสินค้าในกลุ่ม (n_total = 0) หรือแบรนด์ไม่มีสินค้าในกลุ่มนี้ -> None"""
-    n = tier.get("n_total") or 0
-    if not n:
-        return None
-    cuts = rank_cuts(n, top_pct)
-    bounds, lo = {}, 1
-    for lv in FIT_LEVELS:   # ช่วงอันดับของแต่ละช่องระดับ (ช่องสุดท้าย = ที่เหลือถึงอันดับ n)
-        hi = cuts.get(lv, n)
-        bounds[lv] = (lo, hi)
-        lo = hi + 1
-    s_hi, s_lo = 1 - scfg["strong_top_pct"] / 100, scfg["slow_bottom_pct"] / 100
-
-    entries = [{"p": p, "key": (p.get("brand"), p.get("product_name")), "g": grade_product(p, n, top_pct, scfg)}
-               for p in tier_products(tier)]
-    if not entries:
-        return None
-    mine = entries
-
-    chosen = {}
-    if best:
-        chosen["A"] = next((e for e in mine if e["p"]["product_name"] == best["raw"].get("product_name")), None)
-    lag = [e for e in mine if e["g"]["base"] in ("excellent", "good") and e["g"]["state"] in ("steady", "slow")
-           and e not in chosen.values()]
-    chosen["B"] = min(lag, key=lambda e: e["p"]["rank_in_tier"]) if lag else None
-    off = [e for e in mine if e["g"]["base"] == "below_average" and e["g"]["state"] == "strong"
-           and e not in chosen.values()]   # ชิ้นที่เป็น A อยู่แล้วไม่ซ้ำเป็น C
-    chosen["C"] = max(off, key=lambda e: (e["p"].get("sales") or {}).get("pct") or 0) if off else None
-    chosen = {k: e for k, e in chosen.items() if e}
-    letter = {e["key"]: k for k, e in chosen.items()}
-
-    dots, cells = [], {}
-    zones = {"close_strong": 0, "close_lag": 0, "off_strong": 0}
-    for e in entries:
-        p, g = e["p"], e["g"]
-        sa = p.get("sales") or {}
-        pct = sa.get("pct") if isinstance(sa.get("pct"), (int, float)) else None
-        lo_r, hi_r = bounds[g["base"]]
-        fx = 1 - (p["rank_in_tier"] - lo_r + 0.5) / (hi_r - lo_r + 1)
-        draw_state = g["state"]
-        if g["state"] == "unknown":
-            # 🆕 (2026-10-21) เอาแถบ "ไม่มีข้อมูลยอดขาย" ออกจากกราฟ (เจ้าของงานสั่ง): สินค้าที่ไม่มีข้อมูลยอดขายวาดกลางแถวปานกลาง - เกรดคิดเหมือนปานกลางอยู่แล้ว
-            # (ไม่มีข้อมูล = ยอดขายไม่เปลี่ยนระดับ) หมายเหตุท้ายหน้าบอกไว้
-            draw_state, fy = "steady", 0.5
-        elif g["state"] == "strong":
-            fy = (pct - s_hi) / (1 - s_hi)
-        elif g["state"] == "steady":
-            fy = (pct - s_lo) / (s_hi - s_lo)
-        else:
-            fy = 0.0 if sa.get("zero") or pct is None else pct / s_lo
-        dots.append({"fit": g["base"], "state": draw_state, "fx": min(max(fx, 0.0), 1.0),
-                     "fy": min(max(fy, 0.0), 1.0), "letter": letter.get(e["key"])})
-        cells[f"{g['state']}|{g['base']}"] = cells.get(f"{g['state']}|{g['base']}", 0) + 1
-        close = g["base"] in ("excellent", "good")
-        zones["close_strong"] += close and g["state"] == "strong"
-        zones["close_lag"] += close and g["state"] in ("steady", "slow")
-        zones["off_strong"] += g["base"] == "below_average" and g["state"] == "strong"
-    callouts = [{**_item(e["p"], index, brand), "kind": k, "pct": e["p"]["rank_in_tier"] / n * 100, **_grade_fields(e["g"], e["p"])}
-                for k, e in sorted(chosen.items())]
-    return {"dots": dots, "cells": cells, "zones": zones, "callouts": callouts, "n_mine": len(mine),
-            "cuts": top_pct, "sales": {"strong_top_pct": scfg["strong_top_pct"], "slow_bottom_pct": scfg["slow_bottom_pct"]}}
-
-
-def _tier_view(tier, index, brand, top_pct, unit_range=None, scfg=None):
+def _tier_view(tier, index, brand, top_pct, unit_range=None):
     """1 กลุ่ม (หมวด x ช่วงราคาตลาด) -> top N + สินค้าที่ดีที่สุดของแบรนด์พร้อม % แรกในกลุ่มและเกรด (เกณฑ์เดียวกับ ⑰)
     unit_range = group_ranges ของกลุ่มนี้ (ช่วง ฿/หน่วยที่สินค้า 80% ของกลุ่มอยู่) หรือ None
-    🆕 (2026-10-19) สินค้าที่ดีที่สุด = ชิ้นที่เกรดหลังปรับยอดขาย Konvy ดีที่สุด (brand_data.best_in_tier) ไม่ใช่ชิ้นที่ใกล้เทรนด์ที่สุดเสมอไป"""
-    scfg = scfg or DEFAULT_CONFIG["sales"]
+    🆕 (2026-10-27) เกรดตามความใกล้เทรนด์ล้วน (ตัดยอดขายออก) สินค้าที่ดีที่สุด = ชิ้นที่อันดับในกลุ่มดีที่สุด (brand_data.best_in_tier)"""
     n_tier = tier.get("n_total") or 0
-    tb = best_in_tier(tier, top_pct, scfg) if n_tier else None
+    tb = best_in_tier(tier, top_pct) if n_tier else None
     best = None
     if tb:
         raw = tb["raw"]
         best = {**_item(raw, index, brand), "pct": raw["rank_in_tier"] / n_tier * 100, **_grade_fields(tb, raw)}
     return {"label": tier["label"], "price_from": tier.get("price_from"), "price_to": tier.get("price_to"),
             "n_total": n_tier, "n_brand": tier.get("n_brand", 0),
-            "top": [{**_item(x, index, brand), "sales": sales_view(x.get("sales"), sales_state(x.get("sales"), scfg))} for x in tier.get("top") or []],
+            "top": [_item(x, index, brand) for x in tier.get("top") or []],
             "brand_best": best, "unit_range": unit_range}
 
 
-def _l2_view(l2_data, t, brand, index, top_pct, scfg):
-    """🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์ใน ⑰ = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 อย่างเดียว (เจ้าของงานสั่ง - ไม่แยกช่วงราคา): สินค้าของแบรนด์ทุกชิ้น
-    ในหมวดหลักของเทรนด์ถูกวางตามอันดับความใกล้เทรนด์ในหมวด x ยอดขาย Konvy เทียบสินค้าในหมวดเดียวกัน (l2_map.py - ข้อมูลจาก ⑫ --l2-map-only)
-    -> {"category", "n_total" (สินค้าทั้งหมวด), "n_brand", "map" (_fit_sales_map)} หรือ None (รอบที่ไม่มีไฟล์แผนที่ / เทรนด์นี้ไม่มีในไฟล์ / แบรนด์ไม่มีสินค้าในหมวด)
-    ⚠️ เกรดในหน้านี้เทียบกับทั้งหมวด จึงอาจต่างจากเกรดหน้า 1-2 ของเทรนด์ (เทียบในกลุ่มหมวด x ช่วงราคาต่อปริมาณ) - หมายเหตุท้ายหน้าบอกไว้"""
-    cat, products = category_products(l2_data, t["key"], t["name"])
-    tier = brand_tier(products, brand) if products else None
-    if tier is None:
-        return None
-    return {"category": cat, "n_total": tier["n_total"], "n_brand": tier["n_brand"],
-            "map": _fit_sales_map(tier, index, brand, top_pct, scfg, best_in_tier(tier, top_pct, scfg))}
-
-
-def _category_page(cat, index, brand, top_pct, ranges=None, scfg=None):
+def _category_page(cat, index, brand, top_pct, ranges=None):
     """หมวดหลักของเทรนด์ (category_fit) -> ข้อมูล 1 หน้า: 3 ช่วงราคาตลาด + ชิ้นที่ดีที่สุดของแบรนด์ในหมวด
     ranges = group_ranges ของตลาด (ส่งมาเมื่อผล ⑬ แบ่งช่วงด้วยราคาต่อปริมาณ)"""
-    tiers = [_tier_view(t, index, brand, top_pct, (ranges or {}).get((cat["category"], t["label"])), scfg) for t in cat.get("tiers") or []]
+    tiers = [_tier_view(t, index, brand, top_pct, (ranges or {}).get((cat["category"], t["label"]))) for t in cat.get("tiers") or []]
     bests = [(t, t["brand_best"]) for t in tiers if t["brand_best"]]
     tier, best = min(bests, key=lambda x: (FIT_LEVELS.index(x[1]["level"]), x[1]["pct"], x[1]["rank_in_tier"]),
                      default=(None, None))
@@ -212,7 +128,7 @@ def _category_page(cat, index, brand, top_pct, ranges=None, scfg=None):
             "tiers": tiers, "best": best, "best_tier": tier, "level": best["level"] if best else None}
 
 
-def build_category_context(trend_ctx, coverage, catalog, cfg=None, ranges=None, l2_data=None):
+def build_category_context(trend_ctx, coverage, catalog, cfg=None, ranges=None):
     """ผล ⑬ ของ 1 แบรนด์ (dict จาก phase3_brand_coverage_<แบรนด์>.json) + trend_ctx (report_data.build_context ที่เติมข้อความแล้ว)
     -> category context ที่เทมเพลตใช้ (serialize เป็น JSON ได้ ยกเว้นช่อง "trend" ที่เป็น dict เทรนด์เต็ม)
     🆕 (2026-10-07) เทรนด์ -> หมวด -> ช่วงราคาตลาด -> สินค้า (category_fit ของ ⑬ - ชุดเดียวกับเกรดใน ⑰) แต่ละช่วงราคามีเกรดของแบรนด์
@@ -233,14 +149,11 @@ def build_category_context(trend_ctx, coverage, catalog, cfg=None, ranges=None, 
                "past_growth_pct": g.get("past_growth_pct"), "status": STATUS_UNCHECKED, "pages": []}
         fit = (c or {}).get("category_fit")
         if c and fit and fit.get("main_category") and fit.get("categories"):
-            row["pages"] = [_category_page(x, index, brand, top_pct, ranges if fit.get("tier_basis") == "unit_price" else None,
-                                           cfg.get("sales") or DEFAULT_CONFIG["sales"])
+            row["pages"] = [_category_page(x, index, brand, top_pct, ranges if fit.get("tier_basis") == "unit_price" else None)
                             for x in fit["categories"]]
             row["status"] = STATUS_OK if any(pg["brand_n"] for pg in row["pages"]) else STATUS_NO_BRAND
         elif c:
             row["status"] = STATUS_NO_TIERS   # ผล ⑬ รอบเก่า (ไม่มี category_fit หรือยังเป็นแบบหลายหมวดก่อน 2026-10-08) - เติมด้วย run_brand_coverage.py --category-fit-only
-        # 🆕 (2026-10-21) หน้าที่ 3 = แผนที่ความใกล้เทรนด์ x ยอดขายระดับหมวด L2 (l2_data = l2_map.load_map ของรอบ; ไม่ส่ง = ไม่มีหน้านี้)
-        row["l2"] = _l2_view(l2_data, t, brand, index, top_pct, cfg.get("sales") or DEFAULT_CONFIG["sales"]) if l2_data and c else None
         rows.append(row)
 
     ok = [r for r in rows if r["status"] == STATUS_OK]
@@ -298,11 +211,9 @@ def apply_th(bctx):
 
 def image_items(bctx):
     """สินค้าที่ต้องมีรูปในรายงาน: สินค้าที่ดีที่สุดของแบรนด์ในแต่ละหมวด (ปก) และในแต่ละช่วงราคา (top 5 เป็นตัวหนังสือล้วน)
-    + 🆕 (2026-10-21) สินค้าไฮไลต์ A/B/C ใต้กราฟ "ความใกล้เทรนด์ x ยอดขาย"
     - อาจซ้ำชิ้นเดียวกัน (ชิ้นที่ดีที่สุดของหมวดคือชิ้นที่ดีที่สุดของช่วงราคาหนึ่ง) แต่เป็นคนละ dict"""
     items = []
     for r in bctx["rows"]:
         for pg in r["pages"]:
             items += ([pg["best"]] if pg["best"] else []) + [t["brand_best"] for t in pg["tiers"] if t["brand_best"]]
-        items += ((r.get("l2") or {}).get("map") or {}).get("callouts") or []
     return items

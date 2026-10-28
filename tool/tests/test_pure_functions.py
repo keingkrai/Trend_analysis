@@ -955,13 +955,13 @@ def test_brand_coverage_excel_rows_and_grade_from_category_fit():
                "similarity": 0.99 - i / 100} for i, (g, p, b) in enumerate(rows)]
     grading = {"top_pct": {"excellent": 1, "good": 5, "average": 20},
                "level": lambda rank, n: "excellent" if rank == 1 else "below_average"}
-    # 🆕 (2026-10-21) Excellent = ใกล้เทรนด์ top 1% และขายดี: P3 (อันดับ 1) ไม่มีข้อมูลยอดขาย -> ได้สูงสุด Good
+    # 🆕 (2026-10-27) เกรดตามอันดับล้วน (ตัดยอดขายออก): P3 (อันดับ 1 ของกลุ่ม) = Excellent ไม่ว่ามีข้อมูลยอดขายหรือไม่
     fit = category_fit(scored, "Z", "A")   # หมวดหลัก A หมวดเดียว (B ไม่นับ แม้สินค้า Z ใน B ก็ใกล้เทรนด์)
-    assert rbc.trend_grade(fit, grading) == ("good", "A", "mid")
-    assert rbc.trend_grade_info(fit, grading)["move"] == "cap"
-    scored[3]["sales"] = {"pct": 0.9, "zero": False, "soldout": False, "basis": "sales", "sold": 50, "value": 5000, "reviews": 3}
-    fit = category_fit(scored, "Z", "A")   # P3 ขายดี (top 20%) -> Excellent
     assert rbc.trend_grade(fit, grading) == ("excellent", "A", "mid") and rbc.trend_grade(None, grading) == (None, None, None)
+    assert set(rbc.trend_grade_info(fit, grading)) == {"level", "category", "tier", "product"}
+    scored[3]["sales"] = {"pct": 0.1, "zero": True, "soldout": False, "basis": "sales", "sold": 0, "value": 0, "reviews": 0}
+    fit = category_fit(scored, "Z", "A")   # ขายได้น้อยก็ไม่ลดเกรด
+    assert rbc.trend_grade(fit, grading) == ("excellent", "A", "mid")
     nobody = category_fit(scored, "Nobody", "A")
     assert rbc.trend_grade(nobody, grading) == ("below_average", None, None)
     assert rbc.trend_grade(category_fit(scored, "Z", "B"), grading)[1] == "B"     # หมวดหลักเปลี่ยน เกรดก็มาจากหมวดนั้น
@@ -1731,3 +1731,46 @@ def test_signals_and_personas_read_either_field_name():
                               {"name": "B", "value_driver": "v", "channel_preference": "TikTok"}])
     assert got[0]["value_driver"] == "Fortify; Transparency" and got[0]["channel_preference"] == ""
     assert got[1] == {"name": "B", "description": "", "value_driver": "v", "channel_preference": "TikTok"}
+
+
+def test_brand_coverage_excel_and_markdown_mark_trends_without_close_product(tmp_path, monkeypatch):
+    """🆕 (2026-10-28) ⑬: เทรนด์ที่ไม่มีสินค้าที่ใกล้พอ (ธงจากผล ⑫ - common/match_quality.py) ไม่ให้เกรดใน Excel/markdown, ข้อมูลดิบไม่ถูกแตะ"""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "phase3_supply_layer"))
+    import json
+    import run_brand_coverage as rbc
+    from openpyxl import load_workbook
+
+    coverage = {"Social::First": _tier_entry("First", 1, ["Cream", "Gel"], price_tiers=_tiers_fixture()),
+                "Social::Old": _tier_entry("Old", 2, ["Gel"])}
+    ag = {"category": "Skin Care", "top_n": 5, "in_main": 0, "min_required": 2, "ok": False}
+    nc = {("Social", "First"): ag}
+    rows = rbc.trend_product_rows("Zen", coverage, 10622, {}, {}, {}, no_close=nc)
+    first = [r for r in rows if r["เทรนด์"] == "First"]
+    assert len(first) == 1 and first[0]["ประเภท"] == "ไม่ให้เกรด" and "แค่ 0 จาก 5 ชิ้น" in first[0]["สินค้า"] and "Skin Care" in first[0]["สินค้า"]
+    assert any(r["เทรนด์"] == "Old" for r in rows)
+
+    path = tmp_path / "cov.xlsx"
+    rbc.save_coverage_excel(path, "Zen", 4, 10622, coverage, urls={}, l2={}, market_tops={}, no_close=nc)
+    wb = load_workbook(path)
+    summary = {r[0].value: r[1].value for r in wb["สรุป"].iter_rows(min_row=2)}
+    assert summary["เทรนด์ที่ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)"] == 1
+    per_trend = {r[2].value: r for r in wb["สรุปรายเทรนด์"].iter_rows(min_row=2)}
+    head = [c.value for c in wb["สรุปรายเทรนด์"][1]]
+    assert per_trend["First"][head.index("ระดับ (รายงาน)")].value == rbc.NO_CLOSE_LEVEL
+    assert "แค่ 0 จาก 5 ชิ้น" in per_trend["First"][head.index("ระดับมาจาก")].value
+    assert per_trend["Old"][head.index("ระดับ (รายงาน)")].value != rbc.NO_CLOSE_LEVEL
+    assert "First" not in {r[2].value for r in wb["Top 5 ต่อเทรนด์"].iter_rows(min_row=2)}        # สินค้า "ใกล้เทรนด์" ของเทรนด์ที่ไม่ให้เกรดไม่แสดง
+    md = rbc.build_brand_section_markdown("Zen", 4, 10622, coverage, nc)
+    assert "ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)" in md and md.count("ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)") == 1
+    assert coverage["Social::First"]["brand_best_product"] == "Cream"                              # ข้อมูลดิบไม่ถูกแตะ
+
+    # ธงมาจากผล ⑫ ของรอบ: เทรนด์ที่สินค้าใกล้สุด 5 ชิ้นอยู่นอกหมวดหลัก
+    results = {"Social::First": {"trend_name": "First", "stream": "Social", "main_category": {"category": "Skin Care"},
+                                 "top_matches": [{"group": "Hair Care"}] * 5},
+               "Social::Old": {"trend_name": "Old", "stream": "Social", "main_category": {"category": "Skin Care"},
+                               "top_matches": [{"group": "Skin Care"}] * 5}}
+    (tmp_path / "phase3_scale_validation_nvidia_result.json").write_text(json.dumps({"results": results}), encoding="utf-8")
+    monkeypatch.setattr(rbc, "OUTPUTS", tmp_path)
+    assert list(rbc.load_no_close_of_run()) == [("Social", "First")]
+    monkeypatch.setattr(rbc, "OUTPUTS", tmp_path / "missing")
+    assert rbc.load_no_close_of_run() == {}

@@ -1,23 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 ⑯/⑰ แผนที่ตลาดระดับหมวด L2 (ฝั่งรายงาน) — อ่าน phase3_l2_market_map.json.gz ของรอบ (⑫ เขียน - tool/phase3_supply_layer/l2_market_map.py)
-แล้วเทียบ "ความใกล้เทรนด์ x ยอดขาย" โดยใช้หมวดระดับ 2 อย่างเดียวเป็นกลุ่มเทียบ (🆕 2026-10-21 เจ้าของงานสั่ง):
-  แกน x = อันดับความใกล้เทรนด์ในหมวด -> 4 ระดับตามเกณฑ์ % เดียวกับ ⑰ (config/brand_report.json > fit_top_pct: top 1/5/20% ของหมวด)
-  แกน y = ตำแหน่งยอดขาย Konvy ในหมวดเดียวกัน (ชิ้น x ราคา, ของหมดใช้รีวิว) -> ขายดี / ปานกลาง / ขายช้า / ไม่มีข้อมูล (config > sales)
-  เกรดสุดท้าย = ระดับความใกล้เทรนด์ ปรับตามยอดขาย ±1 ขั้น (brand_data.adjust_level - กติกาเดียวกับ ⑰)
-⑯ ใช้ l2_grid() (จำนวนสินค้าต่อช่อง + สินค้าที่ใกล้เทรนด์ที่สุดในช่อง) ⑰ ใช้ brand_tier() (สินค้าของแบรนด์ในหมวดเป็น "กลุ่ม" เดียวให้
-brand_category_data._fit_sales_map วางจุด)
+แล้วจัดอันดับ "ความใกล้เทรนด์" โดยใช้หมวดระดับ 2 อย่างเดียวเป็นกลุ่มเทียบ (🆕 2026-10-21 เจ้าของงานสั่ง):
+  อันดับความใกล้เทรนด์ในหมวด -> 4 ระดับตามเกณฑ์ % เดียวกับ ⑰ (config/brand_report.json > fit_top_pct: top 1/5/20% ของหมวด)
+🆕 (2026-10-27) ตัดยอดขาย Konvy ออกทั้งหมด (เจ้าของงานสั่ง - เกรดใช้ความใกล้เทรนด์ล้วน ใช้ได้กับสินค้านอก Konvy): ตารางของ ⑯ เหลือแถวเดียว 4 ช่อง
+และ ⑰ ไม่มีหน้าแผนที่ ความใกล้ x ยอดขายอีก (โค้ดเดิมอยู่ใน output/_backups/sales_removal_code_20261027)
+⑯ ใช้ l2_grid() (จำนวนสินค้าต่อระดับ + สินค้าที่ใกล้เทรนด์ที่สุดในระดับ) ⑰ ใช้ brand_tier() (สินค้าของแบรนด์ในหมวดเป็น "กลุ่ม" เดียว)
 ฟังก์ชันล้วน อ่านไฟล์ได้อย่างเดียว ไม่เรียก API - เส้นตัดอยู่ที่ config จึงปรับได้โดยไม่รัน ⑫ ใหม่
 """
 import gzip
 import json
 from pathlib import Path
 
-from brand_data import FIT_LEVELS, adjust_level, fit_level, load_config, rank_cuts, sales_state, sales_view
+from brand_data import FIT_LEVELS, fit_level, load_config, rank_cuts
 
 MAP_FILE = "phase3_l2_market_map.json.gz"
 CONFIG_FILE = Path(__file__).resolve().parents[2] / "config" / "brand_report.json"
-ROWS = ("strong", "steady", "slow", "unknown")
 CLOSE_LEVELS = ("excellent", "good")     # "ใกล้เทรนด์" ในบรรทัดสรุป = สองระดับบน (top 5% ของหมวด)
 
 
@@ -32,7 +30,7 @@ def load_map(run_dir):
 
 def category_products(data, key, trend_name=None):
     """แผนที่ + คีย์เทรนด์ -> (หมวด, [สินค้าเรียงจากใกล้เทรนด์ที่สุด]) หรือ (None, []) ถ้าเทรนด์นี้ไม่มีในไฟล์
-    สินค้า = {"brand", "product_name", "sale_price_thb", "size", "unit_label", "rank" (ในหมวด เริ่ม 1), "sales" (รูปเดียวกับ ⑬ - sales_level)}"""
+    สินค้า = {"brand", "product_name", "sale_price_thb", "size", "unit_label", "rank" (ในหมวด เริ่ม 1)}"""
     entry = (data or {}).get("trends", {}).get(key)
     if entry is None and trend_name:
         entry = next((e for e in data.get("trends", {}).values() if e.get("trend_name") == trend_name), None)
@@ -43,55 +41,40 @@ def category_products(data, key, trend_name=None):
     for rank, i in enumerate(entry["order"], 1):
         r = data["products"][i]
         products.append({"brand": r[col["brand"]], "product_name": r[col["product_name"]], "sale_price_thb": r[col["sale_price_thb"]],
-                         "size": r[col["size"]], "unit_label": r[col["unit_label"]], "rank": rank,
-                         "sales": {"pct": r[col["sales_pct"]], "basis": r[col["sales_basis"]], "soldout": bool(r[col["soldout"]]),
-                                   "zero": bool(r[col["zero"]]), "sold": r[col["sold"]], "value": None, "reviews": r[col["reviews"]]}})
+                         "size": r[col["size"]], "unit_label": r[col["unit_label"]], "rank": rank})
     return entry.get("category"), products
 
 
-def _pct(k, n):
-    return round(k / n * 100) if n else 0
-
-
 def l2_grid(products, cfg=None, make_product=None):
-    """สินค้าของหมวด (category_products) -> ตารางความใกล้ x ยอดขาย:
-    {"n", "cuts" (fit_top_pct), "sales" (strong_top_pct / slow_bottom_pct),
-     "cols": [{"level", "n"}] 4 ระดับ, "rows": [{"state", "n"}] 4 แถว,
-     "cells": {"<แถว>|<ระดับ>": {"n", "product"}}  product = สินค้าที่ใกล้เทรนด์ที่สุดในช่อง (+ level / base_level / rank / sales) หรือ None (n ใช้แค่คิดบรรทัดสรุป - หน้ารายงานไม่แสดงจำนวนต่อช่อง),
-     "take": {"n_close", "close_pct", "strong_close", "slow_close", "strong_all", "slow_all"}} (เปอร์เซ็นต์เป็นจำนวนเต็ม)
+    """สินค้าของหมวด (category_products) -> ตารางความใกล้เทรนด์ แถวเดียว 4 ระดับ:
+    {"n", "cuts" (fit_top_pct),
+     "cols": [{"level", "n", "product"}] 4 ระดับ - product = สินค้าที่ใกล้เทรนด์ที่สุดในระดับ (+ rank / level) หรือ None (n ใช้แค่คิดบรรทัดสรุป),
+     "take": {"n_close", "close_pct"}} (เปอร์เซ็นต์เป็นจำนวนเต็ม)
     make_product(dict) -> dict ของสินค้าสำหรับเทมเพลต (report_data._product เติมรูป/ชื่อเต็ม) ไม่ส่ง = ใช้ dict เดิม"""
     cfg = cfg or load_config(CONFIG_FILE)
-    top_pct, scfg = cfg["fit_top_pct"], cfg["sales"]
+    top_pct = cfg["fit_top_pct"]
     n = len(products)
     cuts = rank_cuts(n, top_pct) if n else {}
-    cells = {f"{r}|{lv}": {"n": 0, "product": None} for r in ROWS for lv in FIT_LEVELS}
+    cols = {lv: {"level": lv, "n": 0, "product": None} for lv in FIT_LEVELS}
     for p in products:
-        fit = fit_level(p["rank"], cuts)
-        state = sales_state(p["sales"], scfg)
-        c = cells[f"{state}|{fit}"]
+        lv = fit_level(p["rank"], cuts)
+        c = cols[lv]
         c["n"] += 1
-        # ตัวแทนทุกช่อง 4 ระดับ x 3 แถวยอดขาย (🆕 2026-10-21 เจ้าของงานสั่งให้ทุกช่องแสดงแต่สินค้า ไม่บอกจำนวน และเอาแถว "ไม่มีข้อมูลยอดขาย" ออก - สินค้าที่ไม่มีข้อมูลยอดขายจึงไม่ถูกแสดง)
-        if c["product"] is None and state != "unknown":
+        if c["product"] is None:   # สินค้าเรียงจากใกล้เทรนด์ที่สุด - ชิ้นแรกของระดับคือตัวแทนของระดับ
             base = {k: p[k] for k in ("brand", "product_name", "sale_price_thb", "size", "unit_label")}
             item = make_product({**base, "category": ""}) if make_product else dict(base)
-            item.update(rank=p["rank"], base_level=fit, level=adjust_level(fit, state), sales=sales_view(p["sales"], state))
+            item.update(rank=p["rank"], level=lv)
             c["product"] = item
-    col_tot = {lv: sum(cells[f"{r}|{lv}"]["n"] for r in ROWS) for lv in FIT_LEVELS}
-    row_tot = {r: sum(cells[f"{r}|{lv}"]["n"] for lv in FIT_LEVELS) for r in ROWS}
-    n_close = sum(col_tot[lv] for lv in CLOSE_LEVELS)
-    close = lambda r: sum(cells[f"{r}|{lv}"]["n"] for lv in CLOSE_LEVELS)  # noqa: E731
-    return {"n": n, "cuts": dict(top_pct), "sales": {"strong_top_pct": scfg["strong_top_pct"], "slow_bottom_pct": scfg["slow_bottom_pct"]},
-            "cols": [{"level": lv, "n": col_tot[lv]} for lv in FIT_LEVELS], "rows": [{"state": r, "n": row_tot[r]} for r in ROWS],
-            "cells": cells,
-            "take": {"n_close": n_close, "close_pct": top_pct["good"], "strong_close": _pct(close("strong"), n_close),
-                     "slow_close": _pct(close("slow"), n_close), "strong_all": _pct(row_tot["strong"], n), "slow_all": _pct(row_tot["slow"], n)}}
+    n_close = sum(cols[lv]["n"] for lv in CLOSE_LEVELS)
+    return {"n": n, "cuts": dict(top_pct), "cols": [cols[lv] for lv in FIT_LEVELS],
+            "take": {"n_close": n_close, "close_pct": top_pct["good"]}}
 
 
 def brand_tier(products, brand):
-    """สินค้าของหมวด + ชื่อแบรนด์ -> "กลุ่ม" หน้าตาเดียวกับ tiers[] ของ ⑬ category_fit ที่ brand_category_data._fit_sales_map / brand_data.best_in_tier ใช้:
+    """สินค้าของหมวด + ชื่อแบรนด์ -> "กลุ่ม" หน้าตาเดียวกับ tiers[] ของ ⑬ category_fit ที่ brand_data.best_in_tier ใช้:
     {"n_total" (สินค้าทั้งหมวด), "n_brand", "top": [], "brand_products": [สินค้าของแบรนด์ทุกชิ้น + rank_in_tier = อันดับในหมวด]} - ไม่มีสินค้าของแบรนด์ = None"""
     mine = [{"brand": p["brand"], "product_name": p["product_name"], "sale_price_thb": p["sale_price_thb"], "size": p["size"],
-             "unit_label": p["unit_label"], "rank_in_tier": p["rank"], "rank_in_market": None, "sales": p["sales"]}
+             "unit_label": p["unit_label"], "rank_in_tier": p["rank"], "rank_in_market": None}
             for p in products if p["brand"] == brand]
     return {"n_total": len(products), "n_brand": len(mine), "top": [], "brand_products": mine} if mine else None
 
@@ -100,7 +83,7 @@ def l2_category_fit(fit, products, brand, reasons=None):
     """🆕 (2026-10-21) category_fit ของ ⑬ (เทรนด์ -> หมวด -> ช่วงราคา -> สินค้า) -> แบบหมวด L2 อย่างเดียว (เจ้าของงานสั่งให้เกรดทั้ง ⑰ และ Excel ของ ⑬ เทียบในหมวด
     ไม่แยกช่วงราคา): แต่ละหมวดมี "ช่วงราคา" เดียว label "all" = ทั้งหมวด -> ฟังก์ชันเกรดเดิมทุกตัว (brand_data.best_in_category / grade_product / trend_categories
     และ Excel ของ ⑬) ใช้ต่อได้โดยไม่แก้: n_total = สินค้าทั้งหมวด, top = 5 อันดับแรกของหมวด, brand_products = สินค้าของแบรนด์ทุกชิ้นในหมวด
-    (rank_in_tier = อันดับในหมวด, sales = ยอดขายเทียบทั้งหมวด จากแผนที่ ⑫) - ช่องอื่น (similarity / ขนาด / ฿ต่อหน่วย / อันดับทั้งตลาด / เหตุผลจับคู่) ยืมจากสินค้า
+    (rank_in_tier = อันดับในหมวด) - ช่องอื่น (similarity / ขนาด / ฿ต่อหน่วย / อันดับทั้งตลาด / เหตุผลจับคู่) ยืมจากสินค้า
     ชิ้นเดียวกันใน category_fit เดิม (top 5 ของหมวดและสินค้าของแบรนด์ทุกชิ้นอยู่ในรายการของช่วงราคาใดช่วงหนึ่งเสมอ) ผลมีธง "group_basis": "l2"
     products = category_products() ของเทรนด์นั้น; ไม่แตะ fit เดิม"""
     categories = []
@@ -115,7 +98,7 @@ def l2_category_fit(fit, products, brand, reasons=None):
                                                                      "sale_price_thb": p["sale_price_thb"], "similarity": None})
             for k in ("n_tier", "tier", "price_from", "price_to"):   # ช่องของ brand_best ระดับหมวดเดิม (ไม่ใช่ของสินค้า)
                 base.pop(k, None)
-            base.update(rank_in_tier=p["rank"], sales=p["sales"])
+            base.update(rank_in_tier=p["rank"])
             if not base.get("match_reason") and (reasons or {}).get(p["product_name"]):   # เหตุผลที่ ⑬ --l2-reasons-only เขียนให้สินค้าที่ให้เกรดแบบหมวด L2
                 base["match_reason"] = reasons[p["product_name"]]
             return base

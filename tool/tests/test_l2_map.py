@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-เทสแผนที่ตลาดระดับหมวด L2 (🆕 2026-10-21): ⑫ l2_market_map.py (เขียน/อ่านไฟล์) และฝั่งรายงาน l2_map.py (ช่อง ความใกล้เทรนด์ x ยอดขาย, สินค้าของแบรนด์)
+เทสแผนที่ตลาดระดับหมวด L2 (🆕 2026-10-21): ⑫ l2_market_map.py (เขียน/อ่านไฟล์) และฝั่งรายงาน l2_map.py (ช่อง 4 ระดับความใกล้เทรนด์, สินค้าของแบรนด์)
+🆕 (2026-10-27) ตัดยอดขายออกจากเกรดและตารางแล้ว - ข้อมูลยอดขายยังอยู่ในไฟล์แผนที่ของ ⑫ (เทสต์ชั้นข้อมูลไว้) แต่ฝั่งรายงานไม่ใช้
 ไม่เรียก API - ใช้ข้อมูลปลอมขนาดเล็ก
 
 รัน: pytest main/tool/tests/test_l2_map.py -v
@@ -21,7 +22,7 @@ import pandas as pd  # noqa: E402
 import l2_map  # noqa: E402
 from l2_market_map import COLUMNS, build_table, read_map, trend_entry, write_map  # noqa: E402
 
-CFG = {"fit_top_pct": {"excellent": 1, "good": 5, "average": 20}, "sales": {"strong_top_pct": 20, "slow_bottom_pct": 25}}
+CFG = {"fit_top_pct": {"excellent": 1, "good": 5, "average": 20}}
 
 
 def _catalog(n=40):
@@ -56,13 +57,13 @@ def test_map_file_roundtrip_and_category_products(tmp_path):
     data = read_map(tmp_path / "m.json.gz")
     cat, products = l2_map.category_products(data, "Paper::T")
     assert cat == "Skin Care" and [p["rank"] for p in products] == list(range(1, 41))
-    assert products[0]["product_name"] == "skin 0" and products[0]["sales"]["sold"] == 0
+    assert products[0]["product_name"] == "skin 0" and "sales" not in products[0]
     assert l2_map.category_products(data, "Paper::missing", "T")[0] == "Skin Care"       # หาด้วยชื่อเทรนด์ได้
     assert l2_map.category_products(data, "Paper::missing") == (None, [])
     assert l2_map.category_products(None, "x") == (None, [])
 
 
-def test_sales_are_compared_inside_the_whole_category_not_by_price_tier():
+def test_sales_data_in_the_map_file_is_still_compared_inside_the_whole_category():   # ⑫ ยังเก็บข้อมูลดิบ รายงานไม่ใช้
     df, groups = _catalog()
     table, _ = build_table(df, groups, None, {"Skin Care"})
     pcts = [r[6] for r in table]
@@ -70,37 +71,27 @@ def test_sales_are_compared_inside_the_whole_category_not_by_price_tier():
 
 
 def _products(n=200):
-    """สินค้า n ชิ้นเรียงตามความใกล้ ยอดขาย: ชิ้นที่ 1 ขายช้า, ชิ้นที่ 2 ขายดี, ที่เหลือปานกลาง"""
-    out = []
-    for r in range(1, n + 1):
-        pct = 0.1 if r == 1 else 0.95 if r == 2 else 0.5
-        out.append({"brand": "Mine" if r in (1, 2, 150) else "Other", "product_name": f"p{r}", "sale_price_thb": 100.0, "size": None,
-                    "unit_label": None, "rank": r,
-                    "sales": {"pct": pct, "basis": "sales", "soldout": False, "zero": False, "sold": 10, "value": None, "reviews": None}})
-    return out
+    """สินค้า n ชิ้นเรียงตามความใกล้ (ชิ้นที่ r = อันดับ r ในหมวด)"""
+    return [{"brand": "Mine" if r in (1, 2, 150) else "Other", "product_name": f"p{r}", "sale_price_thb": 100.0, "size": None,
+             "unit_label": None, "rank": r} for r in range(1, n + 1)]
 
 
-def test_l2_grid_counts_every_product_once_and_shows_closest_in_each_cell():
+def test_l2_grid_is_one_row_of_four_levels_with_the_closest_product_in_each():
     grid = l2_map.l2_grid(_products(), CFG)
-    assert grid["n"] == 200 and sum(c["n"] for c in grid["cols"]) == 200 and sum(r["n"] for r in grid["rows"]) == 200
-    assert sum(c["n"] for c in grid["cells"].values()) == 200
-    assert grid["cuts"] == CFG["fit_top_pct"]
-    slow_exc, strong_exc = grid["cells"]["slow|excellent"], grid["cells"]["strong|excellent"]
-    assert slow_exc["n"] == 1 and slow_exc["product"]["product_name"] == "p1" and slow_exc["product"]["level"] == "good"   # ขายช้าลดเกรด 1 ขั้น
-    assert strong_exc["n"] == 1 and strong_exc["product"]["product_name"] == "p2" and strong_exc["product"]["level"] == "excellent"
-    assert grid["cells"]["steady|excellent"]["n"] == 0 and grid["cells"]["steady|excellent"]["product"] is None   # 200 ชิ้น: top 1% = 2 อันดับ
-    assert grid["cells"]["steady|good"]["product"]["product_name"] == "p3"                                        # ชิ้นที่ใกล้ที่สุดในช่อง
-    below = grid["cells"]["steady|below_average"]["product"]    # 🆕 ทุกช่อง 4 ระดับ x 3 แถวมีสินค้าตัวแทน (หน้ารายงานไม่แสดงจำนวนต่อช่อง)
-    assert below["product_name"] == "p41" and below["level"] == "below_average"   # ชิ้นแรกที่เกิน top 20% ของ 200 ชิ้น = อันดับ 41
-    assert grid["cells"]["unknown|good"]["product"] is None                       # แถวไม่มีข้อมูลยอดขายไม่มีตัวแทน (ไม่แสดง)
+    assert grid["n"] == 200 and grid["cuts"] == CFG["fit_top_pct"] and set(grid) == {"n", "cuts", "cols", "take"}
+    assert [c["level"] for c in grid["cols"]] == ["excellent", "good", "average", "below_average"]
+    assert [c["n"] for c in grid["cols"]] == [2, 8, 30, 160]                      # 200 ชิ้น: top 1% = 2, 5% = 10, 20% = 40
+    assert [c["product"]["product_name"] for c in grid["cols"]] == ["p1", "p3", "p11", "p41"]   # ชิ้นที่ใกล้เทรนด์ที่สุดของแต่ละระดับ
+    assert [c["product"]["level"] for c in grid["cols"]] == ["excellent", "good", "average", "below_average"]
+    assert grid["cols"][0]["product"]["rank"] == 1
 
 
-def test_l2_grid_takeaway_compares_close_matches_with_the_whole_category():
+def test_l2_grid_takeaway_counts_close_matches_and_empty_levels_have_no_product():
     grid = l2_map.l2_grid(_products(), CFG)
-    take = grid["take"]
-    assert take["close_pct"] == 5 and take["n_close"] == sum(c["n"] for c in grid["cols"][:2]) == 10      # ranks 1-10 of 200
-    assert take["strong_close"] == 10 and take["slow_close"] == 10      # p2 ขายดี, p1 ขายช้า จาก 10 ชิ้นที่ใกล้ที่สุด
-    assert take["strong_all"] == 0 and take["slow_all"] == 0            # ทั้งหมวด 1/200 ปัดเป็น 0%
+    assert grid["take"] == {"n_close": 10, "close_pct": 5}                         # อันดับ 1-10 ของ 200
+    tiny = l2_map.l2_grid(_products(3), CFG)                                       # หมวด 3 ชิ้น: ทุกเส้นตัดปัดขึ้นเป็น 1
+    assert [c["n"] for c in tiny["cols"]] == [1, 0, 0, 2] and tiny["cols"][1]["product"] is None
+    assert l2_map.l2_grid([], CFG)["n"] == 0 and all(c["product"] is None for c in l2_map.l2_grid([], CFG)["cols"])
 
 
 def test_brand_tier_uses_category_rank_and_skips_brands_without_products():
@@ -108,21 +99,6 @@ def test_brand_tier_uses_category_rank_and_skips_brands_without_products():
     assert tier["n_total"] == 200 and tier["n_brand"] == 3
     assert [p["rank_in_tier"] for p in tier["brand_products"]] == [1, 2, 150]
     assert l2_map.brand_tier(_products(), "Nobody") is None
-
-
-def test_fit_sales_map_places_brand_products_by_category_rank_and_sales():
-    from brand_category_data import _fit_sales_map
-    from brand_data import best_in_tier
-
-    class _Index:
-        def pair(self, brand, name):
-            return {}
-
-    tier = l2_map.brand_tier(_products(), "Mine")
-    m = _fit_sales_map(tier, _Index(), "Mine", CFG["fit_top_pct"], CFG["sales"], best_in_tier(tier, CFG["fit_top_pct"], CFG["sales"]))
-    assert len(m["dots"]) == 3 and sum(m["cells"].values()) == 3
-    assert m["cells"]["strong|excellent"] == 1 and m["cells"]["slow|excellent"] == 1 and m["cells"]["steady|below_average"] == 1
-    assert {c["kind"] for c in m["callouts"]} <= {"A", "B", "C"} and m["zones"]["close_strong"] == 1 and m["zones"]["close_lag"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +129,11 @@ def test_l2_category_fit_has_one_tier_for_the_whole_category_with_category_ranks
     assert cat["brand_best"]["rank_in_tier"] == 1 and cat["brand_best"]["n_tier"] == 200 and cat["brand_best"]["tier"] == "all"
 
 
-def test_l2_category_fit_borrows_similarity_and_reason_from_the_original_items_and_new_sales():
+def test_l2_category_fit_borrows_similarity_and_reason_from_the_original_items():
     fit = l2_map.l2_category_fit(_fit_two_tiers(), _products(), "Mine")
     p1 = fit["categories"][0]["tiers"][0]["brand_products"][0]
     assert p1["similarity"] == 0.9 and p1["match_reason"] == "why p1" and p1["rank_in_market"] == 1      # ยืมจาก category_fit เดิม
-    assert p1["sales"]["pct"] == 0.1 and p1["sales"]["value"] is None                                       # ยอดขายเทียบทั้งหมวดจากแผนที่
+    assert p1["rank_in_tier"] == 1                                                                          # อันดับเทียบทั้งหมวดจากแผนที่
     p2 = fit["categories"][0]["tiers"][0]["brand_products"][1]                                              # ไม่มีในรายการเดิม: ยังได้ชื่อ/ราคา
     assert p2["product_name"] == "p2" and p2["sale_price_thb"] == 100.0 and p2["similarity"] is None
     reasons = {"p2": "why p2"}
@@ -169,19 +145,19 @@ def test_existing_grade_functions_work_on_the_l2_fit_and_grade_in_the_category()
     from brand_data import best_in_category
 
     fit = l2_map.l2_category_fit(_fit_two_tiers(), _products(), "Mine")
-    tier, tb = best_in_category(fit["categories"][0], CFG["fit_top_pct"], CFG["sales"])
-    assert tier["label"] == "all" and tb["raw"]["product_name"] == "p2"       # p2 = อันดับ 2 ในหมวด ขายดี -> Excellent ; p1 ขายช้าถูกลดเป็น Good
-    assert tb["level"] == "excellent" and tb["state"] == "strong"
+    tier, tb = best_in_category(fit["categories"][0], CFG["fit_top_pct"])
+    assert tier["label"] == "all" and tb["raw"]["product_name"] == "p1"       # p1 = อันดับ 1 ในหมวด -> Excellent (เกรดตามอันดับล้วน)
+    assert tb["level"] == "excellent" and set(tb) == {"raw", "level"}
 
 
-def test_top_match_without_strong_sales_is_good_not_excellent_in_the_l2_grid():
-    # 🆕 (2026-10-21) Excellent = top 1% ของหมวด และขายดี: ใกล้เทรนด์ top 1% ที่ขายปานกลางได้ Good ; ช่องสีของ ⑯ ใช้กฎเดียวกัน
-    from brand_data import adjust_level
+def test_top_one_percent_is_excellent_whatever_the_sales_and_the_report_no_longer_has_a_sales_adjustment():
+    # 🆕 (2026-10-27) Excellent = top 1% ของหมวด อย่างเดียว (เดิมต้องขายดีด้วย) - ไม่มีฟังก์ชัน/ตารางปรับตามยอดขายเหลืออยู่
+    import brand_data
 
-    assert adjust_level("excellent", "steady") == "good" and adjust_level("excellent", "unknown") == "good"
-    assert adjust_level("excellent", "strong") == "excellent" and adjust_level("good", "strong") == "good"
+    assert not hasattr(brand_data, "adjust_level") and not hasattr(brand_data, "sales_state")
+    assert brand_data.grade_product({"rank_in_tier": 1}, 200, CFG["fit_top_pct"])["level"] == "excellent"
     tpl = (Path(__file__).resolve().parent.parent / "phase6_pdf_report" / "templates" / "report.html.j2").read_text(encoding="utf-8")
-    assert '"steady": {"excellent": "good"' in tpl
+    assert "final_of" not in tpl and "sales" not in tpl.split("t.l2")[1].split("t.categories")[0]
 
 
 def test_l2_coverage_converts_matching_trends_and_skips_others(tmp_path):
@@ -209,28 +185,23 @@ def test_excel_rows_for_an_l2_fit_use_category_labels_and_category_columns():
     assert rows and all("กลุ่มเทียบ" in r and "อันดับในหมวด" in r for r in rows)
     assert {r["กลุ่มเทียบ"] for r in rows} == {"ทั้งหมวด"} and "กลุ่มราคา" not in rows[0]
     best = next(r for r in rows if r.get("ประเภท") == "ดีที่สุดของ Mine ในหมวดนี้")
-    assert best["สินค้า"] == "p2" and best["ระดับ"] == "Excellent" and best["อันดับในหมวด"] == 2
+    assert best["สินค้า"] == "p1" and best["ระดับ"] == "Excellent" and best["อันดับในหมวด"] == 1
+    assert not any("ยอดขาย" in k for r in rows for k in r)                                                # ตัดคอลัมน์ยอดขายออกจากเกรดแล้ว
     assert any(r.get("ประเภท") == "Top 5 ในหมวด" for r in rows)
 
 
-def test_products_without_sales_data_are_drawn_in_the_steady_row_and_not_in_a_strip():
-    from brand_category_data import _fit_sales_map
-    from brand_data import best_in_tier
-    import fit_sales_map as fm
+def test_images_and_thai_names_reach_the_four_level_products(monkeypatch):
+    """🆕 (2026-10-27) l2["cols"] (แถวเดียว) แทน l2["cells"] - โค้ดโหลดรูป (assets) และแปลงชื่อไทย (i18n.localize) ต้องอ่านโครงสร้างใหม่ด้วย
+    ไม่งั้นหน้าสินค้าของ ⑯ ได้กล่องเทาแทนรูปโดยไม่มี error"""
+    import assets
 
-    class _Index:
-        def pair(self, brand, name):
-            return {}
-
-    prods = _products()
-    prods[149]["sales"] = {"pct": None, "basis": "none", "soldout": False, "zero": False, "sold": None, "value": None, "reviews": None}   # p150 ไม่มีข้อมูล
-    tier = l2_map.brand_tier(prods, "Mine")
-    m = _fit_sales_map(tier, _Index(), "Mine", CFG["fit_top_pct"], CFG["sales"], best_in_tier(tier, CFG["fit_top_pct"], CFG["sales"]))
-    assert {d["state"] for d in m["dots"]} <= {"strong", "steady", "slow"}                       # ไม่มีสถานะ unknown ในกราฟ
-    nodata = next(d for d in m["dots"] if d["fit"] == "below_average")
-    assert nodata["state"] == "steady" and nodata["fy"] == 0.5
-    L = {k: "x" for k in ("excellent", "good", "average", "below_average", "fm_x_first", "fm_x_mid", "fm_x_last", "fm_y_strong_sub",
-                          "fm_y_steady_sub", "fm_y_slow_sub", "fm_axis_x", "fm_y_strong", "fm_y_steady", "fm_y_slow")}
-    L["fm_axis_y"] = "a|b"
-    svg = fm.render_svg(m, L)
-    assert svg.startswith("<svg") and "stroke-dasharray" not in svg and 'class="cn' not in svg      # ไม่มีแถบไม่มีข้อมูล ไม่มีตัวเลขจำนวนในช่อง
+    grid = l2_map.l2_grid(_products(), CFG, lambda m: {**m, "image_url": f"http://img/{m['product_name']}.jpg", "name": m["product_name"],
+                                                       "name_full": "ไทย " + m["product_name"]})
+    trend = {"products": [], "l2": {"category": "Skin Care", **grid}}
+    monkeypatch.setattr(assets, "fetch_image", lambda url, cache_dir: "data:" + url)
+    n_ok, n_urls = assets.attach_product_images([trend], "unused", max_workers=1, log=lambda *_: None)
+    assert (n_ok, n_urls) == (4, 4)
+    assert [c["product"]["image"] for c in grid["cols"]] == ["data:http://img/p1.jpg", "data:http://img/p3.jpg",
+                                                              "data:http://img/p11.jpg", "data:http://img/p41.jpg"]
+    src = (Path(__file__).resolve().parent.parent / "phase6_pdf_report" / "i18n.py").read_text(encoding="utf-8")
+    assert '(t.get("l2") or {}).get("cols")' in src and '"cells"' not in src.split("def localize")[1]

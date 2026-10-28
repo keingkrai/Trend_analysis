@@ -25,7 +25,7 @@ BRAND_STRINGS = {
         "fit_across": "Fit across the top {n} trends",
         "excellent": "Excellent", "good": "Good", "average": "Average", "below_average": "Below average",
         "not_checked": "Not checked",
-        "lv_def_first": "best product is in the top {p}% of its type & price group and top {s}% in sales",
+        "lv_def_first": "best product is in the top {p}% of its type & price group",
         "lv_def_mid": "top {p0}-{p}%",
         "lv_def_last": "beyond the top {p}%, or no product in the trend's category",
         "overall_title": "Overall fit",
@@ -35,9 +35,9 @@ BRAND_STRINGS = {
         "overall_line_below": "{lvb} in only {k} of {n} trends - most trends have no product in the top {p}% of products of the "
                               "same type.",
         "overall_line_excellent": "{lvb} in {k} of {n} trends - most trends have a product in the top {p}% of products of the "
-                                  "same type that also sells strongly.",
+                                  "same type.",
         "overall_next": "Already {lvb} in {k} of {n} - one more trend → {lv}.",
-        "overall_rule": "Overall = the highest level reached by more than half of the trends. Each level = fit to the trend, adjusted for sales.",
+        "overall_rule": "Overall = the highest level reached by more than half of the trends. Each level = how closely the brand's best product matches the trend.",
         "key_messages": "Key messages",
         "msg_strongest": "Strongest fit - {trend}: {product} ranks #{rank} of {n} products in {group}.",
         "msg_opportunity": "Biggest opportunity - {trend}: searches expected {z} by year @S@, but your best match ranks "
@@ -47,6 +47,8 @@ BRAND_STRINGS = {
         "msg_quick_win": "Closest to the top of its group - {trend}: your best product trails #1 of {group} by only {gap} "
                          "(match score, out of 1).",
         "msg_none": "No trend could be assessed for this brand in this run.",
+        "no_close_note": "Not graded (no close product in the market): {trends}. The Konvy products closest to these trends are mostly "
+                         "outside the trend's main category, so ranking your products there would not show how well they fit.",
         "defend": "Defend", "build": "Build", "maintain": "Maintain", "monitor": "Monitor",
         "defend_def": "Higher expected growth and you already compete - protect and promote.",
         "build_def": "Higher expected growth but no strong product yet - the main development opportunity.",
@@ -120,49 +122,6 @@ BRAND_STRINGS = {
         "last_12m": "Last 12 months (actual)",
         "pct_row": "Position in group",
         "pct_val": "top {p}% (rank #{rank})",
-        # 🆕 (2026-10-19) ยอดขาย Konvy เป็นส่วนหนึ่งของเกณฑ์เกรดสินค้า
-        "sales_row": "Sales on Konvy",
-        "sales_strong": "Strong sales", "sales_steady": "Steady sales", "sales_slow": "Slow sales",
-        "sales_unknown": "No sales data",
-        "sold_out": "Sold out",
-        "sl_sold": "{n} sold", "sl_reviews": "{n} reviews", "sl_zero": "0 sold while in stock",
-        "sl_top_sales": "top {p}% of the group by sales", "sl_top_reviews": "top {p}% by reviews",
-        "sales_up_note": "Sales lifted the level from {a} to {b}.",
-        "sales_down_note": "Sales lowered the level from {a} to {b}.",
-        "sales_cap_note": "Excellent needs strong sales as well - this product is a top match for the trend but its sales are "
-                          "not strong, so it is graded {b}.",
-        "msg_sales": "Sales changed the level in {k} of {n} trends ({u} up, {d} down).",
-        "m_sales": "(4) sales - after step (3), each product's level is adjusted by its sales on Konvy (units sold x price, "
-                   "compared with the other Konvy products of the same category & group): the top {s1}% = strong sales, which "
-                   "lifts an Average product to Good; Excellent needs both a top {p1}% match and strong sales, so a top {p1}% "
-                   "match with steady sales or no sales data stays at Good; the bottom {s2}%, or no sales while in stock = slow "
-                   "sales, which lowers the level by one step; otherwise steady sales or missing data change nothing. Sold-out products "
-                   "use review counts instead, because Konvy hides the sold counter when stock runs out. The trend's level is "
-                   "the best adjusted level among {brand}'s products in that category.",
-        "m_limits_sales": "Sales come from Konvy only: lifetime units shown on product pages (older products have had longer "
-                          "to sell) x today's price, so they are an estimate, not company sales.",
-        # 🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์: แผนที่ ความใกล้เทรนด์ x ยอดขาย (fit_sales_map.py)
-        "fm_question": "Does each {brand} product match the trend, and does it sell?",
-        "fm_lg_you": "{brand} product",
-        "fm_lg_hl": "Highlighted below the chart",
-        "fm_lg_shade": "Cell shading = final grade:",
-        "fm_x_first": "top {p}%", "fm_x_mid": "{a}-{b}%", "fm_x_last": "beyond {p}%",
-        "fm_y_strong": "Strong", "fm_y_strong_sub": "top {p}%",
-        "fm_y_steady": "Steady", "fm_y_steady_sub": "middle",
-        "fm_y_slow": "Slow", "fm_y_slow_sub": "bottom {p}%",
-        "fm_axis_x": "Match with the trend →", "fm_axis_y": "Sales on|Konvy ↑",   # "|" = ขึ้นบรรทัดใหม่ (fit_sales_map.render_svg)
-        "fm_k_a": "Best grade in this category", "fm_k_b": "Close to the trend, sales lag", "fm_k_c": "Sells well, far from the trend",
-        "fm_fit_top": "Fit top {p}%", "fm_sales_top": "Sales top {p}%", "fm_review_one": "1 review", "fm_sold": "{n} sold",
-        "fm_l2_count": "{n} products in this category · {b} from {brand}",
-        "fm_note": "Each dot = one {brand} product in this category. Left to right: closeness to the trend (columns = position "
-                   "among all {total} {category} products). Bottom to top: Konvy sales vs all {category} products (units sold x "
-                   "price; sold-out items use reviews); products with no sales data are drawn in the steady row and graded like "
-                   "steady sales. Shading = final grade after sales lift or lower it (strong sales lift an Average product to "
-                   "Good; Excellent needs a top {p1}% match and strong sales; slow sales lower one step). Dots are nudged apart; "
-                   "sales are lifetime Konvy sales, not company sales.",
-        "m_map": "Each trend's third page plots every {brand} product in the trend's main category on two measures - how close "
-                 "it is to the trend (left to right) and its Konvy sales (bottom to top) - each compared with all products of "
-                 "that category, so you can see strong sellers that sit far from the trend and close matches whose sales lag.",
     },
     "th": {
         "report_kind": "รายงานความพร้อมของแบรนด์ต่อเทรนด์",
@@ -179,16 +138,16 @@ BRAND_STRINGS = {
         # 🆕 (2026-10-07) ชื่อระดับใช้คำอังกฤษเหมือนฉบับอังกฤษ (ผู้ใช้เลือก)
         "excellent": "Excellent", "good": "Good", "average": "Average", "below_average": "Below average",
         "not_checked": "ยังไม่ได้ตรวจ",
-        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของประเภทและกลุ่มราคาเดียวกัน และ {s}% แรกด้านยอดขาย",
+        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของประเภทและกลุ่มราคาเดียวกัน",
         "lv_def_mid": "{p0}-{p}% แรก",
         "lv_def_last": "ไม่ถึง {p}% แรก หรือไม่มีสินค้าในหมวดของเทรนด์",
         "overall_title": "ภาพรวม",
         "or_better": "{lv} ขึ้นไป",
         "overall_line": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
         "overall_line_below": "{lvb} แค่ {k} จาก {n} เทรนด์ - ส่วนใหญ่ยังไม่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
-        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน และขายดี",
+        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
         "overall_next": "ได้ {lvb} แล้ว {k} จาก {n} เทรนด์ - อีก 1 เทรนด์จะขึ้นเป็น {lv}",
-        "overall_rule": "ภาพรวม = ระดับสูงสุดที่เทรนด์เกินครึ่งทำได้ถึง · แต่ละระดับ = ความใกล้เทรนด์ ปรับตามยอดขาย",
+        "overall_rule": "ภาพรวม = ระดับสูงสุดที่เทรนด์เกินครึ่งทำได้ถึง · แต่ละระดับ = สินค้าที่ดีที่สุดของแบรนด์ตรงเทรนด์แค่ไหน",
         "key_messages": "ประเด็นสำคัญ",
         "msg_strongest": "จุดแข็งที่สุด - {trend}: {product} เป็นอันดับ {rank} จากสินค้า {n} ชิ้นใน {group}",
         "msg_opportunity": "โอกาสใหญ่ที่สุด - {trend}: คาดว่ายอดค้นหาปีที่ @S@ {z} แต่สินค้าของคุณที่ตรงเทรนด์ที่สุดเป็นอันดับ "
@@ -198,6 +157,8 @@ BRAND_STRINGS = {
         "msg_quick_win": "ใกล้ขึ้นอันดับ 1 ที่สุด - {trend}: สินค้าที่ดีที่สุดของคุณตามอันดับ 1 ของ {group} อยู่แค่ {gap} "
                          "(คะแนนความตรงเทรนด์เต็ม 1)",
         "msg_none": "รอบนี้ประเมินเทรนด์ของแบรนด์นี้ไม่ได้เลย",
+        "no_close_note": "ไม่ได้ให้เกรด (ไม่มีสินค้าที่ใกล้เทรนด์พอในตลาด): {trends} สินค้าบน Konvy ที่ใกล้เทรนด์เหล่านี้ที่สุดส่วนใหญ่อยู่นอกหมวดหลักของเทรนด์ "
+                         "การจัดอันดับสินค้าของคุณในหมวดนั้นจึงบอกไม่ได้ว่าสินค้าตรงกับเทรนด์แค่ไหน",
         "defend": "ปกป้อง", "build": "สร้างใหม่", "maintain": "รักษาไว้", "monitor": "เฝ้าดู",
         "defend_def": "เทรนด์ที่คาดว่าการค้นหาเพิ่มมาก และคุณมีสินค้าแข่งได้แล้ว - ปกป้องและเร่งโปรโมต",
         "build_def": "เทรนด์ที่คาดว่าการค้นหาเพิ่มมาก แต่ยังไม่มีสินค้าที่แข็ง - โอกาสพัฒนาสินค้าหลัก",
@@ -263,45 +224,6 @@ BRAND_STRINGS = {
         "last_12m": "12 เดือนที่ผ่านมา (ข้อมูลจริง)",
         "pct_row": "ตำแหน่งในกลุ่ม",
         "pct_val": "ติด {p}% แรก (อันดับ {rank})",
-        # 🆕 (2026-10-19) ยอดขาย Konvy เป็นส่วนหนึ่งของเกณฑ์เกรดสินค้า
-        "sales_row": "ยอดขายบน Konvy",
-        "sales_strong": "ขายดี", "sales_steady": "ขายปานกลาง", "sales_slow": "ขายได้น้อย",
-        "sales_unknown": "ไม่มีข้อมูลยอดขาย",
-        "sold_out": "ของหมด",
-        "sl_sold": "ขายแล้ว {n} ชิ้น", "sl_reviews": "{n} รีวิว", "sl_zero": "ขายได้ 0 ชิ้นทั้งที่มีของ",
-        "sl_top_sales": "{p}% แรกของกลุ่มด้านยอดขาย", "sl_top_reviews": "{p}% แรกด้านรีวิว",
-        "sales_up_note": "ยอดขายดึงระดับขึ้นจาก {a} เป็น {b}",
-        "sales_down_note": "ยอดขายดึงระดับลงจาก {a} เป็น {b}",
-        "sales_cap_note": "Excellent ต้องขายดีด้วย - สินค้านี้ตรงเทรนด์มากที่สุดกลุ่มแรก แต่ยอดขายยังไม่ถึงขั้นขายดี จึงได้ {b}",
-        "msg_sales": "ยอดขายเปลี่ยนระดับของ {k} จาก {n} เทรนด์ (ขึ้น {u}, ลง {d})",
-        "m_sales": "(4) ยอดขาย - หลังขั้น (3) ระดับของสินค้าแต่ละชิ้นถูกปรับตามยอดขายบน Konvy (จำนวนที่ขาย x ราคา เทียบกับสินค้า Konvy "
-                   "อื่นในหมวดและกลุ่มเดียวกัน): {s1}% แรก = ขายดี ดึงระดับ Average ขึ้นเป็น Good · "
-                   "Excellent ต้องตรงเทรนด์ {p1}% แรก และขายดี ทั้งสองอย่าง ตรงเทรนด์ {p1}% แรกแต่ขายปานกลางหรือไม่มีข้อมูลยอดขายได้สูงสุด Good · "
-                   "{s2}% ล่างสุด หรือขายได้ 0 ชิ้นทั้งที่มีของ = ขายได้น้อย ลดระดับลง 1 ขั้น · นอกจากนั้นขายปานกลางหรือไม่มีข้อมูลไม่เปลี่ยนระดับ "
-                   "สินค้าที่ของหมดใช้จำนวนรีวิวแทน เพราะ Konvy ซ่อนตัวนับยอดขายเมื่อสต็อกหมด "
-                   "ระดับของเทรนด์ = ระดับที่ดีที่สุดหลังปรับของสินค้า {brand} ในหมวดนั้น",
-        "m_limits_sales": "ยอดขายมาจาก Konvy ช่องทางเดียว เป็นจำนวนที่ขายสะสมตลอดอายุสินค้าตามหน้าสินค้า (สินค้าเก่าขายมานานกว่า) "
-                          "คูณราคาปัจจุบัน จึงเป็นค่าประมาณ ไม่ใช่ยอดขายของบริษัท",
-        # 🆕 (2026-10-21) หน้าที่ 3 ของเทรนด์: แผนที่ ความใกล้เทรนด์ x ยอดขาย (fit_sales_map.py)
-        "fm_question": "สินค้า {brand} แต่ละชิ้นตรงเทรนด์ไหม และขายได้ไหม",
-        "fm_lg_you": "สินค้าของ {brand}",
-        "fm_lg_hl": "ไฮไลต์ไว้ใต้กราฟ",
-        "fm_lg_shade": "สีพื้นช่อง = เกรดสุดท้าย:",
-        "fm_x_first": "{p}% แรก", "fm_x_mid": "{a}-{b}% แรก", "fm_x_last": "ไม่ถึง {p}% แรก",
-        "fm_y_strong": "ขายดี", "fm_y_strong_sub": "{p}% แรก",
-        "fm_y_steady": "ปานกลาง", "fm_y_steady_sub": "ช่วงกลาง",
-        "fm_y_slow": "ขายได้น้อย", "fm_y_slow_sub": "{p}% ล่างสุด",
-        "fm_axis_x": "ความตรงกับเทรนด์ →", "fm_axis_y": "ยอดขาย|บน Konvy ↑",
-        "fm_k_a": "เกรดดีที่สุดในหมวดนี้", "fm_k_b": "ตรงเทรนด์แต่ยอดขายตามหลัง", "fm_k_c": "ขายดีแต่ไม่ตรงเทรนด์",
-        "fm_fit_top": "ตรงเทรนด์ {p}% แรก", "fm_sales_top": "ยอดขาย {p}% แรก", "fm_review_one": "1 รีวิว", "fm_sold": "ขาย {n} ชิ้น",
-        "fm_l2_count": "{n} ชิ้นในหมวดนี้ · ของ {brand} {b} ชิ้น",
-        "fm_note": "จุดละ 1 ชิ้นของ {brand} ในหมวดนี้ · ซ้ายไปขวา = ความตรงกับเทรนด์ (ช่อง = ตำแหน่งในสินค้า {category} ทั้ง {total} ชิ้น) · "
-                   "ล่างขึ้นบน = ยอดขายบน Konvy เทียบสินค้า {category} ทั้งหมวด (จำนวนที่ขาย x ราคา ของหมดใช้จำนวนรีวิว) "
-                   "สินค้าที่ไม่มีข้อมูลยอดขายวาดไว้ในแถวปานกลางและตัดเกรดเหมือนขายปานกลาง · สีพื้น = เกรดสุดท้ายหลังยอดขายปรับ "
-                   "(ขายดีดึง Average ขึ้นเป็น Good · Excellent ต้องตรงเทรนด์ {p1}% แรกและขายดี · ขายได้น้อยลง 1 ขั้น) · "
-                   "จุดถูกเขี่ยออกจากกันเล็กน้อย · ยอดขายเป็นยอดสะสมของ Konvy ไม่ใช่ยอดขายของบริษัท",
-        "m_map": "หน้าที่ 3 ของแต่ละเทรนด์วางสินค้า {brand} ทุกชิ้นในหมวดหลักของเทรนด์บนสองแกน - ความตรงกับเทรนด์ (ซ้ายไปขวา) และยอดขายบน "
-                 "Konvy (ล่างขึ้นบน) - โดยเทียบกับสินค้าทั้งหมวด เพื่อให้เห็นสินค้าที่ขายดีแต่ไม่ตรงเทรนด์ และสินค้าที่ตรงเทรนด์แต่ยอดขายยังตามหลัง",
     },
 }
 BRAND_STRINGS = apply_tokens(BRAND_STRINGS)   # 🆕 (2026-10-19) @S@ = ปีระยะสั้นจาก common/horizons.py
@@ -310,9 +232,9 @@ BRAND_STRINGS = apply_tokens(BRAND_STRINGS)   # 🆕 (2026-10-19) @S@ = ปี�
 # "หมวด" ใช้เมื่อ brand context มี group_basis == "l2" (ทับชุดปกติ + ชุดช่วงราคาต่อปริมาณ ดู with_l2_strings) ผลรอบที่ยังไม่มีแผนที่ L2 ใช้ข้อความเดิม
 L2_STRINGS = {
     "en": {
-        "lv_def_first": "best product is in the top {p}% of the category and top {s}% in sales",
+        "lv_def_first": "best product is in the top {p}% of the category",
         "overall_line_excellent": "{lvb} in {k} of {n} trends - most trends have a product in the top {p}% of the products in "
-                                  "the same category that also sells strongly.",
+                                  "the same category.",
         "overall_line": "{lvb} in {k} of {n} trends - most trends have a product in the top {p}% of the products in the same "
                         "category.",
         "overall_line_below": "{lvb} in only {k} of {n} trends - most trends have no product in the top {p}% of the products in "
@@ -321,7 +243,6 @@ L2_STRINGS = {
                    "Bottom row = {brand}'s best product when it is outside the top 5. No {brand} product in the category: the "
                    "bottom row is left grey.",
         "pct_row": "Position in category",
-        "sl_top_sales": "top {p}% of the category by sales",
         "trend_note": "Category = the main product category an AI chose for the trend from what it means (complementary "
                       "categories are not counted). Each product is ranked against all products of that category. Top 5 = the "
                       "best matches for the trend in the whole category, any brand. 'Match' = the product description is close "
@@ -335,13 +256,6 @@ L2_STRINGS = {
                  "{brand}'s best product in that category; no product there = Below average. Overall fit = the highest "
                  "level reached by more than half of the trends (that level or better); exactly half does not count, so "
                  "'most trends' always holds.",
-        "m_sales": "(3) sales - after step (2), each product's level is adjusted by its sales on Konvy (units sold x price, "
-                   "compared with the other Konvy products of the same category): the top {s1}% = strong sales, which lifts an "
-                   "Average product to Good; Excellent needs both a top {p1}% match and strong sales, so a top {p1}% match with "
-                   "steady sales or no sales data stays at Good; the bottom {s2}%, or no sales while in stock = slow sales, "
-                   "which lowers the level by one step; otherwise steady sales or missing data change nothing. Sold-out products use "
-                   "review counts instead, because Konvy hides the sold counter when stock runs out. The trend's level is the "
-                   "best adjusted level among {brand}'s products in that category.",
         "m_limits": "A match score shows how closely product text matches the trend description - not sales, quality "
                     "or consumer preference, and it has not yet been validated against human judgement. Gift sets and "
                     "bundles are included in their category. Level 2 categories are broad (for example Skin Care mixes "
@@ -354,18 +268,16 @@ L2_STRINGS = {
         "cp_no_brand_category": "{brand} has no product in {category} - the best matches of the category are shown.",
         "cat_note": "Rank = position among all products of this category, ordered by how well the product description "
                     "matches the trend (1 = best match). 'Match' = the description is close to the trend; not yet verified "
-                    "by people. Levels compare each product with the whole category; sales position = units sold x price "
-                    "compared with the category's products.",
+                    "by people. Levels compare each product with the whole category.",
     },
     "th": {
-        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของหมวด และ {s}% แรกด้านยอดขาย",
-        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าในหมวดเดียวกัน และขายดี",
+        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของหมวด",
+        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าในหมวดเดียวกัน",
         "overall_line": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าในหมวดเดียวกัน",
         "overall_line_below": "{lvb} แค่ {k} จาก {n} เทรนด์ - ส่วนใหญ่ยังไม่มีสินค้าอยู่ใน {p}% แรกของสินค้าในหมวดเดียวกัน",
         "vs_note": "แต่ละคอลัมน์ = 5 อันดับแรกของสินค้าในหมวดของเทรนด์ (# = อันดับในหมวด) · ช่องสีฟ้า = สินค้าของ {brand} · "
                    "แถวล่าง = สินค้าที่ดีที่สุดของ {brand} เมื่อไม่ติด 5 อันดับแรก · ไม่มีสินค้า {brand} ในหมวดนี้ = แถวล่างเป็นสีเทา",
         "pct_row": "ตำแหน่งในหมวด",
-        "sl_top_sales": "{p}% แรกของหมวดด้านยอดขาย",
         "trend_note": "หมวด = หมวดหลักของเทรนด์ที่ AI เลือกจากความหมายของเทรนด์ (ไม่นับหมวดควบคู่) · สินค้าแต่ละชิ้นถูกจัดอันดับเทียบกับ"
                       "สินค้าทั้งหมวด · Top 5 = สินค้าที่ตรงเทรนด์ที่สุดทั้งหมวด ทุกแบรนด์ · ตรงเทรนด์ = คำอธิบายสินค้าใกล้กับเทรนด์ "
                       "ยังไม่ได้ตรวจยืนยันโดยคน",
@@ -376,12 +288,6 @@ L2_STRINGS = {
                  "{p3}% แรก (อันดับ 1 ของหมวดนับเป็น {p1}% แรกเสมอ) ระดับของเทรนด์ = ระดับของสินค้าที่ดีที่สุดของ {brand} ในหมวดนั้น "
                  "ไม่มีสินค้าในหมวดนั้น = Below average ภาพรวมของแบรนด์ = ระดับสูงสุดที่เทรนด์เกินครึ่งทำได้ถึง "
                  "(นับระดับนั้นหรือดีกว่า) ครึ่งพอดีไม่นับ คำว่า \"เทรนด์ส่วนใหญ่\" จึงเป็นจริงเสมอ",
-        "m_sales": "(3) ยอดขาย - หลังขั้น (2) ระดับของสินค้าแต่ละชิ้นถูกปรับตามยอดขายบน Konvy (จำนวนที่ขาย x ราคา เทียบกับสินค้า Konvy "
-                   "อื่นในหมวดเดียวกัน): {s1}% แรก = ขายดี ดึงระดับ Average ขึ้นเป็น Good · "
-                   "Excellent ต้องตรงเทรนด์ {p1}% แรก และขายดี ทั้งสองอย่าง ตรงเทรนด์ {p1}% แรกแต่ขายปานกลางหรือไม่มีข้อมูลยอดขายได้สูงสุด Good · "
-                   "{s2}% ล่างสุด หรือขายได้ 0 ชิ้นทั้งที่มีของ = ขายได้น้อย ลดระดับลง 1 ขั้น · นอกจากนั้นขายปานกลางหรือไม่มีข้อมูลไม่เปลี่ยนระดับ "
-                   "สินค้าที่ของหมดใช้จำนวนรีวิวแทน เพราะ Konvy ซ่อนตัวนับยอดขายเมื่อสต็อกหมด "
-                   "ระดับของเทรนด์ = ระดับที่ดีที่สุดหลังปรับของสินค้า {brand} ในหมวดนั้น",
         "graded_group": "เทียบกับสินค้าในหมวด",
         "m_limits": "คะแนนความตรงเทรนด์วัดว่าข้อความของสินค้าใกล้กับคำอธิบายเทรนด์แค่ไหน ไม่ใช่ยอดขาย คุณภาพ "
                     "หรือความชอบของผู้บริโภค และยังไม่เคยตรวจเทียบกับการตัดสินของคน ชุดของขวัญ/เซ็ตรวมอยู่ในหมวดของตัวเอง "
@@ -393,7 +299,7 @@ L2_STRINGS = {
         "cp_tier_none": "ไม่มีสินค้า {brand} ในหมวดนี้",
         "cp_no_brand_category": "{brand} ยังไม่มีสินค้าในหมวด {category} - แสดงสินค้าที่ตรงเทรนด์ที่สุดของหมวด",
         "cat_note": "อันดับ = ตำแหน่งของสินค้าในสินค้าทั้งหมวด เรียงตามความตรงเทรนด์ (1 = ตรงที่สุด) · ตรงเทรนด์ = คำอธิบายสินค้าใกล้กับ"
-                    "เทรนด์ ยังไม่ได้ตรวจยืนยันโดยคน · ระดับเทียบกับสินค้าทั้งหมวด ตำแหน่งยอดขาย = จำนวนที่ขาย x ราคา เทียบกับสินค้าในหมวด",
+                    "เทรนด์ ยังไม่ได้ตรวจยืนยันโดยคน · ระดับเทียบกับสินค้าทั้งหมวด",
     },
 }
 

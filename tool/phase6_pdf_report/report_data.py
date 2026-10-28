@@ -34,11 +34,14 @@ GROWTH_FILE = "phase2_growth_score_result.json"
 TREND_ANALYSIS_FILE = "phase4_trend_analysis.json"   # 🆕 (2026-10-01) ข้อความวิเคราะห์ต่อเทรนด์จากโมเดลการเติบโต (⑭-⑮) - รอบเก่าไม่มี ใช้ของ ⑦ แทน
 MARKET_FILE = "phase4_market_overview.json"   # 🆕 (2026-10-01) ภาพรวมตลาดจากคะแนนการเติบโต (⑭-⑮) - รอบเก่าไม่มี ใช้ของ ⑦ แทน
 MANIFEST_FILE = "_manifest.json"
-STREAM_FILES = {
-    "Paper": "phase1_paper_stream_result.json",
-    "Social": "phase2_social_stream_result.json",
-    "News": "phase2_news_stream_result.json",
-}
+# 🆕 (2026-10-27) รายชื่อสายที่เดียว (common/streams.py) - รอบใหม่ = สาย Search (Google Trends), รอบเก่า = Paper/Social/News
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.streams import SEARCH_STREAM, STREAM_FILES  # noqa: E402
+from common.evidence_gate import place_phrase, trend_searches  # noqa: E402
+from common.match_quality import match_basis, result_agreement  # noqa: E402
+from search_talk import load_talk, trend_sources  # noqa: E402
+from category_dive import attach_linked_counts, load_dive  # noqa: E402
 
 # ลำดับคอลัมน์ของ master_report ใน phase2_paper_social_z_delta_result.json (แถวเป็น list ไม่มีชื่อคอลัมน์ -
 # ลำดับตรวจกับ trend_final_v2_subset.py แล้ว)
@@ -609,6 +612,12 @@ def _source_documents(run_dir):
             items.sort(key=lambda d: _PLATFORM_ORDER.get(d["platform"], 9))
         if items:
             out[key] = items
+    # 🆕 (2026-10-27) สาย Search: เอกสาร = รายการคำค้นกำลังขึ้น (หมวด x พื้นที่) ของ Google Trends ที่มีคำค้นของเทรนด์ที่คัดไว้
+    search = read_json(run_dir / STREAM_FILES[SEARCH_STREAM]) or {}
+    items = [{"title": d["title"], "url": d.get("link"), "platform": None, "search": False}
+             for d in search.get("documents") or [] if isinstance(d, dict) and d.get("title")][:30]   # เกินนี้หน้า Source list ล้นกล่อง
+    if items:
+        out["rising"] = items
     return out
 
 
@@ -687,7 +696,14 @@ def product_trends(ctx):
     """ctx ที่เหลือเฉพาะเทรนด์ที่มีผลจับคู่สินค้า (ตัดหน้าอธิบายเทรนด์แบบไม่พบสินค้า) และเรียงอันดับ 1.. ใหม่ - ใช้กับรายงานแบรนด์ (⑰)
     ที่เทียบสินค้าของแบรนด์กับสินค้าในตลาด"""
     keep = [t for t in ctx["trends"] if not t.get("no_products")]
-    return {**ctx, "trends": [{**t, "rank": i} for i, t in enumerate(keep, 1)]}
+    numbered = [{**t, "rank": i} for i, t in enumerate(keep, 1)]
+    # 🆕 (2026-10-28) เทรนด์ที่ไม่มีสินค้าที่ใกล้พอ (common/match_quality.py) ไม่ถูกให้เกรดในรายงานแบรนด์ (⑰) - เกรดในหมวดหลักของเทรนด์ที่สินค้าใกล้สุดไม่ได้อยู่ในหมวดนั้น
+    # ไม่สะท้อนเทรนด์ เลขอันดับคงตามรายงานเทรนด์ (⑯) ที่ยังแสดงเทรนด์นั้นอยู่ (เลขจึงข้ามได้) - รายชื่อเก็บไว้ใน ctx["no_close_trends"] ให้รายงานแบรนด์บอกว่าไม่ได้ให้เกรด
+    graded = [t for t in numbered if not t.get("no_close_product")]
+    no_close = [{"rank": t["rank"], "name": t["name"], "display_name": t.get("display_name") or t["name"],
+                 "category": (t.get("category_agreement") or {}).get("category")}
+                for t in numbered if t.get("no_close_product")]
+    return {**ctx, "trends": graded, "no_close_trends": no_close}
 
 
 def _data_sources(run_dir, matches, growth, catalog_path, has_categories):
@@ -719,6 +735,11 @@ def _data_sources(run_dir, matches, growth, catalog_path, has_categories):
     if news_src:
         out["news"] = news_src
 
+    # 🆕 (2026-10-27) สาย Search (Google Trends คำค้นกำลังขึ้นรายหมวด) - ตัวเลขจาก search_meta ที่ search_stream.py บันทึก
+    rising = (read_json(run_dir / STREAM_FILES[SEARCH_STREAM]) or {}).get("search_meta") or {}
+    if rising.get("n_queries"):
+        out["rising"] = {k: rising.get(k) for k in ("n_lists", "n_categories", "places", "n_queries", "n_trends")}
+
     keywords = {k.get("keyword") for k in (growth or {}).get("keywords") or [] if isinstance(k, dict) and k.get("keyword")}
     if keywords:
         out["search"] = {"n_keywords": len(keywords)}
@@ -740,6 +761,11 @@ def _stepic_tiles(raw):
     # creativity_analysis / industry บางรอบแบน (run_stepic_report.normalize_stepic_raw แปลงเป็นแบบแบนแล้ว) - อ่านได้ทั้งสองแบบ
     # 🆕 (2026-10-26) ห่อ "trend_analysis" (รอบ 111455 ก่อนแก้ที่ต้นทาง) แกะด้วย common/stepic_shape ก่อน - ได้ครบ 6 ช่อง
     raw = {**raw, **{dim: fields for dim, fields in normalize_stepic(raw).items() if fields}}
+    # 🆕 (2026-10-27) รอบสาย Search: มิติที่คำค้นไม่ยืนยัน = status "no_evidence" -> ช่อง "No data" แสดงเป็นป้ายตายตัว ไม่ใช่เนื้อหา
+    no_evidence = {dim for dim in ("society", "technology", "environment", "policy", "industry", "creativity")
+                   if isinstance(raw.get(dim), dict) and raw[dim].get("status") == "no_evidence"}
+    raw = {k: ({f: ("" if str(x).strip().lower() == "no data" else x) for f, x in v.items()} if isinstance(v, dict) else v)
+           for k, v in raw.items()}
 
     def flat(dim, inner):
         d = raw.get(dim) or {}
@@ -760,6 +786,10 @@ def _stepic_tiles(raw):
     ]
     tiles = []
     for dim, head_src, body_srcs in spec:
+        if dim.lower() in no_evidence:
+            tiles.append({"dimension": dim, "headline": "No data", "body": "The rising searches in this run say nothing about this force.",
+                          "no_data": True})
+            continue
         if not head_src and not any(body_srcs):
             continue
         headline, rest = split_headline(head_src or "")
@@ -933,16 +963,32 @@ def build_context(run_dir, catalog_path=None, top_products=5):
             "longevity_band": (row.get("Longevity Band") or "").replace("_", " "),
             # ธงจาก ⑤ (ยกหลักฐานได้ ≤ 2 จาก 5 มิติ) - คะแนน ~50 ของแถวแบบนี้แปลว่า "ไม่รู้" ไม่ใช่ "กลางๆ"
             "longevity_insufficient": bool(row.get("Longevity Insufficient Evidence")),
-            "target": row.get("Target") or "",
-            "key_ingredients": row.get("Key Ingredients") or "",
-            "key_benefits": row.get("Key Benefits") or "",
+            # 🆕 (2026-10-27) เทรนด์ของสาย Search: กลุ่มเป้าหมาย = ข้อความตายตัวจากพื้นที่ที่คำค้นขึ้น และไม่ส่งส่วนผสม/ประโยชน์ที่ LLM เขียนไว้ในสาย
+            # (การตีความ ไม่ใช่หลักฐาน) เข้าข้อความต่อเทรนด์ - ใช้คำค้นจริงแทน (rising_searches) ดู enrich.build_input
+            "target": (f"People who search for this in {place_phrase(row.get('Places'))}" if row.get("Places") else "")
+                      if stream == SEARCH_STREAM else row.get("Target") or "",
+            "key_ingredients": "" if stream == SEARCH_STREAM else row.get("Key Ingredients") or "",
+            "key_benefits": "" if stream == SEARCH_STREAM else row.get("Key Benefits") or "",
+            "rising_searches": trend_searches(row, 12) if stream == SEARCH_STREAM else [],
+            # 🆕 (2026-10-28) กล่อง "คนกำลังค้นหาอะไร" ของหน้าเทรนด์ (trend_talk.py): คำค้นจริงของเทรนด์ (สูงสุด 20) - ไม่รวมกับ rising_searches เพื่อไม่ให้ hash ของข้อความต่อเทรนด์เปลี่ยน
+            "talk_searches": trend_searches(row, 20) if stream == SEARCH_STREAM else [],
+            # 🆕 (2026-10-27) สาย Search: พื้นที่ที่คำค้นของเทรนด์กำลังขึ้น (รหัส geo) + ทางโยงเครื่องสำอาง (id 1-7) แทนกล่องแหล่งที่ยืนยัน/ความทนทาน
+            "places": row.get("Places") or [],
+            "link_paths": row.get("Link Path Ids") or [],
             "analysis": analysis_by_name.get(name, {}),
             "profile": {k: v for k, v in profiles.get((stream, name), {}).items() if k not in ("stream", "trend")},
+            # 🆕 (2026-10-28) ฐานข้อความจับคู่สินค้า: need = ความต้องการความงามที่ AI อนุมานจากคำค้น (ใช้เป็นหลัก - ติดป้ายในหน้าเทรนด์/หน้าสินค้า) / evidence = จากคำค้นอย่างเดียว
+            "match_basis": match_basis(profiles.get((stream, name), {})),
+            "beauty_need": (profiles.get((stream, name), {}).get("beauty_need")
+                            if match_basis(profiles.get((stream, name), {})) == "need" else None),
             "products": _products(match_results.get(key), catalog, top_products),
             "categories": _categories(match_results.get(key), catalog),
             "similarity_stats": (match_results.get(key) or {}).get("similarity_stats") or {},
             "n_products_compared": (match_results.get(key) or {}).get("n_products_compared"),
+            # 🆕 (2026-10-28) สินค้า 5 อันดับแรกของทั้งร้านอยู่ในหมวดหลักน้อยกว่า 2 ชิ้น = ไม่แสดงสินค้า บอกว่าไม่มีสินค้าที่ใกล้พอ (common/match_quality.py)
+            "category_agreement": result_agreement(match_results.get(key)),
         })
+        trends[-1]["no_close_product"] = bool(trends[-1]["category_agreement"]) and not trends[-1]["category_agreement"]["ok"]
 
     # 🆕 (2026-10-21) แผนที่ตลาดระดับหมวด L2 (⑫ --l2-map-only): หน้าสินค้าของเทรนด์เทียบ "ความใกล้เทรนด์ x ยอดขาย" ทั้งหมวดหลัก (l2_map.py)
     # รอบที่ยังไม่มีไฟล์แผนที่ = t["l2"] เป็น None แล้วเทมเพลตใช้หน้าสินค้าแบบเดิม (ชนิดสินค้า x ช่วงราคา)
@@ -952,7 +998,8 @@ def build_context(run_dir, catalog_path=None, top_products=5):
     l2_data = load_l2_map(run_dir)
     l2_cfg = load_brand_config(L2_CONFIG_FILE)
     for t in trends:
-        cat, prods = l2_products(l2_data, t["key"], t["name"]) if l2_data and not t["no_products"] else (None, [])
+        cat, prods = (l2_products(l2_data, t["key"], t["name"]) if l2_data and not t["no_products"] and not t["no_close_product"]
+                      else (None, []))
         t["l2"] = {"category": cat, **l2_grid(prods, l2_cfg, lambda m: _product(m, catalog))} if prods else None
 
     excluded = []
@@ -982,13 +1029,30 @@ def build_context(run_dir, catalog_path=None, top_products=5):
         t["growth"]["forecast_cagr"] = [cagr_pct(v, i + 1) for i, v in enumerate(t["growth"]["forecast_pct"])]
     periods = (growth_pages or {}).get("periods") or {}
 
-    paper = read_json(run_dir / STREAM_FILES["Paper"]) or {}
+    paper = read_json(run_dir / STREAM_FILES["Paper"]) or read_json(run_dir / STREAM_FILES[SEARCH_STREAM]) or {}
     topic = paper.get("topic") or next((v.get("topic") for v in manifest.values()
                                         if isinstance(v, dict) and v.get("topic")), "") or run_dir.name
     years = next((v.get("years") for v in manifest.values() if isinstance(v, dict) and v.get("years")), "")
     run_date = _run_date(run_dir, manifest)
     stepic_final = stepic_final or {}
 
+    # 🆕 (2026-10-28) รอบสาย Search: หน้า "คนกำลังค้นหาอะไรมากขึ้น" (search_talk.py) แทนหน้า persona - คำค้นบอกแค่ว่าใครค้นอะไรที่ไหน ไม่บอกว่าให้คุณค่ากับอะไรหรือซื้อช่องทางไหน
+    # จึงไม่แสดง persona ในรอบนี้ (หน้า persona + คอลัมน์ persona ในตารางแรงขับ) - รอบ 3 สายเดิมยังมี
+    search_run = (run_dir / STREAM_FILES[SEARCH_STREAM]).exists()
+    talk = (load_talk(run_dir, [{"name": t["name"], "display_name": t.get("display_name"), "rank": t["rank"]} for t in trends])
+            if search_run else None)
+    if talk:
+        talk["places_text"] = place_phrase(talk["places"])
+    # 🆕 (2026-10-28) ส่วนที่ 2 "เจาะรายหมวดของ Google" (category_dive.py): หัวข้อย่อยต่อหมวด + ผลโยงความงามของ ① - ประโยคอธิบายเติมทีหลังที่ build_pdf_report.enrich
+    dive = (load_dive(run_dir, [{"name": t["name"], "display_name": t.get("display_name"), "rank": t["rank"]} for t in trends])
+            if search_run else None)
+    if dive:
+        dive["places_text"] = place_phrase(dive["places"])
+        attach_linked_counts(talk, dive)   # คอลัมน์ "หัวข้อที่โยงถึงความงาม" ในหน้า Search Talk
+    if search_run:   # จำนวนคำค้น + หมวดของ Google ต่อเทรนด์ (กล่อง "คนกำลังค้นหาอะไร")
+        sources_of = trend_sources(run_dir, [t["name"] for t in trends])
+        for t in trends:
+            t["talk_sources"] = sources_of.get(t["name"])
     context = {
         "meta": {
             "run_id": run_dir.name,
@@ -1011,6 +1075,8 @@ def build_context(run_dir, catalog_path=None, top_products=5):
             "models_used": _models_used(manifest),
             "sources": _data_sources(run_dir, matches, growth, catalog_path, any(t["categories"] for t in trends)),
             "source_docs": _source_documents(run_dir),
+            # 🆕 (2026-10-27) รอบที่ใช้สาย Search (Google Trends) แทน 3 สายเดิม - เทมเพลตสลับกล่องที่ใช้กับ 3 สายเท่านั้น
+            "search_stream": (run_dir / STREAM_FILES[SEARCH_STREAM]).exists(),
         },
         "overview": {
             "market": market_without_trends(
@@ -1026,7 +1092,9 @@ def build_context(run_dir, catalog_path=None, top_products=5):
             "key_risk": stepic_final.get("key_risk", ""),
         },
         "stepic": _stepic_tiles(stepic_raw),
-        "personas": _personas(stepic_final.get("emerging_personas")),
+        "personas": [] if search_run else _personas(stepic_final.get("emerging_personas")),
+        "talk": talk,
+        "dive": dive,
         "signals": _signals(stepic_final.get("cross_dimensional_signals")),
         "trends": trends,
         "growth": growth_pages,

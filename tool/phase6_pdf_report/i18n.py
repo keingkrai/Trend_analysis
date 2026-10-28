@@ -41,6 +41,9 @@ STRINGS = {
                          "were selected from {total} candidate trends identified in scientific publications, "
                          "consumer conversations and industry news, then forecast with worldwide Google Trends "
                          "data{end}.",
+        "briefing_search_text": "The top {n} trends in {topic} are forecast to grow faster than the market in year @S@. They "
+                                "were selected from {total} candidate trends built from Google's rising searches, then forecast "
+                                "with worldwide Google Trends data{end}.",
         "briefing_total_na": "the",
         "briefing_end": " to {end}",
         "top_insights": "Top Insights",
@@ -71,6 +74,28 @@ STRINGS = {
         "dr_intro": "Which of the six macro forces drive each trend, and which emerging consumer personas it serves.",
         "dr_forces": "Macro forces (STEPIC)",
         "dr_personas": "Emerging personas",
+        "dr_header_forces": "Trend Drivers | Macro Forces",
+        "dr_intro_forces": "Which of the macro forces with evidence in the searches sit behind each trend.",
+        "trend_talk_title": "What people are searching",
+        "trend_talk_sub": "{n} rising searches in {cats}",
+        "trend_talk_examples": "Example searches",
+        "talk_header": "What People Are Searching For",
+        "talk_intro": "Searches that rose on Google over the last 12 months ({places}), grouped by Google's own categories. "
+                      "This shows what is rising, not what is searched most.",
+        "talk_chart": "Rising searches by Google category",
+        "talk_stat_searches": "Rising searches",
+        "talk_stat_categories": "Google categories",
+        "talk_stat_fed": "Behind this report's trends",
+        "talk_stat_fed_sub": "{pct}% of all",
+        "talk_leg_th": "Thailand only",
+        "talk_leg_ww": "Worldwide only",
+        "talk_leg_both": "Both",
+        "talk_leg_fed": "Behind this report's trends",
+        "talk_funnel": "An AI link check connected {check} of these searches to beauty and personal care. They were grouped into {built} trends; "
+                       "this report covers the {shown} that sit above the market median and have matching products at Konvy.",
+        "talk_take": "{a} ({na}) and {b} ({nb}) hold the most searches behind this report's trends. {z} of the {k} categories hold none.",
+        "talk_take_one": "{a} ({na}) holds the most searches behind this report's trends. {z} of the {k} categories hold none.",
+        "talk_caveat": "Counts are entries on Google's rising lists, not search volume. A search can appear in more than one category.",
         "dr_main": "Main link",
         "dr_some": "Supporting link",
         "dr_none": "No clear link in the evidence",
@@ -176,12 +201,15 @@ STRINGS = {
         "value_driver": "Value driver",
         "preferred_channels": "Preferred channels",
         "signals_header": "Cross-Dimensional Signals & Outlook",
+        "mf_header": "Macro Forces & Trend Drivers",
+        "mf_intro": "The macro forces that the rising searches support, the trends behind each one, and the signals that cut across them.",
+        "mf_none": "No evidence in this run's searches for: {names}.",
+        "mf_signals": "Signals & outlook",
         "next_3_months": "NEXT 3 MONTHS",
         "consumer_insights": "Consumer Insights",
         "divider_sub": "Top {n} Trends & Overlooked Opportunities",
         "divider_text": "Each trend is presented on two pages. The first shows the trend with its "
-                        "short-term and long-term signals, its search-interest forecast and a workshop "
-                        "question that frames the opportunity for your brand. The second shows the products"
+                        "short-term and long-term signals and its search-interest forecast. The second shows the products"
                         " currently listed at Konvy that best match the trend. Trends are ordered by "
                         "expected search growth in year @S@.",
         "short_term": "Short term",
@@ -206,12 +234,21 @@ STRINGS = {
                      "(year 1 is the same for both)",
         "kpi_sources": "Sources confirming",
         "of_3": "of 3",
+        # 🆕 (2026-10-27) รอบที่ใช้สาย Search (Google Trends) แทน 3 สายเดิม
+        "kpi_places": "Rising in",
+        "places_def": "Where this trend's searches are on Google's rising-searches lists (TH = Thailand, WW = worldwide), "
+                      "and the link path from those searches to a beauty need.",
+        "link_path_1": "Direct beauty", "link_path_2": "Environment", "link_path_3": "Body & health",
+        "link_path_4": "Occasions", "link_path_5": "Activities", "link_path_6": "Cross-category ingredient",
+        "link_path_7": "Culture & looks",
+        "stepic_no_data": "No data",
+        "stepic_no_data_body": "The rising searches in this run say nothing about this force.",
+        "mo_rising": "Rising searches",
+        "mo_rising_sub": "across {c} Google categories",
         "target_consumer": "Target consumer",
         "tracked_keywords": "Tracked search keywords",
         "months_with_data": "search data in {pct}% of months",
         "rank_score": "Year @S@: expected to rise more than {v}% of market keywords",
-        "overlooked": "Overlooked Opportunity {n}",
-        "workshop_question": "Workshop Question",
         "evidence_sub": "Market evidence - examples of products at Konvy that best match this trend",
         "no_products": "No product-matching results for this trend in this run.",
         "np_sub": "Market evidence",
@@ -220,6 +257,13 @@ STRINGS = {
                       "at Konvy could be matched to it. The trend itself is explained on the previous page.",
         "np_no_data": "The information behind this trend is too thin to describe a product, so no products at Konvy "
                       "could be matched to it. The trend itself is explained on the previous page.",
+        "ncp_title": "No close product in the market",
+        "ncp_body": "The products at Konvy that are closest to this trend are mostly not in {category}, the trend's main category "
+                    "(only {k} of the {n} closest products are). Ranking products inside {category} would not show how well "
+                    "they fit this trend, so no products are shown. The trend itself is explained on the previous page.",
+        "ncp_body_none": "The products at Konvy that are closest to this trend are not in {category}, the trend's main category "
+                         "(none of the {n} closest products are). Ranking products inside {category} would not show how well "
+                         "they fit this trend, so no products are shown. The trend itself is explained on the previous page.",
         "evidence_note": "Products are ranked by how well each product's description matches the trend{stats}. These are "
                          "the best matches that exist today - not confirmed to deliver the trend.",
         "evidence_stats": " (this trend: best {best}, average {mean} across {n} products)",
@@ -270,6 +314,14 @@ STRINGS = {
                     "in the source. Statements are grouped into trend candidates by graph clustering (Louvain, 20-run "
                     "consensus){total}.",
         "method_1_total": " - {n} candidates in this run",
+        # 🆕 (2026-10-27) รอบที่ใช้สาย Search (Google Trends คำค้นกำลังขึ้น) - แทนข้อความของ 3 สายเดิม
+        "method_1_search": "Evidence comes from Google's own lists of rising searches: in each of the {c} Google Trends categories, "
+                           "the searches that grew fastest over the last 12 months in these places (country codes, WW = worldwide): "
+                           "{places}. An AI model groups each category's searches into themes and links a theme to beauty and "
+                           "personal care only when one of the theme's own example searches shows the link (7 fixed link paths). "
+                           "Themes are ranked by how many places they rise in, whether Thailand is one of them and how many searches "
+                           "they hold; an AI model then merges themes that describe the same need and writes each trend's profile "
+                           "from the searches alone{total}.",
         "method_2_title": "2. Search-interest forecast",
         "method_2": "Each trend's search keywords are tracked monthly in worldwide Google Trends (no category filter). Expected growth for years 1 to 5 = average search interest expected in that year ÷ the last 12 months, from a random-forest model trained on the past growth of all keywords (its inputs include last year's growth, growth against the same months a year earlier, recent momentum, distance from peak and volatility), and a trend's score is the percentile of its expected growth (the average of its keywords) among all keywords in the run. Back-tests 2016-2022 on two data sets: rankings agreed with actual growth at Spearman about 0.52 (year 1), 0.45 (year 3) and 0.40 (year 5); a trend's expected level was off by a median 6% (year 1), 12% (year 3) and 20% (year 5), and the shaded range in the charts held 80% of outcomes. The dashed monthly line spreads each yearly level over the trend's seasonal pattern from the four years before August 2025. Last year's growth is not ranked on its own for now: the unfiltered Google Trends series jumps for every keyword from August 2025, which inflates it.",
         "method_3_title": "3. Ranking and selection",
@@ -282,6 +334,12 @@ STRINGS = {
         "method_3_np": ", {k} of them sales-channel or shopping-behaviour trends with no product attributes, so "
                        "their second page explains that no matching products were found.",
         "method_3_np_none": ".",
+        "method_3_search": "Trends are ranked by expected search growth in year @S@, the short term (0.5 = market median). The market "
+                           "here is the keywords of this run's own trends, so the median is a median among rising topics. Detail "
+                           "pages cover only the trends above the market median ({n} in this report){np_note} Trends below the "
+                           "median appear only in the overview tables and charts. The Market Overview figures are the median of "
+                           "all trends (half of the trends are above, half below). Rising searches show what people look up more "
+                           "than before, not what they buy, and festival themes tend to rise every year.",
         "method_4_title": "4. Product matching",
         "method_4": "Each trend's profile (benefits, job-to-be-done, point of difference) is turned into numbers that "
                     "capture its meaning (a text embedding) and compared with the descriptions of {n} Konvy products "
@@ -307,35 +365,27 @@ STRINGS = {
                           "products each; the largest is split by product type when fewer than four qualify) are shown by "
                           "price tier - low, mid and high thirds of that category's prices in the store - with the best "
                           "match in each tier.",
-        # 🆕 (2026-10-21) หน้าสินค้าของเทรนด์ = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 (l2_map.py)
-        "l2_sub": "Market evidence - how the {n} {category} products at Konvy match this trend, and how well they sell",
-        "l2_corner_y": "Sales on Konvy ↓", "l2_corner_x": "Match with the trend →",
+        # 🆕 (2026-10-27) หน้าสินค้าของเทรนด์ = ความใกล้เทรนด์ระดับหมวด L2 แถวเดียว 4 ระดับ (l2_map.py) - ตัดยอดขายออกแล้ว
+        "bn_title": "Beauty need",
+        "l2_basis": "Products are matched to the beauty need an AI inferred from this trend's searches ({kw}) together with what the searches say - not to the searches alone.",
+        "method_4_need": "For trends from searches, the text compared with products starts from the beauty need an AI inferred from the searches (product types and benefits), "
+                         "followed by what the searches show. Each trend page marks this.",
+        "l2_sub": "Market evidence - how closely the {n} {category} products at Konvy match this trend",
         "l2_lv_excellent": "Excellent", "l2_lv_good": "Good", "l2_lv_average": "Average", "l2_lv_below_average": "Below average",
         "l2_x_first": "top {p}% of the category", "l2_x_mid": "{a}-{b}% of the category", "l2_x_last": "beyond {p}%",
-        "l2_y_strong": "Strong sales", "l2_y_strong_sub": "top {p}%", "l2_y_steady": "Steady sales", "l2_y_steady_sub": "middle",
-        "l2_y_slow": "Slow sales", "l2_y_slow_sub": "bottom {p}%",
         "l2_empty": "no products",
         "l2_card_match": "Match #{rank}",
-        "l2_sales_top": "Sales top {p}%", "l2_sold": "{n} sold", "l2_soldout": "Sold out", "l2_reviews": "{n} reviews",
-        "l2_review1": "1 review", "l2_zero": "No sales while in stock",
-        "l2_take": "Among the closest matches (top {p}% of the category), {s}% sell strongly and {l}% sell slowly; across all "
-                   "{category} products it is {sa}% and {la}%.",
-        "l2_note": "Each product of {category} (the trend's main category) is placed by how close its description is to the trend "
-                   "(columns = position among the category's {total} products). Rows = its Konvy sales compared with the other "
-                   "{category} products (units sold x price; sold-out items use reviews). The product shown = the closest match in "
-                   "that cell; products with no sales data are left out. Shading = grade after sales lift or lower a product one "
-                   "step (strong sales lift an Average product to Good; Excellent needs a top-{p1}% match and strong sales; "
-                   "slow sales lower one step).",
+        "l2_take": "Close matches (top {p}% of the category): {k} of the {total} {category} products.",
+        "l2_note": "Each product of {category} (the trend's main category) is ranked by how close its description is to the trend; "
+                   "the four levels are positions among the category's {total} products (top {p1}% = Excellent). The product shown = "
+                   "the closest match in that level.",
         "method_4_l2": "Each trend's profile (benefits, job-to-be-done, point of difference) is turned into numbers that "
                        "capture its meaning (a text embedding) and compared with the descriptions of {n} Konvy products "
                        "- the closer the meaning, the better the match. An AI then chooses the one main category "
                        "(Euromonitor Level 2) the trend belongs to, from the trend's meaning and the categories of the "
                        "best matches; complementary categories are not counted. Every product of that category is placed by "
-                       "how close it is to the trend (top {p1}%, {p1}-{p2}%, {p2}-{p3}% of the category, then the rest) and by "
-                       "its Konvy sales compared with the other products of the category (the top {s1}% = strong sales, the "
-                       "bottom {s2}% or no sales while in stock = slow sales; sold-out products use review counts). The "
-                       "closest match in each cell is shown. Sales are lifetime Konvy sales (units x today's price), an "
-                       "estimate and not company sales.",
+                       "how close it is to the trend (top {p1}%, {p1}-{p2}%, {p2}-{p3}% of the category, then the rest). "
+                       "The closest match in each level is shown.",
         "notes_header": "Appendix | Notes & Data",
         "run_details": "Run details",
         "topic": "Topic",
@@ -368,6 +418,9 @@ STRINGS = {
         "data_src_news_th": "{n} Thai {articles} used",
         "data_src_article_one": "article",
         "data_src_article_many": "articles",
+        # 🆕 (2026-10-27) สาย Search: รายการคำค้นที่กำลังขึ้นรายหมวดของ Google Trends (แทน 3 สายเดิมในรอบใหม่)
+        "data_src_rising": "Rising searches",
+        "data_src_rising_text": "{n} rising Google searches from {lists} category lists ({places}) - {k} trends picked",
         "data_src_search_text": "Google Trends, worldwide, monthly - {n} keywords",
         "data_src_search_asof": "data up to {month}",
         "data_src_products_text": "Konvy - {n} beauty and personal care products",
@@ -421,6 +474,9 @@ STRINGS = {
         "briefing_text": "{n} เทรนด์อันดับต้นในหมวด {topic} (คาดว่าโตสูงกว่าระดับตลาดในปีที่ @S@) คัดจากเทรนด์ตั้งต้น "
                          "{total} เทรนด์ที่พบในงานวิจัย บทสนทนาของผู้บริโภค และข่าวอุตสาหกรรม "
                          "แล้วพยากรณ์ด้วยข้อมูล Google Trends ทั่วโลก{end}",
+        "briefing_search_text": "{n} เทรนด์อันดับต้นในหมวด {topic} (คาดว่าโตสูงกว่าระดับตลาดในปีที่ @S@) คัดจากเทรนด์ตั้งต้น "
+                                "{total} เทรนด์ที่สร้างจากคำค้นที่กำลังขึ้นของ Google "
+                                "แล้วพยากรณ์ด้วยข้อมูล Google Trends ทั่วโลก{end}",
         "briefing_total_na": "ทั้งหมด",
         "briefing_end": " ถึง {end}",
         "top_insights": "อินไซต์หลัก",
@@ -451,6 +507,28 @@ STRINGS = {
         "dr_intro": "แรงขับมหภาค 6 ด้านข้อใดขับเคลื่อนแต่ละเทรนด์ และเทรนด์นั้นตอบกลุ่มผู้บริโภคที่กำลังเกิดขึ้นกลุ่มไหน",
         "dr_forces": "แรงขับมหภาค (STEPIC)",
         "dr_personas": "กลุ่มผู้บริโภคที่กำลังเกิดขึ้น",
+        "dr_header_forces": "แรงขับของเทรนด์ | แรงขับมหภาค",
+        "dr_intro_forces": "แรงขับมหภาคที่คำค้นยืนยัน ด้านไหนอยู่เบื้องหลังแต่ละเทรนด์",
+        "trend_talk_title": "คนกำลังค้นหาอะไร",
+        "trend_talk_sub": "{n} คำค้นที่กำลังขึ้นในหมวด {cats}",
+        "trend_talk_examples": "ตัวอย่างคำค้น",
+        "talk_header": "คนกำลังค้นหาอะไรมากขึ้น",
+        "talk_intro": "คำค้นที่กำลังขึ้นบน Google ในรอบ 12 เดือนล่าสุด ({places}) จัดตามหมวดของ Google เอง "
+                      "แสดงสิ่งที่กำลังขึ้น ไม่ใช่สิ่งที่ถูกค้นมากที่สุด",
+        "talk_chart": "คำค้นที่กำลังขึ้นแยกตามหมวดของ Google",
+        "talk_stat_searches": "คำค้นที่กำลังขึ้น",
+        "talk_stat_categories": "หมวดของ Google",
+        "talk_stat_fed": "เป็นที่มาของเทรนด์ในรายงาน",
+        "talk_stat_fed_sub": "{pct}% ของทั้งหมด",
+        "talk_leg_th": "เฉพาะไทย",
+        "talk_leg_ww": "เฉพาะทั่วโลก",
+        "talk_leg_both": "ทั้งสองพื้นที่",
+        "talk_leg_fed": "เป็นที่มาของเทรนด์ในรายงาน",
+        "talk_funnel": "ขั้นตรวจโยงด้วย AI โยงคำค้นเหล่านี้ {check} คำเข้ากับความงามและการดูแลตัวเอง จัดเป็น {built} เทรนด์ "
+                       "รายงานนี้แสดง {shown} เทรนด์ที่คาดว่าโตเหนือค่ากลางตลาดและมีสินค้าบน Konvy ตรงกับเทรนด์",
+        "talk_take": "{a} ({na}) และ {b} ({nb}) มีคำค้นที่เป็นที่มาของเทรนด์ในรายงานมากที่สุด จาก {k} หมวด มี {z} หมวดที่ไม่มีเลย",
+        "talk_take_one": "{a} ({na}) มีคำค้นที่เป็นที่มาของเทรนด์ในรายงานมากที่สุด จาก {k} หมวด มี {z} หมวดที่ไม่มีเลย",
+        "talk_caveat": "ตัวเลขนับรายการในรายการ \"กำลังขึ้น\" ของ Google ไม่ใช่ปริมาณการค้นหา คำค้นหนึ่งอาจอยู่ได้หลายหมวด",
         "dr_main": "เชื่อมโยงหลัก",
         "dr_some": "เกี่ยวข้อง",
         "dr_none": "ไม่พบความเชื่อมโยงในข้อมูล",
@@ -549,11 +627,15 @@ STRINGS = {
         "value_driver": "สิ่งที่ให้คุณค่า",
         "preferred_channels": "ช่องทางที่ใช้",
         "signals_header": "สัญญาณข้ามมิติและแนวโน้มข้างหน้า",
+        "mf_header": "แรงขับมหภาคและแรงขับของเทรนด์",
+        "mf_intro": "แรงขับมหภาคที่คำค้นที่กำลังขึ้นยืนยัน เทรนด์ที่อยู่เบื้องหลังแต่ละแรงขับ และสัญญาณที่ตัดข้ามแรงขับ",
+        "mf_none": "คำค้นรอบนี้ไม่มีหลักฐานเกี่ยวกับ: {names}",
+        "mf_signals": "สัญญาณและแนวโน้ม",
         "next_3_months": "3 เดือนข้างหน้า",
         "consumer_insights": "อินไซต์ผู้บริโภค",
         "divider_sub": "{n} เทรนด์อันดับต้นและโอกาสที่ถูกมองข้าม",
         "divider_text": "แต่ละเทรนด์มี 2 หน้า: เทรนด์พร้อมสัญญาณระยะสั้นและระยะยาว กราฟพยากรณ์ความสนใจการค้นหา "
-                        "และคำถามเวิร์กช็อปที่ชี้โอกาสให้แบรนด์ของคุณ และสินค้าบน Konvy ที่ตรงกับเทรนด์ที่สุด "
+                        "และสินค้าบน Konvy ที่ตรงกับเทรนด์ที่สุด "
                         "เทรนด์เรียงตามการเติบโตของการค้นหาที่คาดในปีที่ @S@",
         "short_term": "ระยะสั้น",
         "long_term": "ระยะยาว",
@@ -576,12 +658,20 @@ STRINGS = {
                      "(ปีที่ 1 เท่ากันทั้งสองค่า)",
         "kpi_sources": "แหล่งที่ยืนยัน",
         "of_3": "จาก 3",
+        "kpi_places": "คำค้นขึ้นใน",
+        "places_def": "พื้นที่ที่คำค้นของเทรนด์นี้อยู่ในรายการคำค้นที่กำลังขึ้นของ Google (TH = ไทย, WW = ทั่วโลก) "
+                      "และทางที่คำค้นเหล่านั้นโยงไปหาความต้องการด้านความงาม",
+        "link_path_1": "ความงามตรงๆ", "link_path_2": "สภาพแวดล้อม", "link_path_3": "ร่างกายและสุขภาพ",
+        "link_path_4": "โอกาสและเทศกาล", "link_path_5": "กิจกรรมและไลฟ์สไตล์", "link_path_6": "ส่วนผสมข้ามหมวด",
+        "link_path_7": "วัฒนธรรมและลุค",
+        "stepic_no_data": "ไม่มีข้อมูล",
+        "stepic_no_data_body": "คำค้นที่กำลังขึ้นในรอบนี้ไม่ได้บอกอะไรเกี่ยวกับด้านนี้",
+        "mo_rising": "คำค้นที่กำลังขึ้น",
+        "mo_rising_sub": "จาก {c} หมวดของ Google",
         "target_consumer": "กลุ่มเป้าหมาย",
         "tracked_keywords": "คีย์เวิร์ดค้นหาที่ติดตาม",
         "months_with_data": "มีข้อมูลการค้นหา {pct}% ของเดือน",
         "rank_score": "ปีที่ @S@: คาดว่ายอดค้นหาเพิ่มมากกว่า {v}% ของคีย์เวิร์ดในตลาด",
-        "overlooked": "โอกาสที่ถูกมองข้าม {n}",
-        "workshop_question": "คำถามเวิร์กช็อป",
         "evidence_sub": "หลักฐานในตลาด - ตัวอย่างสินค้าบน Konvy ที่ตรงกับเทรนด์นี้ที่สุด",
         "no_products": "รอบนี้ไม่มีผลจับคู่สินค้าสำหรับเทรนด์นี้",
         "np_sub": "หลักฐานในตลาด",
@@ -590,6 +680,13 @@ STRINGS = {
                       "คำอธิบายเทรนด์อยู่ในหน้าก่อนหน้า",
         "np_no_data": "ข้อมูลของเทรนด์นี้ไม่พอจะระบุคุณสมบัติสินค้า จึงไม่พบสินค้าบน Konvy ที่ตรงกับเทรนด์นี้ "
                       "คำอธิบายเทรนด์อยู่ในหน้าก่อนหน้า",
+        "ncp_title": "ไม่มีสินค้าที่ใกล้เทรนด์พอในตลาด",
+        "ncp_body": "สินค้าบน Konvy ที่ใกล้เทรนด์นี้ที่สุดส่วนใหญ่ไม่อยู่ในหมวด {category} ซึ่งเป็นหมวดหลักของเทรนด์ "
+                    "(อยู่ในหมวดนี้แค่ {k} จาก {n} ชิ้นที่ใกล้ที่สุด) การจัดอันดับสินค้าในหมวด {category} จึงบอกไม่ได้ว่าสินค้าตรงกับเทรนด์แค่ไหน "
+                    "จึงไม่แสดงสินค้า คำอธิบายเทรนด์อยู่ในหน้าก่อนหน้า",
+        "ncp_body_none": "สินค้าบน Konvy ที่ใกล้เทรนด์นี้ที่สุดไม่อยู่ในหมวด {category} ซึ่งเป็นหมวดหลักของเทรนด์เลย "
+                         "(ไม่มีสักชิ้นใน {n} ชิ้นที่ใกล้ที่สุด) การจัดอันดับสินค้าในหมวด {category} จึงบอกไม่ได้ว่าสินค้าตรงกับเทรนด์แค่ไหน "
+                         "จึงไม่แสดงสินค้า คำอธิบายเทรนด์อยู่ในหน้าก่อนหน้า",
         "evidence_note": "เรียงสินค้าตามว่าคำอธิบายสินค้าตรงกับเทรนด์แค่ไหน{stats} เป็นสินค้าที่ตรงที่สุดที่มีอยู่ตอนนี้ "
                          "ไม่ใช่สินค้าที่ยืนยันแล้วว่าตอบเทรนด์",
         "evidence_stats": " (เทรนด์นี้: สูงสุด {best} เฉลี่ย {mean} จากสินค้า {n} รายการ)",
@@ -634,6 +731,12 @@ STRINGS = {
                     "และเก็บไว้เฉพาะข้อความที่พบประโยคหลักฐานตรงตัวในเอกสารต้นทาง "
                     "จากนั้นจัดกลุ่มเป็นเทรนด์ตั้งต้นด้วยการจัดกลุ่มกราฟ (Louvain โหวต 20 รอบ){total}",
         "method_1_total": " - รอบนี้ได้ {n} เทรนด์ตั้งต้น",
+        "method_1_search": "หลักฐานมาจากรายการคำค้นที่กำลังขึ้นของ Google เอง: ในแต่ละหมวดของ Google Trends ({c} หมวด) "
+                           "ใช้คำค้นที่โตเร็วที่สุดในรอบ 12 เดือนที่ผ่านมา จากพื้นที่เหล่านี้ (รหัสประเทศ, WW = ทั่วโลก): {places} "
+                           "โมเดล AI จัดคำค้นของแต่ละหมวดเป็นหัวข้อ และโยงหัวข้อไปหาเครื่องสำอางก็ต่อเมื่อมีคำค้นตัวอย่างของหัวข้อนั้นเอง "
+                           "ยืนยันความเกี่ยวข้อง (7 ทางโยงที่ตั้งไว้ล่วงหน้า) จากนั้นเรียงหัวข้อตามจำนวนพื้นที่ที่กำลังขึ้น "
+                           "ว่ามีไทยหรือไม่ และจำนวนคำค้น แล้วให้ AI รวมหัวข้อที่เป็นความต้องการเดียวกัน "
+                           "และเขียนโปรไฟล์เทรนด์จากคำค้นเท่านั้น{total}",
         "method_2_title": "2. การพยากรณ์ความสนใจการค้นหา",
         "method_2": "ติดตามคีย์เวิร์ดค้นหาของแต่ละเทรนด์ใน Google Trends ทั่วโลกรายเดือน (ไม่ระบุหมวด) การเติบโตที่คาดในปีที่ 1 ถึง 5 = ค่าเฉลี่ยการค้นหาที่คาดในปีนั้น ÷ ค่าเฉลี่ย 12 เดือนล่าสุด จากโมเดล random forest ที่ฝึกจากการเติบโตในอดีตของทุกคีย์เวิร์ด (ข้อมูลเข้าได้แก่ การโตปีที่แล้ว การโตเทียบเดือนเดียวกันของปีก่อน แรงส่งช่วงสั้น ระยะห่างจากจุดสูงสุด และความผันผวน) และคะแนนของเทรนด์ = percentile ของการเติบโตที่คาด (ค่าเฉลี่ยของคีย์เวิร์ดในเทรนด์) เทียบคีย์เวิร์ดทั้งหมดในรอบ ทดสอบย้อนหลังปี 2016-2022 กับข้อมูล 2 ชุด อันดับสอดคล้องกับการโตจริงที่ Spearman ประมาณ 0.52 (ปีที่ 1) 0.45 (ปีที่ 3) และ 0.40 (ปีที่ 5) ระดับที่คาดของเทรนด์คลาดจากของจริงเป็นค่ากลาง 6% (ปีที่ 1) 12% (ปีที่ 3) และ 20% (ปีที่ 5) และแถบในกราฟครอบคลุมผลจริง 80% เส้นประรายเดือนกระจายระดับรายปีตามจังหวะฤดูกาลของเทรนด์จาก 4 ปีก่อน ส.ค. 2025 ตอนนี้ยังไม่ใช้การโตปีที่แล้วจัดอันดับโดยตรง เพราะข้อมูล Google Trends แบบไม่ระบุหมวดกระโดดขึ้นทุกคีย์เวิร์ดตั้งแต่ ส.ค. 2025 ทำให้ตัวเลขนี้สูงเกินจริง",
         "method_3_title": "3. การจัดอันดับและคัดเลือก",
@@ -646,6 +749,12 @@ STRINGS = {
         "method_3_np": " ในจำนวนนี้ {k} เทรนด์เป็นเทรนด์ช่องทางการขายหรือพฤติกรรมการซื้อที่ไม่มีคุณสมบัติสินค้า "
                        "หน้าที่ 2 ของเทรนด์เหล่านี้จึงอธิบายว่าไม่พบสินค้าที่ตรงกับเทรนด์",
         "method_3_np_none": "",
+        "method_3_search": "จัดอันดับเทรนด์ด้วยการเติบโตของการค้นหาที่คาดในปีที่ @S@ ซึ่งเป็นระยะสั้น (0.5 = ค่ากลางตลาด) "
+                           "ตลาดในที่นี้คือคีย์เวิร์ดของเทรนด์ในรอบนี้เอง ค่ากลางจึงเป็นค่ากลางในหมู่เรื่องที่กำลังมาแรงอยู่แล้ว "
+                           "หน้ารายละเอียดทำเฉพาะเทรนด์เหนือค่ากลางตลาด (รายงานนี้มี {n} เทรนด์){np_note} "
+                           "ส่วนเทรนด์ที่ต่ำกว่าค่ากลางแสดงเฉพาะในตารางและกราฟภาพรวม "
+                           "ตัวเลขในหน้าภาพรวมตลาดเป็นค่าตรงกลางของทุกเทรนด์ (ครึ่งหนึ่งสูงกว่า อีกครึ่งต่ำกว่า) "
+                           "คำค้นที่เพิ่มขึ้นบอกว่าคนค้นหามากกว่าเดิม ไม่ได้บอกว่าซื้อมากขึ้น และหัวข้อเทศกาลมักขึ้นทุกปี",
         "method_4_title": "4. การจับคู่สินค้า",
         "method_4": "แปลงโปรไฟล์ของแต่ละเทรนด์ (ประโยชน์ งานที่ผู้บริโภคต้องการให้สำเร็จ จุดต่าง) "
                     "เป็นตัวเลขที่แทนความหมาย (text embedding) แล้วเทียบกับคำอธิบายของสินค้า Konvy {n} ชิ้น "
@@ -668,32 +777,25 @@ STRINGS = {
                           "หมวดที่มีสินค้ากลุ่มนี้มากที่สุด (หมวด Euromonitor Level 2 อย่างน้อยหมวดละ 3 ชิ้น ถ้าไม่ถึง 4 "
                           "หมวด หมวดใหญ่สุดแตกตามชนิดสินค้า) แยกเป็นช่วงราคาต่ำ/กลาง/สูง "
                           "(แบ่งราคาสินค้าทั้งร้านของหมวดนั้นเป็น 3 กลุ่มเท่ากัน) พร้อมชิ้นที่ตรงเทรนด์ที่สุดในแต่ละช่วง",
-        # 🆕 (2026-10-21) หน้าสินค้าของเทรนด์ = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 (l2_map.py)
-        "l2_sub": "หลักฐานจากตลาด - สินค้า {category} {n} ชิ้นบน Konvy ตรงกับเทรนด์แค่ไหน และขายได้แค่ไหน",
-        "l2_corner_y": "ยอดขายบน Konvy ↓", "l2_corner_x": "ความตรงกับเทรนด์ →",
+        # 🆕 (2026-10-27) หน้าสินค้าของเทรนด์ = ความใกล้เทรนด์ระดับหมวด L2 แถวเดียว 4 ระดับ (l2_map.py) - ตัดยอดขายออกแล้ว
+        "bn_title": "ความต้องการความงาม",
+        "l2_basis": "สินค้าถูกจับคู่กับความต้องการความงามที่ AI อนุมานจากคำค้นของเทรนด์นี้ ({kw}) ร่วมกับสิ่งที่คำค้นบอก ไม่ได้จับคู่กับคำค้นอย่างเดียว",
+        "method_4_need": "เทรนด์ที่มาจากคำค้น: ข้อความที่ใช้เทียบกับสินค้าเริ่มจากความต้องการความงามที่ AI อนุมานจากคำค้น (ชนิดสินค้าและประโยชน์) "
+                         "ตามด้วยสิ่งที่คำค้นบอก หน้าเทรนด์แต่ละหน้ามีป้ายบอกเรื่องนี้",
+        "l2_sub": "หลักฐานจากตลาด - สินค้า {category} {n} ชิ้นบน Konvy ตรงกับเทรนด์แค่ไหน",
         "l2_lv_excellent": "Excellent", "l2_lv_good": "Good", "l2_lv_average": "Average", "l2_lv_below_average": "Below average",
         "l2_x_first": "{p}% แรกของหมวด", "l2_x_mid": "{a}-{b}% แรกของหมวด", "l2_x_last": "ไม่ถึง {p}% แรก",
-        "l2_y_strong": "ขายดี", "l2_y_strong_sub": "{p}% แรก", "l2_y_steady": "ขายปานกลาง", "l2_y_steady_sub": "ช่วงกลาง",
-        "l2_y_slow": "ขายได้น้อย", "l2_y_slow_sub": "{p}% ล่างสุด",
         "l2_empty": "ไม่มีสินค้า",
         "l2_card_match": "ตรงเทรนด์อันดับ {rank}",
-        "l2_sales_top": "ยอดขาย {p}% แรก", "l2_sold": "ขายแล้ว {n} ชิ้น", "l2_soldout": "ของหมด", "l2_reviews": "{n} รีวิว",
-        "l2_review1": "1 รีวิว", "l2_zero": "ขายได้ 0 ชิ้นทั้งที่มีของ",
-        "l2_take": "ในสินค้าที่ตรงเทรนด์ที่สุด ({p}% แรกของหมวด) ขายดี {s}% และขายได้น้อย {l}% ส่วนสินค้า {category} ทั้งหมวด "
-                   "เป็น {sa}% และ {la}%",
-        "l2_note": "สินค้า {category} (หมวดหลักของเทรนด์) แต่ละชิ้นถูกวางตามความใกล้เทรนด์ของคำอธิบายสินค้า (คอลัมน์ = ตำแหน่งในสินค้า "
-                   "ทั้ง {total} ชิ้นของหมวด) และตามยอดขายบน Konvy เทียบกับสินค้า {category} ชิ้นอื่น (แถว; จำนวนที่ขาย x ราคา "
-                   "ของหมดใช้จำนวนรีวิว) · สินค้าที่แสดง = ชิ้นที่ใกล้เทรนด์ที่สุดในช่องนั้น สินค้าที่ไม่มีข้อมูลยอดขายไม่ถูกแสดง · "
-                   "สีพื้น = เกรดหลังยอดขายดึงขึ้นหรือลง 1 ขั้น (ขายดีดึง Average ขึ้นเป็น Good · Excellent ต้องตรงเทรนด์ {p1}% แรก "
-                   "และขายดี ตรงเทรนด์มากที่สุดแต่ขายปานกลางได้ Good · ขายได้น้อยลง 1 ขั้น)",
+        "l2_take": "สินค้าที่ตรงเทรนด์มาก ({p}% แรกของหมวด): {k} จาก {total} ชิ้นของ {category}",
+        "l2_note": "สินค้า {category} (หมวดหลักของเทรนด์) แต่ละชิ้นถูกจัดอันดับตามความใกล้เทรนด์ของคำอธิบายสินค้า 4 ระดับคือตำแหน่งในสินค้า "
+                   "ทั้ง {total} ชิ้นของหมวด ({p1}% แรก = Excellent) · สินค้าที่แสดง = ชิ้นที่ใกล้เทรนด์ที่สุดในระดับนั้น",
         "method_4_l2": "แปลงโปรไฟล์ของแต่ละเทรนด์ (ประโยชน์ งานที่ผู้บริโภคต้องการให้สำเร็จ จุดต่าง) "
                        "เป็นตัวเลขที่แทนความหมาย (text embedding) แล้วเทียบกับคำอธิบายของสินค้า Konvy {n} ชิ้น "
                        "ยิ่งความหมายใกล้กัน ยิ่งตรงกับเทรนด์ จากนั้นให้ AI เลือกหมวดหลักหมวดเดียว (Euromonitor Level 2) "
                        "ที่เทรนด์นี้อยู่ จากความหมายของเทรนด์และหมวดของสินค้าที่ตรงที่สุด ไม่นับหมวดควบคู่ "
                        "สินค้าทุกชิ้นของหมวดนั้นถูกวางตามความใกล้เทรนด์ ({p1}% แรก, {p1}-{p2}%, {p2}-{p3}% ของหมวด แล้วที่เหลือ) "
-                       "และตามยอดขายบน Konvy เทียบกับสินค้าอื่นในหมวด ({s1}% แรก = ขายดี, {s2}% ล่างสุด หรือขายได้ 0 ชิ้น"
-                       "ทั้งที่มีของ = ขายได้น้อย สินค้าที่ของหมดใช้จำนวนรีวิวแทน) แล้วแสดงชิ้นที่ตรงเทรนด์ที่สุดในแต่ละช่อง "
-                       "ยอดขายเป็นยอดสะสมของ Konvy (จำนวนที่ขาย x ราคาปัจจุบัน) เป็นค่าประมาณ ไม่ใช่ยอดขายของบริษัท",
+                       "แล้วแสดงชิ้นที่ตรงเทรนด์ที่สุดในแต่ละระดับ",
         "notes_header": "ภาคผนวก | หมายเหตุและข้อมูล",
         "run_details": "รายละเอียดรอบรัน",
         "topic": "หัวข้อ",
@@ -726,6 +828,8 @@ STRINGS = {
         "data_src_news_th": "ข่าวไทย ใช้ {n} {articles}",
         "data_src_article_one": "ชิ้น",
         "data_src_article_many": "ชิ้น",
+        "data_src_rising": "คำค้นที่กำลังขึ้น",
+        "data_src_rising_text": "คำค้นที่กำลังขึ้นใน Google {n} คำ จาก {lists} รายการรายหมวด ({places}) คัดเป็น {k} เทรนด์",
         "data_src_search_text": "Google Trends ทั่วโลก รายเดือน - {n} คีย์เวิร์ด",
         "data_src_search_asof": "ข้อมูลถึง {month}",
         "data_src_products_text": "Konvy - สินค้าความงามและของใช้ส่วนตัว {n} ชิ้น",
@@ -833,6 +937,17 @@ def date_range(first, last, lang):
     return month_year(text, lang)
 
 
+# 🆕 (2026-10-27) ชื่อพื้นที่ของสาย Search (รหัส geo ของ Google Trends, WW = ทั่วโลก) -> (อังกฤษ, ไทย)
+PLACE_NAMES = {
+    "TH": ("Thailand", "ไทย"), "WW": ("worldwide", "ทั่วโลก"), "US": ("US", "สหรัฐฯ"), "JP": ("Japan", "ญี่ปุ่น"),
+    "KR": ("South Korea", "เกาหลีใต้"), "GB": ("UK", "สหราชอาณาจักร"), "AU": ("Australia", "ออสเตรเลีย"), "HK": ("Hong Kong", "ฮ่องกง"),
+    "ID": ("Indonesia", "อินโดนีเซีย"), "MY": ("Malaysia", "มาเลเซีย"), "VN": ("Vietnam", "เวียดนาม"), "PH": ("Philippines", "ฟิลิปปินส์"),
+    "TW": ("Taiwan", "ไต้หวัน"), "IN": ("India", "อินเดีย"), "ZA": ("South Africa", "แอฟริกาใต้"), "AE": ("UAE", "สหรัฐอาหรับเอมิเรตส์"),
+    "SG": ("Singapore", "สิงคโปร์"), "FR": ("France", "ฝรั่งเศส"), "ES": ("Spain", "สเปน"), "DE": ("Germany", "เยอรมนี"),
+    "CH": ("Switzerland", "สวิตเซอร์แลนด์"),
+}
+
+
 def source_rows(meta, lang):
     """meta["sources"] (report_data._data_sources) -> [(ชื่อแหล่ง, รายละเอียด)] ของภาษานั้น สำหรับกล่อง "แหล่งที่มาของข้อมูล"
     แหล่งที่รอบนี้ไม่มีข้อมูล (ไม่มีไฟล์/จำนวนเป็น 0) ไม่มีแถว (เจ้าของงานเลือก 2026-10-14) - meta["data_as_of"] ต้อง localize แล้ว"""
@@ -864,6 +979,12 @@ def source_rows(meta, lang):
     if parts:
         rows.append((s["data_src_news"], " - ".join(parts)))
 
+    r = src.get("rising") or {}
+    if r.get("n_queries"):
+        places = ", ".join(PLACE_NAMES.get(p, (p, p))[0 if lang == "en" else 1] for p in r.get("places") or [])
+        rows.append((s["data_src_rising"], s["data_src_rising_text"].format(
+            n=f"{r['n_queries']:,}", lists=f"{r.get('n_lists') or 0:,}", places=places, k=r.get("n_trends") or 0)))
+
     q = src.get("search") or {}
     if q.get("n_keywords"):
         parts = [s["data_src_search_text"].format(n=f"{q['n_keywords']:,}")]
@@ -890,7 +1011,8 @@ def source_doc_groups(meta, lang):
     s = STRINGS[lang]
     docs = (meta or {}).get("source_docs") or {}
     groups = []
-    for key, label in (("papers", "data_src_papers"), ("discussions", "data_src_discussions"), ("news", "data_src_news")):
+    for key, label in (("papers", "data_src_papers"), ("discussions", "data_src_discussions"), ("news", "data_src_news"),
+                       ("rising", "data_src_rising")):
         # shown = URL ที่อ่านออก (ถอดรหัส %xx ของคำค้นไทย) - href ใช้ url เดิม
         items = [{"name": s["data_doc_search"].format(q=d["title"]) if d.get("search") else d["title"],
                   "platform": d.get("platform"), "url": d.get("url"), "shown": unquote(d["url"]) if d.get("url") else None}
@@ -926,6 +1048,17 @@ def localize(ctx, lang):
     meta["forecast_start"] = month_year(meta.get("forecast_start"), lang)
     meta["forecast_end"] = month_year(meta.get("forecast_end"), lang)
     meta["data_as_of"] = month_year(meta.get("data_as_of"), lang)
+    for t in out.get("trends") or []:   # 🆕 (2026-10-28) กล่อง "คนกำลังค้นหาอะไร": หัวข้อฉบับไทย (คำค้นคงตามต้นฉบับ)
+        for p in (t.get("talk") or {}).get("points") or []:
+            p["topic"] = p.get("topic_th") or p["topic"]
+    if out.get("talk"):   # 🆕 (2026-10-28) หน้า "คนกำลังค้นหาอะไรมากขึ้น": ชื่อพื้นที่ฉบับไทย (หมวดของ Google กับคำค้นคงตามต้นฉบับ)
+        names = [PLACE_NAMES.get(p, (p, p))[1] for p in out["talk"].get("places") or []]
+        out["talk"]["places_text"] = (", ".join(names[:-1]) + "และ" + names[-1]) if len(names) > 1 else (names[0] if names else "")
+    if out.get("dive"):   # 🆕 (2026-10-28) ส่วนที่ 2 เจาะรายหมวดของ Google: ประโยคหัวข้อและชื่อพื้นที่ฉบับไทย (คำค้นคงตามต้นฉบับ)
+        from category_dive import localize_dive
+
+        names = [PLACE_NAMES.get(p, (p, p))[1] for p in out["dive"].get("places") or []]
+        localize_dive(out["dive"], "th", (", ".join(names[:-1]) + "และ" + names[-1]) if len(names) > 1 else (names[0] if names else ""))
     if out.get("growth"):
         out["growth"]["periods"] = {k: month_year(v, lang) for k, v in out["growth"]["periods"].items()}
 
@@ -942,9 +1075,12 @@ def localize(ctx, lang):
     stepic_th = (th.get("stepic") or {}).get("items") or []
     for i, s in enumerate(out["stepic"]):
         s_th = stepic_th[i] if i < len(stepic_th) else {}
+        s["dimension_label"] = DIMENSION_TH.get(s["dimension"].upper(), s["dimension"])
+        if s.get("no_data"):   # 🆕 (2026-10-27) มิติที่คำค้นไม่ยืนยัน: ข้อความตายตัว ไม่ผ่านการแปลด้วย LLM
+            s["headline"], s["body"] = STRINGS["th"]["stepic_no_data"], STRINGS["th"]["stepic_no_data_body"]
+            continue
         s["headline"] = _pick(s_th.get("headline"), s["headline"])
         s["body"] = _pick(s_th.get("body"), s["body"])
-        s["dimension_label"] = DIMENSION_TH.get(s["dimension"].upper(), s["dimension"])
     for key, fields in (("personas", ("name", "description", "value_driver", "channel_preference")),
                         ("signals", ("signal", "implication"))):
         items_th = (th.get(key) or {}).get("items") or []
@@ -959,7 +1095,7 @@ def localize(ctx, lang):
     for t in out["trends"]:
         text_th = t.get("text_th") or {}
         t["text"] = {k: _pick(text_th.get(k), (t.get("text") or {}).get(k))
-                     for k in ("headline", "trend", "insight", "workshop_question")}
+                     for k in ("headline", "trend", "insight")}
         t["text"]["source"] = text_th.get("source", "")
         t["target"] = _pick(text_th.get("target"), t.get("target"))
         # Means-End 3 บรรทัดฉบับไทย - ไม่มีก็ไม่ใช้ฉบับอังกฤษแทน (เทมเพลตกลับไปใช้ย่อหน้า Trend/Insight ภาษาไทย)
@@ -977,7 +1113,7 @@ def localize(ctx, lang):
         for c in (t.get("categories") or {}).get("categories", []):
             for p in c["products"] + [x["product"] for x in c.get("price_tiers") or [] if x.get("product")]:
                 p["name"] = p.get("name_full") or p.get("name")
-        for c in ((t.get("l2") or {}).get("cells") or {}).values():   # 🆕 (2026-10-21) สินค้าตัวแทนของหน้าแผนที่หมวด L2
+        for c in (t.get("l2") or {}).get("cols") or []:   # 🆕 (2026-10-21) สินค้าตัวแทนของหน้าหมวด L2 (🆕 2026-10-27 แถวเดียว = cols)
             if c.get("product"):
                 c["product"]["name"] = c["product"].get("name_full") or c["product"].get("name")
 

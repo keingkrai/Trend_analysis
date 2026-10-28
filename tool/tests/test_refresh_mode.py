@@ -100,7 +100,8 @@ def test_prepare_refresh_run_copies_stream_results_and_records_source(tmp_path):
 
     copied = pipeline._prepare_refresh_run(source, run, cfg)
 
-    assert copied == list(pipeline.STREAM_FILES) + ["phase2_all_streams_comparison.json"]
+    # 🆕 (2026-10-27) รอบเก่า = 3 สายเดิม (ไม่มีไฟล์สาย Search ให้สำเนา)
+    assert copied == list(pipeline.LEGACY_STREAM_FILES) + ["phase2_all_streams_comparison.json"]
     for name in copied:
         assert (run / name).read_bytes() == (source / name).read_bytes()
     # ผลขั้นอื่นของรอบเดิม (⑪ ⑥ ⑬) ต้องไม่ติดมา - ⑦ เป็นต้นไปต้องคำนวณใหม่ในรอบนี้
@@ -123,6 +124,23 @@ def test_refresh_of_a_refreshed_run_keeps_original_evidence_date_and_models(tmp_
     assert entry["refreshed_from"] == first.name
     assert entry["evidence_collected"] == "2026-09-16T08:24:38"
     assert entry["models_used"] == {"zai.glm-5": 43, "mistral.large": 1}
+
+
+def test_prepare_refresh_run_copies_search_stream_result_of_new_runs(tmp_path):
+    """🆕 (2026-10-27) รอบใหม่มีแต่ผลสาย Search (Google Trends) - สำเนาไฟล์นั้น + รายชื่อที่ตรวจไว้ ไม่ต้องมี 3 สายเดิม"""
+    source = tmp_path / "search_run"
+    _write(source / "phase2_search_stream_result.json", {"topic": "beauty", "trends": [],
+                                                          "keywords": [{"Trend Name": "Haze", "Search_Keywords": "a, b"}]})
+    (source / "phase2_search_candidates.csv").write_text("keep,rank\n1,1\n", encoding="utf-8")
+    _write(source / "_manifest.json", {"search_stream": {"timestamp": "2026-10-27T10:00:00", "models_used": {"zai.glm-5": 52}}})
+    run = tmp_path / "beauty_20261028_090000"
+
+    copied = pipeline._prepare_refresh_run(source, run, {"topic": "beauty", "years": 3, "as_of": ""})
+
+    assert copied == ["phase2_search_stream_result.json", "phase2_search_candidates.csv"]
+    entry = json.loads((run / "_manifest.json").read_text(encoding="utf-8"))[pipeline.REFRESH_KEY]
+    assert entry["models_used"] == {"zai.glm-5": 52} and entry["evidence_collected"] == "2026-10-27T10:00:00"
+    assert pipeline._get_run_topic(source) == "beauty" and pipeline._count_keywords(source) == 2
 
 
 def test_prepare_refresh_run_stops_before_creating_folder_when_stream_results_missing(tmp_path):
@@ -154,7 +172,7 @@ def test_list_available_runs_filters_by_required_files_and_labels_refreshed_runs
     _write(tmp_path / "half_run" / "phase1_paper_stream_result.json", {"topic": "x"})
 
     runs = {run_id: label for label, run_id, _ in
-            pipeline._list_available_runs(required=pipeline.STREAM_FILES, include_legacy=False)}
+            pipeline._list_available_runs(required=pipeline.LEGACY_STREAM_FILES, include_legacy=False)}
     assert set(runs) == {source.name, refreshed.name}
     assert runs[refreshed.name].endswith(f"[อัปเดตจาก {source.name}]") and "อัปเดตจาก" not in runs[source.name]
     # โหมด 2 (ค่าเริ่มต้น) ยังต้องมีผล ⑪ - รอบอัปเดตที่ยังไม่ถึง ⑪ ไม่โผล่

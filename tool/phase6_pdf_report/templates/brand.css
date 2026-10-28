@@ -25,6 +25,7 @@
 .ex-subcats .lbl { font-size: 10px; color: var(--ink-2); margin-bottom: 4px; }
 .subcat { display: flex; justify-content: space-between; font-size: 13px; line-height: 1.7; border-bottom: 1px solid var(--line); }
 .subcat:last-child { border-bottom: 0; }
+.nc-note { margin-top: 10px; background: var(--card); padding: 10px 12px; font-size: 11px; line-height: 1.45; color: var(--ink-2); border-left: 4px solid var(--accent); }
 .ex-right { position: absolute; left: 408px; right: 24px; top: 78px; bottom: 34px; }
 .lvl-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .lvl { background: var(--card); padding: 8px 10px; height: 104px; }
@@ -166,13 +167,6 @@ table.vs td { border: 1px solid #c9d6dc; padding: 3px 6px; height: 56px; vertica
 .lang-th .rk-name { line-height: 1.35; }
 .ap-box .ap-p { margin: 0 0 5px; }   /* 🆕 (2026-10-12) ย่อหน้าในกล่องภาคผนวก (ขั้นตอน 1-2-3) */
 
-/* 🆕 (2026-10-19) ป้ายยอดขาย Konvy ข้างระดับของสินค้า (เฉพาะขายดี / ขายช้า / ของหมด) */
-.st { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 8px; border: 1px solid; font-size: 8.5px; font-weight: 600;
-      line-height: 1.5; white-space: nowrap; vertical-align: 1px; }
-.st-strong { color: #1f7a3a; border-color: #9fd1ae; background: #eef8f1; }
-.st-slow { color: #b3481f; border-color: #e6b49f; background: #fcf1ec; }
-.st-soldout { color: #55606e; border-color: #c4cbd3; background: #f1f3f5; }
-.sales-note { color: var(--accent); font-weight: 600; }
 
 /* 🆕 (2026-10-19) ภาคผนวกของ ⑰: กล่อง "ระดับความพร้อม" ยาวขึ้น (มีขั้น (4) ยอดขาย) - ให้กล่องนี้สูงเต็มคอลัมน์ซ้าย ส่วนขวาซ้อน 3 กล่อง ไม่งั้นฟอนต์ถูกย่อจนเล็กกว่ากล่องอื่นมาก */
 .ap-grid { grid-template-rows: 0.75fr 0.6fr 1.35fr; }

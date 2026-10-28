@@ -1,0 +1,57 @@
+{#- 🆕 (2026-10-28) หน้ารายหมวดของ Google (category_dive.py) - ใช้ร่วมกันทั้งรายงานเทรนด์ ⑯ (ส่วนที่ 2: report.html.j2) และเล่มแยก (category_dive.html.j2)
+    ต้องมีในบริบทของเทมเพลตที่ include: dv (category_dive.load_dive + describe_dive + localize แล้ว, dv.pages จาก paginate), L (ชุดข้อความ + DIVE_STRINGS),
+    macro bar_header() / footer() ของเทมเพลตแม่ - ข้อความตายตัวอยู่ใน dive_i18n.py, สไตล์ใน category_dive.css -#}
+
+{#- หัวข้อ 1 หัวข้อ: ประโยคอธิบาย (หรือ "ตัวอย่างคำค้น" ถ้าไม่ผ่านตัวตรวจ) + คำค้นจริง + ทางโยง/หลักฐานการโยง + ตัวเลข + ป้ายเทรนด์ในรายงานหลัก -#}
+{% macro topic(t, linked=true) -%}
+<div class="dv-card{{ '' if linked else ' dv-other' }}">
+  <div class="dv-body fit" data-name="topic">
+    {% if t.topic %}<div class="dv-sent">{{ t.topic }}</div>{% else %}<div class="dv-k">{{ L.dv_examples }}</div>{% endif %}
+    <div class="dv-chips">{% for s in t.shown %}<i>{{ s }}</i>{% endfor %}</div>
+    {% if linked and t.link %}<div class="dv-link">{{ L.dv_link.format(path=L["link_path_" ~ t.link.path], cats=(t.link.cats | join(", "))) }}
+      {%- if t.link.evidence %} ({{ L.dv_link_eg }} {% for e in t.link.evidence %}'{{ e }}'{{ "; " if not loop.last }}{% endfor %}){% endif %}</div>{% endif %}
+    <div class="dv-meta">{{ L.dv_topic_stat.format(n=t.n, where=L["dv_where_" ~ t.where]) }}{% if t.breakout %} · {{ L.dv_breakout.format(b=t.breakout) }}{% endif %}</div>
+    {% for x in t.trends %}<div class="dv-feeds">{{ L.dv_feeds.format(rank=x.rank, name=x.display_name) }}</div>{% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro stats_line(c) -%}
+  {{ L.dv_cat_stats.format(n="{:,}".format(c.n), topics=c.n_themes, linked=c.n_linked) }}
+  {%- if c.trend_ranks %} · {{ L.dv_col_trends }}: {% for r in c.trend_ranks %}#{{ r }}{{ ", " if not loop.last }}{% endfor %}{% endif %}
+  {%- if c.n_more %} · {{ L.dv_more.format(n=c.n_more) }}{% endif %}
+{%- endmacro %}
+
+{% for pg in dv.pages %}
+{% if pg.full %}
+{%- set c = pg.cats[0] -%}
+<section class="page" data-label="{{ pg.label }}">
+  {{ bar_header(c.name) }}
+  <div class="dv-head"><span>{{ stats_line(c) }}</span></div>
+  <div class="dv-h">{{ L.dv_linked_title }}</div>
+  <div class="dv-grid full">{% for t in c.linked %}{{ topic(t) }}{% endfor %}</div>
+  {% if c.others %}
+  <div class="dv-h o">{{ L.dv_other_title }}</div>
+  <div class="dv-grid other">{% for t in c.others %}{{ topic(t, false) }}{% endfor %}</div>
+  {% endif %}
+  <div class="ev-note">{{ L.dv_cat_note }}</div>
+  {{ footer() }}
+</section>
+{% else %}
+<section class="page" data-label="{{ pg.label }}">
+  {{ bar_header(pg.cats | map(attribute="name") | join("  |  ")) }}
+  {% for c in pg.cats %}
+  <div class="dv-half h{{ loop.index }}">
+    <div class="dv-hh"><b>{{ c.name }}</b><span>{{ stats_line(c) }}</span></div>
+    <div class="dv-grid half">{% for t in c.linked %}{{ topic(t) }}{% endfor %}</div>
+    {% if c.others %}
+    <div class="dv-oth"><b>{{ L.dv_other_title }}:</b>
+      {% for t in c.others %}<span class="o">{% if t.topic %}{{ t.topic }}{% else %}{{ L.dv_examples }}{% endif %} <em>({% for s in t.shown[:2] %}{{ s }}{{ "; " if not loop.last }}{% endfor %})</em></span>{% endfor %}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="ev-note">{{ L.dv_cat_note }}</div>
+  {{ footer() }}
+</section>
+{% endif %}
+{% endfor %}

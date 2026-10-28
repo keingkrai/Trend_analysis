@@ -28,11 +28,8 @@ import pandas as pd  # noqa: E402
 
 from aggregate_forecast import aggregate_to_category_level, aggregate_to_overall_level  # noqa: E402
 
-STREAM_FILES = {
-    "Paper": "phase1_paper_stream_result.json",
-    "Social": "phase2_social_stream_result.json",
-    "News": "phase2_news_stream_result.json",
-}
+# 🆕 (2026-10-27) รายชื่อสายที่เดียว (common/streams.py) - รอบใหม่ = สาย Search (Google Trends), รอบเก่า = Paper/Social/News
+from common.streams import STREAM_FILES, present_streams  # noqa: E402
 
 # คอลัมน์ตรงลำดับเป๊ะกับ generate_master_trend_report() ใน trend_final_v2.py (ดูที่มาใน
 # fetch_trends_worldwide_serpapi.py's __main__ - master_report เป็น list of list ไม่ใช่ DataFrame)
@@ -47,11 +44,10 @@ def build_trend_stream_attribution():
     คีย์เวิร์ด (ดังนั้นชื่อที่ตรงกันเป๊ะข้ามสาย = ยืนยันข้ามสายจริงแบบเดียวกันทั้งระบบ ไม่ใช่นิยามใหม่)"""
     attribution = {}
     missing = []
-    for stream, fname in STREAM_FILES.items():
-        fp = OUTPUTS / fname
-        if not fp.exists():
-            missing.append(stream)
-            continue
+    present = present_streams(OUTPUTS)
+    if not present:
+        missing = list(STREAM_FILES)
+    for stream, fp in present.items():
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         for row in data.get("trends", []):
@@ -98,7 +94,7 @@ if __name__ == "__main__":
     attribution = build_trend_stream_attribution()
     by_stream, unmatched = split_master_report_by_stream(master_report, attribution)
 
-    for stream in STREAM_FILES:
+    for stream in present_streams(OUTPUTS):
         n = len(by_stream.get(stream, []))
         print(f"  {stream:8} -> {n} คลัสเตอร์ (นับซ้ำได้ถ้าเทรนด์ยืนยันข้ามสาย)")
     if unmatched:

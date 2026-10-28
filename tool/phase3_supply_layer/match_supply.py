@@ -24,11 +24,42 @@ Detail/05 งานที่ยังไม่ได้ทำ/เกณฑ์ส
 **ห้ามใช้:** attribute (จุดที่เคยพังมาแล้ว 2 รอบ — Step 8 เดิม + market_gap_check.py),
 point_of_parity (สินค้าทุกตัวในหมวดมีเหมือนกัน ใช้จับคู่แล้ว over-match ทันที)
 """
+import os
+
 import numpy as np
+
+from common.match_quality import match_basis, need_text   # noqa: E402  (ฟังก์ชันล้วน - report_data ใช้ตัวเดียวกันติดป้ายในรายงาน)
+
+MATCH_FIELDS = ("functional_consequence", "psychosocial_consequence", "job_to_be_done", "point_of_difference")
+MAX_MATCH_QUOTES = 12
+
+
+def _match_quotes(trend_profile):
+    """🆕 (2026-10-28) คำค้นจริงที่ผ่านเกตหลักฐานของ ⑪ (profile["evidence"], เฉพาะเทรนด์สาย Search) ของ 4 มิติที่ใช้จับคู่ - ตัดซ้ำ คงลำดับ
+    มิติที่เป็น "ข้อมูลไม่พอ" ไม่มีข้อความยืนยันอยู่แล้ว จึงไม่ดึงคำค้นของมิติที่ไม่ผ่านเกตเข้ามา / ปิดได้ด้วย TREND_MATCH_QUOTES=0"""
+    if os.environ.get("TREND_MATCH_QUOTES", "1") == "0":
+        return []
+    evidence = trend_profile.get("evidence")
+    if not isinstance(evidence, dict):
+        return []
+    seen, quotes = set(), []
+    for f in MATCH_FIELDS:
+        if trend_profile.get(f) in (None, "", "ข้อมูลไม่พอ"):
+            continue
+        for q in evidence.get(f) or []:
+            key = " ".join(str(q).lower().split())
+            if key and key not in seen:
+                seen.add(key)
+                quotes.append(str(q).strip())
+    return quotes[:MAX_MATCH_QUOTES]
 
 
 def build_trend_matchable_text(trend_profile):
-    """รวม 4 มิติที่อนุญาตให้ใช้จับคู่ (ไม่รวม attribute/point_of_parity) เป็นข้อความเดียวสำหรับ embed
+    """🆕 (2026-10-28) เทรนด์สาย Search ที่มี beauty_need: ข้อความ = ความต้องการความงามที่ AI อนุมาน (ชนิดสินค้า + ประโยชน์) ตามด้วยข้อความจากคำค้นที่ผ่านเกต ⑪
+    (ทดสอบกับ 15 เทรนด์ของรอบ 164405: ใช้อย่างเดียวได้สินค้าตรงหมวดแทบทุกเทรนด์ แต่ Daily Skincare ได้แปรงแต่งหน้า - ต่อท้ายด้วยข้อความจากคำค้นแก้ได้)
+    เทรนด์ที่ไม่มีข้อความจากคำค้นเลยก็จับได้ด้วยความต้องการนี้ / ไม่มี beauty_need หรือ TREND_MATCH_BASIS=evidence = วิธีเดิมด้านล่างทุกประการ
+
+    รวม 4 มิติที่อนุญาตให้ใช้จับคู่ (ไม่รวม attribute/point_of_parity) เป็นข้อความเดียวสำหรับ embed
 
     trend_profile: dict ตาม schema ใน เกณฑ์สกัดจุดเด่นเทรนด์สำหรับจับคู่สินค้า.md
         {trend, attribute, functional_consequence, psychosocial_consequence, job_to_be_done,
@@ -40,7 +71,12 @@ def build_trend_matchable_text(trend_profile):
         trend_profile.get("job_to_be_done", ""),
         trend_profile.get("point_of_difference", ""),
     ]
-    return " ".join(p for p in parts if p and p != "ข้อมูลไม่พอ")
+    text = " ".join(p for p in parts if p and p != "ข้อมูลไม่พอ")
+    quotes = _match_quotes(trend_profile)
+    evidence_text = f"{text} Searches: {'; '.join(quotes)}" if text and quotes else text
+    if match_basis(trend_profile) == "need":
+        return " ".join(x for x in (need_text(trend_profile), evidence_text) if x)
+    return evidence_text
 
 
 _LOGISTICS_NOISE_MARKERS = (

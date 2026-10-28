@@ -26,6 +26,8 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from common.match_quality import match_basis, need_text   # 🆕 (2026-10-28) ฟังก์ชันล้วน
+
 MODEL = "zai.glm-5"
 PROMPT_VERSION = "v1-2026-10-08"
 WORKERS = 3          # ยิงพร้อมกันเกินนี้ GLM-5 ตอบว่างเป็นครั้งคราว (เจอใน pilot) - ลองใหม่พร้อมรอด้วย
@@ -77,12 +79,18 @@ def system_prompt():
     return SYSTEM.format(cats="\n".join(f"- {k}: {v}" for k, v in CATEGORIES.items()))
 
 
+def _need_line(profile):
+    """🆕 (2026-10-28) เทรนด์สาย Search ที่จับคู่ด้วยความต้องการที่ AI อนุมาน (match_basis = need): ใส่ความต้องการนั้นให้ LLM เห็นด้วย - มิติจากคำค้นบางตัวเป็น "ข้อมูลไม่พอ"
+    (เช่น คำค้นเป็นมาราธอน) LLM จึงตัดสินหมวดจากความต้องการความงามนี้ได้"""
+    return f"\nbeauty need (inferred by an AI from the searches): {need_text(profile)}" if match_basis(profile) == "need" and need_text(profile) else ""
+
+
 def trend_block(profile):
     f = lambda k: (profile.get(k) or "").strip() or "(none)"
     return (f"TREND: {profile['trend']}\nattribute (key ingredients/features): {f('attribute')}\n"
             f"functional consequence: {f('functional_consequence')}\npsychosocial consequence: {f('psychosocial_consequence')}\n"
             f"job to be done: {f('job_to_be_done')}\npoint of difference: {f('point_of_difference')}\n"
-            f"point of parity: {f('point_of_parity')}")
+            f"point of parity: {f('point_of_parity')}" + _need_line(profile))
 
 
 def build_evidence(scored, pool_size, examples=EXAMPLES_PER_CATEGORY):
@@ -109,7 +117,8 @@ def evidence_text(ev):
 
 def cache_key(profile, n_market):
     """คีย์คำตัดสิน: เวอร์ชันพรอมต์ + โมเดล + ขนาดตลาด + ข้อความ profile ทุกฟิลด์ที่ LLM เห็น (แก้เนื้อหาเทรนด์/พรอมต์/โมเดล/ตลาด -> ตัดสินใหม่)"""
-    raw = "\x1f".join([PROMPT_VERSION, MODEL, str(n_market)] + [(profile.get(k) or "").strip() for k in PROFILE_FIELDS])
+    need = need_text(profile) if match_basis(profile) == "need" else ""   # 🆕 (2026-10-28) ความต้องการที่ AI อนุมานเปลี่ยน/เริ่มใช้ = ตัดสินใหม่ (เทรนด์เดิมไม่มี = คีย์เดิมทุกประการ)
+    raw = "\x1f".join([PROMPT_VERSION, MODEL, str(n_market)] + [(profile.get(k) or "").strip() for k in PROFILE_FIELDS] + ([need] if need else []))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 

@@ -12,6 +12,7 @@ template เต็ม) และ Detail/05 งานที่ยังไม่�
 + Key Benefits + Target ที่มีอยู่แล้วในผลลัพธ์แต่ละสาย (ไม่ต้องยิง LLM อ่านบทความดิบซ้ำ)
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,11 +37,10 @@ NO_INFO = "ข้อมูลไม่พอ"
 PROFILE_FIELDS = ("attribute", "functional_consequence", "psychosocial_consequence", "job_to_be_done",
                   "point_of_difference", "point_of_parity")
 
-STREAM_FILES = {
-    "Paper": "phase1_paper_stream_result.json",
-    "Social": "phase2_social_stream_result.json",
-    "News": "phase2_news_stream_result.json",
-}
+# 🆕 (2026-10-27) รายชื่อสายที่เดียว (common/streams.py) - รอบใหม่ = สาย Search (Google Trends), รอบเก่า = Paper/Social/News
+from common.streams import SEARCH_STREAM, STREAM_FILES, present_streams  # noqa: E402
+# 🆕 (2026-10-27) เทรนด์ของสาย Search: ⑪ อ่านคำค้นจริงและตรวจหลักฐานด้วยโค้ด - ดู highlight_evidence.py
+import highlight_evidence as he  # noqa: E402
 
 # คัดลอกมาจาก Detail/05 งานที่ยังไม่ได้ทำ/เกณฑ์สกัดจุดเด่นเทรนด์สำหรับจับคู่สินค้า.md ตรงๆ ไม่แก้คำ
 SYSTEM_PROMPT = """คุณคือนักวิเคราะห์กลยุทธ์แบรนด์ (Brand Strategist) หน้าที่ของคุณคือแปลงข้อมูลดิบของเทรนด์
@@ -83,17 +83,17 @@ Points-of-Parity/Points-of-Difference (Keller)
 
 
 def load_all_clusters():
-    """คลัสเตอร์ทั้งหมดจาก 3 สาย (สายละ 5 = 15) พร้อม stream tag - ยังไม่ได้คัด Top N (ดู __main__)"""
+    """คลัสเตอร์ทั้งหมดจาก 3 สาย (สายละ 5 = 15) พร้อม stream tag - ยังไม่ได้คัด Top N (ดู __main__)
+    🆕 (2026-10-28) สาย Search: ใส่คีย์เวิร์ดชนิดสินค้าของเทรนด์ ("Product Keywords" จากรายการ keywords ของ ①-⑤) ไว้ในคลัสเตอร์ด้วย - ใช้ทำ beauty_need"""
     clusters = []
-    for stream, fname in STREAM_FILES.items():
-        fp = OUTPUTS / fname
-        if not fp.exists():
-            print(f"  ⏭️  ข้าม {stream} - ไม่มี {fname}")
-            continue
+    for stream, fp in present_streams(OUTPUTS).items():
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
+        products = {k.get("Trend Name"): k.get("Product_Search_Keywords") for k in data.get("keywords") or [] if isinstance(k, dict)} \
+            if stream == SEARCH_STREAM else {}
         for row in data.get("trends", []):
-            clusters.append({"stream": stream, **row})
+            extra = {"Product Keywords": products[row.get("Trend Name")]} if products.get(row.get("Trend Name")) else {}
+            clusters.append({"stream": stream, **row, **extra})
     return clusters
 
 
@@ -141,7 +141,7 @@ def export_top_n_forecast(selected, forecast_dir):
 HIGHLIGHTS_FILE = "phase3_trend_highlights_result.json"
 
 
-def load_reusable_profiles(source_dir):
+def load_reusable_profiles(source_dir, include_stubs=True):
     """🆕 (2026-10-07) โหมดอัปเดตรอบเดิม: ผลตัดสินที่ ⑪ ของรอบต้นทางทำไว้แล้ว -> {(stream, trend): profile}
     ข้อมูลเทรนด์เป็นสำเนาของรอบต้นทางทุกตัวอักษร จึงใช้ซ้ำแทนเรียก LLM ใหม่ (⑫ ได้สินค้าชุดเดิม รายงานต่างแค่ส่วนที่มาจาก
     Google Trends และ LLM ตอบต่างไม่ทำให้เทรนด์หลุด/เข้า Top N เอง):
@@ -157,7 +157,7 @@ def load_reusable_profiles(source_dir):
     reusable = {(p.get("stream"), p["trend"]): p
                 for p in (data.get("profiles") or []) + (data.get("extra_profiles") or [])}
     stub_type = {REASON_CHANNEL: TREND_TYPE_CHANNEL, REASON_NO_TEXT: TREND_TYPE_PRODUCT}
-    for e in (data.get("checked_trends") or []) + (data.get("excluded_trends") or []):
+    for e in ((data.get("checked_trends") or []) + (data.get("excluded_trends") or [])) if include_stubs else []:
         key = (e.get("stream"), e.get("trend"))
         if key not in reusable and not e.get("matchable") and e.get("reason") in stub_type:
             reusable[key] = {"trend": e["trend"], "stream": e["stream"], "trend_type": stub_type[e["reason"]],
@@ -165,8 +165,31 @@ def load_reusable_profiles(source_dir):
     return reusable
 
 
+def extract_highlight_search(cluster):
+    """🆕 (2026-10-27) เทรนด์ของสาย Search: LLM อ่านคำค้นจริง (ชุดหลักฐาน) เขียนทีละมิติพร้อมข้อความที่คัดลอก - โค้ดตรวจ (highlight_evidence.gate_profile)
+    ถามซ้ำได้ 3 ครั้งถ้าคำตอบ parse ไม่ได้ (ไม่ใช่การตัดสินว่าข้อมูลไม่พอ) - ล้มทุกครั้ง = ValueError (⑪ รายงานเป็น failed ไม่ปล่อยผ่านเงียบๆ)"""
+    user_content = he.build_user_content(cluster)
+    for _attempt in range(3):
+        with use_bedrock():
+            response = tf.client.chat.completions.create(
+                model=tf.MODEL_NAME_META,
+                messages=[{"role": "system", "content": he.SYSTEM_PROMPT_SEARCH}, {"role": "user", "content": user_content}],
+                temperature=0, max_tokens=1600, response_format={"type": "json_object"},
+            )
+        parsed = safe_json_parse(response.choices[0].message.content)
+        if he.parse_usable(parsed):
+            profile = he.gate_profile(parsed, user_content)
+            if profile["_audit"]:
+                print(f"   🔎 เกตตัดมิติ: " + ", ".join(f"{k} ({v})" for k, v in profile["_audit"].items()))
+            return profile
+        print("   ⚠️ คำตอบ LLM ใช้ไม่ได้ - ถามใหม่")
+    raise ValueError("คำตอบของ LLM ใช้ไม่ได้ครบ 3 ครั้ง")
+
+
 def extract_highlight(cluster):
     """ยิง Typhoon 1 ครั้งต่อคลัสเตอร์ - เหมือน pattern เดิมทุกจุดในโปรเจกต์นี้ (json_object)"""
+    if cluster.get("stream") == SEARCH_STREAM:
+        return extract_highlight_search(cluster)
     user_content = (
         f"เทรนด์: {cluster.get('Trend Name', '')}\n"
         f"ส่วนผสม/คุณสมบัติหลัก: {cluster.get('Key Ingredients', '')}\n"
@@ -217,10 +240,16 @@ if __name__ == "__main__":
           f"จับคู่สินค้า แล้วตัดสินเพิ่มจนรู้ Top {TOP_K_PER_HORIZON} ที่จับคู่ได้ของปีที่ {SHORT_YEAR} และปีที่ {LONG_YEAR}")
     # 🆕 (2026-10-07) โหมดอัปเดตรอบเดิม - ใช้จุดเด่นของรอบต้นทางซ้ำ (ดู load_reusable_profiles)
     source_dir = refresh_source_dir()
-    reusable = load_reusable_profiles(source_dir)
+    # 🆕 (2026-10-28) TREND_REUSE_PROFILES=1: ใช้โปรไฟล์ที่ ⑪ เขียนไว้แล้วในรอบนี้ซ้ำ (ไม่เรียก LLM ใหม่ - LLM ตอบต่างทุกครั้ง) เฉพาะที่มีข้อมูลจริง ส่วนตัวที่เคยถูกตัด
+    # (โปรไฟล์ว่าง) เรียก LLM ใหม่ - ใช้ตอนเปลี่ยนฐานจับคู่เป็นความต้องการที่ AI อนุมาน (match_supply.match_basis) แล้วต้องเลือก Top N ใหม่
+    own_reuse = os.environ.get("TREND_REUSE_PROFILES") == "1" and not source_dir
+    reusable = load_reusable_profiles(source_dir) if source_dir else (load_reusable_profiles(OUTPUTS, include_stubs=False) if own_reuse else {})
+    reuse_name = source_dir.name if source_dir else ("รอบนี้" if own_reuse else None)
     n_reused = 0
     if source_dir:
         print(f"โหมดอัปเดตรอบเดิม: ใช้ผล ⑪ เดิมของรอบ {source_dir.name} ได้ {len(reusable)} เทรนด์ (จุดเด่น + ผลตัดสินว่าจับคู่ได้ไหม - ตัวอื่นเรียก LLM ตามปกติ)")
+    elif own_reuse:
+        print(f"TREND_REUSE_PROFILES=1: ใช้โปรไฟล์ ⑪ ที่มีข้อมูลของรอบนี้ซ้ำ {len(reusable)} เทรนด์ (ไม่เรียก LLM) - ตัวอื่นเรียก LLM ตามปกติ")
 
     def make_profile(item):
         global n_reused
@@ -232,8 +261,12 @@ if __name__ == "__main__":
         reused = reusable.get((item["stream"], item["trend"]))
         if reused:
             n_reused += 1
-            print(f"   ↺ ใช้ผล ⑪ เดิมจากรอบ {source_dir.name} (ไม่เรียก LLM)")
-            return {**reused, "stream": item["stream"], "trend": item["trend"]}
+            print(f"   ↺ ใช้ผล ⑪ เดิมจาก{'รอบ ' if source_dir else ''}{reuse_name} (ไม่เรียก LLM)")
+            profile = {**reused, "stream": item["stream"], "trend": item["trend"]}
+            need = he.beauty_need(cluster) if item["stream"] == SEARCH_STREAM else None
+            if need:
+                profile["beauty_need"] = need
+            return profile
         try:
             profile = extract_highlight(cluster)
             if not profile or not profile.get("functional_consequence"):
@@ -249,6 +282,9 @@ if __name__ == "__main__":
         profile["stream"] = item["stream"]
         # ใช้ชื่อเทรนด์จริงเสมอ (ไม่ใช้ชื่อที่ LLM คัดลอกกลับมา) - ⑫ และรายงานจับคู่ข้ามไฟล์ด้วยชื่อนี้
         profile["trend"] = item["trend"]
+        need = he.beauty_need(cluster) if item["stream"] == SEARCH_STREAM else None
+        if need:   # 🆕 (2026-10-28) ความต้องการความงามที่ AI อนุมานจาก ①-⑤ - ⑫ ใช้เป็นข้อความหลักจับคู่สินค้า (match_supply.match_basis) รายงานติดป้ายว่าอนุมาน
+            profile["beauty_need"] = need
         print(f"   ประเภท: {profile['trend_type']}")
         print(f"   functional: {profile.get('functional_consequence', '')[:80]}")
         print(f"   job_to_be_done: {profile.get('job_to_be_done', '')[:80]}")
@@ -300,6 +336,7 @@ if __name__ == "__main__":
             "checked_trends": picked["checked"], "extra_profiles": picked["extra_profiles"],
             # 🆕 (2026-10-07) โหมดอัปเดตรอบเดิม: รอบต้นทาง + จำนวนเทรนด์ที่ใช้ผลเดิม (รวมตัวที่จับคู่ไม่ได้) (None = รันปกติ)
             "reused_from": source_dir.name if source_dir else None, "n_reused_profiles": n_reused,
+            "reused_own_profiles": own_reuse,
         }, f, ensure_ascii=False, indent=2)
     print(f"✅ Saved -> {out_path}")
 

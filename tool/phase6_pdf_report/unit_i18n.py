@@ -40,9 +40,9 @@ UNIT_STRINGS = {
                           "unit-price tier - low, mid and high thirds of the price per ml, g or piece within the same "
                           "product type - with the best match in each tier.",
         # ⑰ รายงานความพร้อมของแบรนด์
-        "lv_def_first": "best product is in the top {p}% of its type & unit-price group and top {s}% in sales",
+        "lv_def_first": "best product is in the top {p}% of its type & unit-price group",
         "overall_line_excellent": "{lvb} in {k} of {n} trends - most trends have a product in the top {p}% of products of the "
-                                  "same type that also sells strongly.",
+                                  "same type.",
         "overall_line": "{lvb} in {k} of {n} trends - most trends have a product in the top {p}% of products of the same "
                         "type.",
         "overall_line_below": "{lvb} in only {k} of {n} trends - most trends have no product in the top {p}% of products of the "
@@ -129,8 +129,8 @@ UNIT_STRINGS = {
                           "หมวดที่มีสินค้ากลุ่มนี้มากที่สุด (หมวด Euromonitor Level 2 อย่างน้อยหมวดละ 3 ชิ้น ถ้าไม่ถึง 4 "
                           "หมวด หมวดใหญ่สุดแตกตามชนิดสินค้า) แยกเป็นช่วงราคาต่อปริมาณต่ำ/กลาง/สูง (แบ่งราคาต่อ มล., ก. "
                           "หรือชิ้นภายในชนิดสินค้าเดียวกันเป็น 3 กลุ่มเท่ากัน) พร้อมชิ้นที่ตรงเทรนด์ที่สุดในแต่ละช่วง",
-        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของประเภทและกลุ่มราคาเดียวกัน และ {s}% แรกด้านยอดขาย",
-        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน และขายดี",
+        "lv_def_first": "สินค้าที่ดีที่สุดอยู่ใน {p}% แรกของประเภทและกลุ่มราคาเดียวกัน",
+        "overall_line_excellent": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
         "overall_line": "{lvb} {k} จาก {n} เทรนด์ - ส่วนใหญ่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
         "overall_line_below": "{lvb} แค่ {k} จาก {n} เทรนด์ - ส่วนใหญ่ยังไม่มีสินค้าอยู่ใน {p}% แรกของสินค้าประเภทเดียวกัน",
         "vs_note": "แต่ละคอลัมน์ = 5 อันดับแรกของสินค้ากลุ่มเดียวกับที่ใช้ตัดเกรดของ {brand} · ช่องสีฟ้า = สินค้าของ "

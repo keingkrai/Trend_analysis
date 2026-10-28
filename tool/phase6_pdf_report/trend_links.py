@@ -38,6 +38,15 @@ Return JSON only:
 {"stepic": {"<force exactly as given>": {"level": 0, "evidence": ""}, ... all six forces ...},
  "personas": [{"level": 0, "evidence": ""}, ... one per persona, in the same order ...]}"""
 
+# 🆕 (2026-10-28) รอบสาย Search ไม่มี persona - ถามเฉพาะแรงขับ (ไม่มีคีย์ personas ในคำตอบ)
+SYSTEM_PROMPT_LINKS_FORCES = (SYSTEM_PROMPT_LINKS
+                              .replace(" and the consumer personas of a trend report", " of a trend report")
+                              .replace(", the report's six STEPIC forces and its\nemerging consumer personas.", " and the report's STEPIC forces.")
+                              .replace("For every force and every persona give a level:", "For every force give a level:")
+                              .replace(" / is clearly built for this persona", "")
+                              .split("Return JSON only:")[0]
+                              + 'Return JSON only:\n{"stepic": {"<force exactly as given>": {"level": 0, "evidence": ""}, ... every force given ...}}')
+
 
 def build_links_input(trend, stepic, personas):
     """ข้อมูลเทรนด์ (ชุดเดียวกับที่ใช้เรียบเรียงข้อความ) + หัวข้อ/สรุปของ 6 แรงขับ + persona - ใช้คำนวณ hash ของ cache ด้วย"""
@@ -75,7 +84,7 @@ def validate_links(parsed, payload):
         if cell is None:
             return None
         stepic[force] = cell
-    raw_personas = parsed.get("personas")
+    raw_personas = parsed.get("personas") if payload["personas"] else []
     if not isinstance(raw_personas, list) or len(raw_personas) != len(payload["personas"]):
         return None
     personas = [_cell(p) for p in raw_personas]
@@ -100,11 +109,13 @@ def link_trends(ctx, cache, llm_call=None, parse=json.loads, refresh=False, max_
     """เติม t["links"] = {"stepic": {แรงขับ: {level, evidence}}, "personas": [{level, evidence}, ...]} ให้เทรนด์ที่ได้ผล
     และ ctx["links_summary"] (ถ้ามีอย่างน้อย 1 เทรนด์) - รายงานไม่มี STEPIC หรือ persona -> ไม่ทำอะไร
     cache: cache ภาษาอังกฤษ คีย์ "links" - คืนสรุปจำนวนต่อแหล่ง"""
-    stepic, personas = ctx.get("stepic") or [], (ctx.get("personas") or [])[:3]
+    # 🆕 (2026-10-27) แรงขับที่คำค้นไม่ยืนยัน ("No data") ไม่อยู่ใน heatmap - ไม่ให้ LLM ให้ระดับกับสิ่งที่ไม่มีข้อมูล
+    stepic = [s for s in (ctx.get("stepic") or []) if not s.get("no_data")]
+    personas = (ctx.get("personas") or [])[:3]
     ctx.pop("links_summary", None)
     for t in ctx["trends"]:
         t.pop("links", None)
-    if not stepic or not personas:
+    if not stepic:
         return {}
     store = cache.setdefault("links", {})
     todo, counts = [], {}
@@ -125,8 +136,8 @@ def link_trends(ctx, cache, llm_call=None, parse=json.loads, refresh=False, max_
         err = None
         for _ in range(2):
             try:
-                content = llm_call(SYSTEM_PROMPT_LINKS, json.dumps(payload, ensure_ascii=False, indent=1),
-                                   max_tokens=1500)
+                content = llm_call(SYSTEM_PROMPT_LINKS if payload["personas"] else SYSTEM_PROMPT_LINKS_FORCES,
+                                   json.dumps(payload, ensure_ascii=False, indent=1), max_tokens=1500)
                 output = validate_links(parse(content), payload)
                 if output:
                     return t, h, output, None
@@ -135,7 +146,7 @@ def link_trends(ctx, cache, llm_call=None, parse=json.loads, refresh=False, max_
         return t, h, None, err
 
     if todo and llm_call is not None:
-        log(f"  จับคู่เทรนด์กับแรงขับ STEPIC / persona ด้วย LLM {len(todo)} เทรนด์...")
+        log(f"  จับคู่เทรนด์กับแรงขับ STEPIC{' / persona' if personas else ''} ด้วย LLM {len(todo)} เทรนด์...")
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             for t, h, output, err in pool.map(_one, todo):
                 if output:

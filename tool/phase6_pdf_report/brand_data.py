@@ -33,8 +33,6 @@ DEFAULT_CONFIG = {
     "fit_top_pct": {"excellent": 1, "good": 5, "average": 20},
     "momentum_split": "median",
     "strong_fit_levels": ["excellent", "good"],
-    # 🆕 (2026-10-19) ยอดขาย Konvy ปรับเกรดสินค้า: Strong = top x% ของยอดขายในกลุ่ม, Slow = ล่าง y% ของกลุ่ม (หรือขาย 0 ที่ยังมีของ)
-    "sales": {"strong_top_pct": 20, "slow_bottom_pct": 25},
 }
 
 
@@ -42,7 +40,6 @@ def load_config(path=None):
     cfg = {k: v for k, v in (read_json(path) or {}).items() if not k.startswith("_")} if path else {}
     merged = {**DEFAULT_CONFIG, **cfg}
     merged["fit_top_pct"] = {**DEFAULT_CONFIG["fit_top_pct"], **cfg.get("fit_top_pct", {})}
-    merged["sales"] = {**DEFAULT_CONFIG["sales"], **cfg.get("sales", {})}
     return merged
 
 
@@ -66,57 +63,13 @@ def fit_level(rank, cuts):
 
 
 # ---------------------------------------------------------------------------
-# 🆕 (2026-10-19) ยอดขายเป็นส่วนหนึ่งของเกณฑ์เกรดสินค้า (เจ้าของงานสั่ง): เกรดสินค้า = ความใกล้เทรนด์ (fit_level ด้านบน) เป็นตัวตั้ง
-# แล้วปรับตามยอดขาย Konvy ของสินค้าชิ้นนั้นเทียบสินค้า Konvy ในกลุ่มเดียวกัน (หมวด x ช่วงราคาต่อปริมาณ) ไม่เกิน 1 ขั้น:
-#   Strong (top x% ของกลุ่ม)             ขึ้น 1 ขั้น แต่ไม่ถึง Excellent และไม่ขึ้นจาก Below average (Excellent = ใกล้เทรนด์ที่สุดเท่านั้น)
-#   Slow (ล่าง y% หรือขาย 0 ที่ยังมีของ)   ลง 1 ขั้น
-#   Steady / ไม่ทราบ (ของหมดไม่มีรีวิว ฯลฯ) ไม่เปลี่ยน
-# 🆕 (2026-10-21) เจ้าของงานสั่งเปลี่ยน: Excellent ต้องทั้งใกล้เทรนด์ (top 1% ของหมวด) และขายดี (Strong) - ใกล้เทรนด์ top 1% แต่ขายปานกลาง/ไม่มีข้อมูล = Good
-# (ขายน้อยยังลง 1 ขั้นเป็น Good เหมือนเดิม) ส่วน Strong ยังไม่ดันขึ้นเป็น Excellent จากระดับ Good/Average - รายละเอียดที่ adjust_level
-# เกรดของเทรนด์ = เกรดที่ดีที่สุดของสินค้าของแบรนด์ในหมวดหลัก "หลังปรับ" (ชิ้นที่ใกล้เทรนด์รองลงมาแต่ขายดีอาจชนะ)
-# ข้อมูลดิบของยอดขาย (เปอร์เซ็นไทล์ในกลุ่ม + ธง) มาจาก ⑬ (sales_level.py) - เส้นตัด Strong/Slow อยู่ที่นี่ (config) ปรับได้โดยไม่รัน ⑬ ใหม่
+# 🆕 (2026-10-27) เกรดสินค้า = ความใกล้เทรนด์อย่างเดียว (เจ้าของงานสั่งตัดยอดขาย Konvy ออกจากเกรดและรายงานทั้งหมด): เกณฑ์ใช้ได้กับสินค้านอก Konvy
+# ด้วย (ไม่ต้องมีตัวนับยอดขาย) - เกรดก่อนหน้านี้ (2026-10-19..21) ปรับ +-1 ขั้นตามยอดขายและ Excellent ต้องขายดีด้วย; โค้ดเดิมอยู่ใน
+# output/_backups/sales_removal_code_20261027 (ข้อมูลดิบยอดขายยังอยู่ในผล ⑬ / แผนที่ ⑫ แต่รายงานไม่ใช้)
 # ---------------------------------------------------------------------------
-SALES_STATES = ("strong", "steady", "slow", "unknown")
-
-
-def sales_state(sales, scfg):
-    """ข้อมูลยอดขายดิบของสินค้า (ช่อง "sales" ในผล ⑬) -> strong / steady / slow / unknown ตามเส้นตัดใน scfg (config["sales"])"""
-    if not sales:
-        return "unknown"
-    if sales.get("zero"):               # ยังมีของแต่ขาย 0 ชิ้น = ขายไม่ได้จริง (ของหมดไม่ใช่กรณีนี้ - Konvy ซ่อนตัวนับ)
-        return "slow"
-    pct = sales.get("pct")              # ของหมด = เปอร์เซ็นไทล์รีวิวแทน; ไม่มีรีวิว/กลุ่มเล็ก/ไม่มีข้อมูลยอดขาย = None
-    if not isinstance(pct, (int, float)):
-        return "unknown"
-    if pct >= 1 - scfg["strong_top_pct"] / 100:
-        return "strong"
-    if pct < scfg["slow_bottom_pct"] / 100:
-        return "slow"
-    return "steady"
-
-
-def adjust_level(level, state):
-    """เกรดตามความใกล้เทรนด์ + ระดับยอดขาย -> เกรดสินค้า (กติกาข้างบน)
-    🆕 (2026-10-21) Excellent = ใกล้เทรนด์ top 1% **และ**ขายดี: ไม่ขายดี (ปานกลาง/ไม่มีข้อมูล) ได้สูงสุด Good, ขายน้อยลง 1 ขั้น (Excellent -> Good เหมือนกัน)"""
-    if state == "strong":
-        return "good" if level == "average" else level
-    if state == "slow":
-        return FIT_LEVELS[min(FIT_LEVELS.index(level) + 1, len(FIT_LEVELS) - 1)]
-    return "good" if level == "excellent" else level   # steady / unknown
-
-
-def grade_product(p, n_tier, top_pct, scfg):
-    """สินค้า 1 ชิ้นในกลุ่มที่มี n_tier ชิ้น (p มี rank_in_tier และ sales) -> {"base", "level", "state", "move"}
-    move = "up" / "down" เมื่อยอดขายเปลี่ยนเกรด ไม่เปลี่ยน = None
-    🆕 (2026-10-21) move = "cap" = ใกล้เทรนด์ top 1% แต่ยอดขายไม่ถึง Strong (ปานกลาง/ไม่มีข้อมูล) จึงถูกจำกัดที่ Good (ยังไม่ใช่ "ขายน้อยดึงลง")"""
-    base = fit_level(p["rank_in_tier"], rank_cuts(n_tier, top_pct))
-    state = sales_state(p.get("sales"), scfg)
-    level = adjust_level(base, state)
-    i, j = FIT_LEVELS.index(level), FIT_LEVELS.index(base)
-    move = "up" if i < j else "down" if i > j else None
-    if move == "down" and base == "excellent" and state in ("steady", "unknown"):
-        move = "cap"
-    return {"base": base, "level": level, "state": state, "move": move}
+def grade_product(p, n_tier, top_pct):
+    """สินค้า 1 ชิ้นในกลุ่มที่มี n_tier ชิ้น (p มี rank_in_tier) -> {"level"} ตามอันดับ % แรกของกลุ่มล้วนๆ"""
+    return {"level": fit_level(p["rank_in_tier"], rank_cuts(n_tier, top_pct))}
 
 
 def tier_products(tier):
@@ -128,37 +81,28 @@ def tier_products(tier):
     return prods
 
 
-def best_in_tier(tier, top_pct, scfg):
-    """สินค้าของแบรนด์ที่เกรดหลังปรับดีที่สุดในกลุ่ม (เสมอ -> % แรกในกลุ่มน้อยกว่า) -> {"raw", "base", "level", "state", "move"} หรือ None"""
+def best_in_tier(tier, top_pct):
+    """สินค้าของแบรนด์ที่เกรดดีที่สุดในกลุ่ม (= ชิ้นที่อันดับในกลุ่มดีที่สุด) -> {"raw", "level"} หรือ None"""
     n = tier.get("n_total")
     if not n:
         return None
     best = None
     for p in tier_products(tier):
-        g = grade_product(p, n, top_pct, scfg)
+        g = grade_product(p, n, top_pct)
         key = (FIT_LEVELS.index(g["level"]), p["rank_in_tier"] / n, p["rank_in_tier"])
         if best is None or key < best[0]:
             best = (key, p, g)
     return None if best is None else {"raw": best[1], **best[2]}
 
 
-def best_in_category(category, top_pct, scfg):
+def best_in_category(category, top_pct):
     """category_fit["categories"][i] -> (tier, best_in_tier) ของกลุ่มที่สินค้าของแบรนด์ได้เกรดดีที่สุด หรือ (None, None)"""
-    found = [(t, best_in_tier(t, top_pct, scfg)) for t in category.get("tiers") or []]
+    found = [(t, best_in_tier(t, top_pct)) for t in category.get("tiers") or []]
     found = [(t, b) for t, b in found if b]
     if not found:
         return None, None
     return min(found, key=lambda x: (FIT_LEVELS.index(x[1]["level"]), x[1]["raw"]["rank_in_tier"] / x[0]["n_total"],
                                      x[1]["raw"]["rank_in_tier"]))
-
-
-def sales_view(sales, state):
-    """ข้อมูลยอดขายที่เทมเพลตแสดง: ระดับ + ยอดขาย/รีวิว + ตำแหน่ง (top x% ของยอดขาย/รีวิวในกลุ่ม) - ไม่มีข้อมูล = state "unknown" """
-    sa = sales or {}
-    pct = sa.get("pct")
-    return {"state": state, "soldout": bool(sa.get("soldout")), "zero": bool(sa.get("zero")), "basis": sa.get("basis") or "none",
-            "sold": sa.get("sold"), "value": sa.get("value"), "reviews": sa.get("reviews"),
-            "top_pct": None if not isinstance(pct, (int, float)) else max(1, round((1 - pct) * 100))}
 
 
 SHORT_IDX = SHORT_YEAR - 1  # 🆕 (2026-10-19) ระยะสั้น = ปีที่ SHORT_YEAR (common/horizons.py; เดิมเขียนเลข 1 ตายตัว = ปีที่ 2)
@@ -302,35 +246,32 @@ def _group_product(m, index, brand=None):
 
 
 def _grade_fields(g, raw):
-    """grade_product() + ข้อมูลยอดขายของสินค้าชิ้นนั้น -> ช่องที่เทมเพลตใช้ (level = เกรดหลังปรับยอดขาย, base_level = ตามความใกล้เทรนด์ล้วน)"""
-    return {"base_level": g["base"], "level": g["level"], "sales_state": g["state"], "sales_move": g["move"],
-            "sales": sales_view(raw.get("sales"), g["state"])}
+    """grade_product() / best_in_tier() -> ช่องเกรดที่เทมเพลตใช้ (level = เกรดตามอันดับในกลุ่ม)"""
+    return {"level": g["level"]}
 
 
-def trend_categories(fit, brand, index, top_pct, scfg=None):
+def trend_categories(fit, brand, index, top_pct):
     """🆕 (2026-10-07) เทรนด์ -> หมวด -> ช่วงราคา -> สินค้า (category_fit ของ ⑬) -> หมวดของเทรนด์:
     🆕 (2026-10-08) category_fit มีหมวดหลักหมวดเดียว (LLM เลือก - ไม่นับหมวดควบคู่) จึงได้รายการ 1 รายการ; "key" เป็น True เสมอ
     (เก็บชื่อฟิลด์ไว้ให้เทมเพลตเดิม)
     [{"category", "key", "n_brand", "n_total", "best": สินค้าที่ดีที่สุดของแบรนด์ในหมวด + กลุ่มราคา/อันดับในกลุ่ม/เกรด หรือ None,
       "cell": กลุ่ม (หมวด x ช่วงราคา) ของสินค้าชิ้นนั้น + top N ของกลุ่ม หรือ None}]
     เกรด = อันดับในกลุ่มตามเกณฑ์ % เดียวกับเดิม (rank_cuts ของขนาดกลุ่ม - อันดับ 1 ของกลุ่มได้ Excellent เสมอ)
-    🆕 (2026-10-19) แล้วปรับตามยอดขาย Konvy ไม่เกิน 1 ขั้น (grade_product) - "best" = สินค้าของแบรนด์ที่เกรดหลังปรับดีที่สุด (ไม่ใช่ชิ้นที่ใกล้เทรนด์ที่สุด
-    เสมอไป) scfg = config["sales"] (ไม่ส่ง = ค่าตั้งต้น)"""
-    scfg = scfg or DEFAULT_CONFIG["sales"]
+    🆕 (2026-10-27) เกรดตามความใกล้เทรนด์ล้วน (ตัดยอดขายออก) - "best" = สินค้าของแบรนด์ที่อันดับดีที่สุดในกลุ่ม"""
     out = []
     for c in fit.get("categories") or []:
         entry = {"category": c["category"], "key": True,
                  "n_brand": c.get("n_brand", 0), "n_total": c.get("n_total"), "best": None, "cell": None, "tiers": []}
         # 🆕 (2026-10-07) ตารางหมวด x ช่วงราคาในหน้าเทรนด์: ทุกช่วงราคาตลาดของหมวด + สินค้าของแบรนด์ที่เกรดดีที่สุดในช่วงนั้น
         for t in c.get("tiers") or []:
-            tb = best_in_tier(t, top_pct, scfg)
+            tb = best_in_tier(t, top_pct)
             best_t = None
             if tb:
                 raw = tb["raw"]
                 best_t = {**_group_product(raw, index, brand), "pct": raw["rank_in_tier"] / t["n_total"] * 100, **_grade_fields(tb, raw)}
             entry["tiers"].append({"label": t["label"], "price_from": t.get("price_from"), "price_to": t.get("price_to"),
                                    "n_total": t.get("n_total"), "best": best_t, "graded": False})
-        tier, tb = best_in_category(c, top_pct, scfg)
+        tier, tb = best_in_category(c, top_pct)
         if tb:
             raw = tb["raw"]
             closest = c.get("brand_best") or {}
@@ -347,7 +288,7 @@ def trend_categories(fit, brand, index, top_pct, scfg=None):
                 pos = m.get("rank_in_tier") or i + 1
                 mine = m.get("brand") == brand
                 top.append({**_group_product(m, index), "pos": pos, "is_you": mine,
-                            "level": grade_product({**m, "rank_in_tier": pos}, tier["n_total"], top_pct, scfg)["level"] if mine else None})
+                            "level": grade_product({**m, "rank_in_tier": pos}, tier["n_total"], top_pct)["level"] if mine else None})
             entry["best"] = best
             entry["cell"] = {"category": c["category"], "tier": tier["label"], "price_from": tier.get("price_from"),
                              "price_to": tier.get("price_to"), "n_total": tier["n_total"], "top": top,
@@ -406,7 +347,7 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
         if not c["category_fit"].get("main_category"):
             raise ValueError(f"ผล ⑬ ของ {brand} เทรนด์ '{t['name']}' ยังเป็นแบบหลายหมวด (ก่อน 2026-10-08) ไม่มีหมวดหลักที่ LLM เลือก - รัน "
                              f"run_brand_coverage.py --category-fit-only --brand {brand} ก่อน")
-        cats = trend_categories(c["category_fit"], brand, index, top_pct, cfg.get("sales") or DEFAULT_CONFIG["sales"])
+        cats = trend_categories(c["category_fit"], brand, index, top_pct)
         key_bests = [e["best"] for e in cats if e["key"] and e["best"]]
         graded = min(key_bests, key=_level_order, default=None)
         cell = next((e["cell"] for e in cats if e["best"] is graded), None) if graded else None
@@ -415,10 +356,6 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
                 tier["graded"] = graded is not None and e["best"] is graded and tier["label"] == graded["tier"]
         leader = (cell["top"][0] if cell and cell["top"] else None)
         level = graded["level"] if graded else "below_average"
-        # เกรดถ้าใช้ความใกล้เทรนด์ล้วน (ชิ้นที่ใกล้เทรนด์ที่สุดของแบรนด์ในหมวดหลัก - กติกาก่อน 2026-10-19) ไว้บอกว่ายอดขายปรับเกรดไหม
-        closest = next((x.get("brand_best") for x in c["category_fit"].get("categories") or [] if x.get("brand_best")), None)
-        row["base_level"] = (fit_level(closest["rank_in_tier"], rank_cuts(closest["n_tier"], top_pct)) if closest
-                             else "below_average")
         row.update(
             level=level,
             quadrant=quadrant(trend_growth(t), level, split, strong_levels),
@@ -436,11 +373,6 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
 
     checked = [r for r in rows if r["checked"]]
     counts = {lv: sum(1 for r in checked if r["level"] == lv) for lv in FIT_LEVELS}
-    # 🆕 (2026-10-19) ยอดขายปรับเกรดของเทรนด์กี่เทรนด์ (เกรดของเทรนด์ vs เกรดถ้าใช้ความใกล้เทรนด์ล้วนของชิ้นที่ใกล้เทรนด์ที่สุด = base_level)
-    sales_effect = {"up": 0, "down": 0}
-    for r in checked:
-        if r.get("base_level") and r["base_level"] != r["level"]:
-            sales_effect["up" if FIT_LEVELS.index(r["level"]) < FIT_LEVELS.index(r["base_level"]) else "down"] += 1
     strongest = min((r for r in checked if r["graded"]), key=lambda r: _level_order(r["graded"]), default=None)
     weak = [r for r in checked if r["quadrant"] == "build"] or [r for r in checked if r["level"] not in strong_levels]
     opportunity = max(weak, key=lambda r: r["growth"] or 0, default=None)
@@ -467,8 +399,6 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
         "momentum_split": round(split, 2),
         "rows": rows,
         "counts": counts,
-        "sales_cfg": cfg.get("sales") or DEFAULT_CONFIG["sales"],
-        "sales_effect": sales_effect,
         "overall": overall_level(counts, len(checked)),
         "n_checked": len(checked),
         "highlights": {"strongest": strongest["rank"] if strongest else None,
@@ -476,6 +406,8 @@ def build_brand_context(trend_ctx, coverage, catalog, cfg):
                        "quick_win": quick_win["rank"] if quick_win else None},
         "opportunities": [r["rank"] for r in build[:4]],
         "missing_trends": [r["display_name"] for r in rows if not r["checked"]],
+        # 🆕 (2026-10-28) เทรนด์ที่ไม่ได้ให้เกรดเพราะไม่มีสินค้าที่ใกล้พอ (report_data.product_trends ตัดออกจาก rows แล้ว) - บอกในหน้าสรุป
+        "no_close_trends": list(trend_ctx.get("no_close_trends") or []),
     }
 
 

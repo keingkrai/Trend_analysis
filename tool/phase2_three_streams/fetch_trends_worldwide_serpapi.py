@@ -52,9 +52,11 @@ def _force_worldwide_query(raw_topic):
 
 
 def build_trend_keyword_mapping():
+    # 🆕 (2026-10-27) อ่านเฉพาะสายที่รอบนี้มีไฟล์ผล (common/streams.py) - รอบใหม่มีแต่สาย Search (Google Trends)
+    from common.streams import present_streams
     mapping = {}
-    for fname in ["phase1_paper_stream_result.json", "phase2_social_stream_result.json", "phase2_news_stream_result.json"]:
-        with open(OUTPUTS / fname, encoding="utf-8") as f:
+    for fp in present_streams(OUTPUTS).values():
+        with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         for row in data["keywords"]:
             trend_name = row["Trend Name"]

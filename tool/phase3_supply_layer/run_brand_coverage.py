@@ -46,6 +46,7 @@ for _p in Path(__file__).resolve().parents:
         sys.path.insert(0, str(_p))
         break
 from common.bootstrap import OUTPUTS, prompt_run_config  # noqa: E402
+from common.match_quality import result_agreement  # noqa: E402
 
 from validate_at_scale_nvidia import (  # noqa: E402
     MAIN_CATEGORY_LABELS, generate_match_reason, get_embedding, load_checkpoint, load_real_trend_profiles,
@@ -66,7 +67,7 @@ BRAND_TOP_K = 5
 
 
 def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_report, urls=None, l2=None,
-                        market_tops=None, trend_set=None):
+                        market_tops=None, trend_set=None, no_close=None):
     """🆕 (2026-09-16) เซฟผล ⑬ เป็น Excel คู่กับ JSON ตามที่เจ้าของงานขอ - **ข้อมูลชุดเดียวกันเป๊ะกับ JSON**
     ไม่ได้คำนวณอะไรเพิ่มหรือตัดอะไรทิ้ง แค่จัดเป็นตารางให้เปิดอ่าน/ส่งต่อได้โดยไม่ต้องเปิด JSON
 
@@ -96,6 +97,8 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
 
     top_rows = []
     for r in by_score:
+        if (no_close or {}).get((r.get("stream"), r.get("trend_name"))):   # ไม่ให้เกรด - ไม่แสดงสินค้าของแบรนด์ที่ "ใกล้เทรนด์" ในเทรนด์นี้
+            continue
         matches = r.get("brand_top_matches")
         if matches is None:  # ผลรอบเก่า (ก่อน 2026-09-16) - มีแค่ชิ้นที่ดีที่สุดชิ้นเดียว
             matches = [{"rank_in_brand": 1, "product_name": r["brand_best_product"],
@@ -127,7 +130,7 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
         rank_vs_market = r.get("brand_best_rank_vs_market")
         info = trend_grade_info(r.get("category_fit"), grading)
         level, grade_cat, grade_tier = (None, None, None) if info is None else (info["level"], info["category"], info["tier"])
-        closest = next((c.get("brand_best") for c in (r.get("category_fit") or {}).get("categories") or [] if c.get("brand_best")), None)
+        ag = (no_close or {}).get((r.get("stream"), r.get("trend_name")))
         best = (r.get("brand_top_matches") or [{"product_name": r["brand_best_product"]}])[0]  # ชิ้นอันดับ 1 = brand_best
         rows.append({
             "อันดับเทรนด์": display_trend_rank(r),
@@ -135,14 +138,9 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
             "เทรนด์": r["trend_name"],
             "สถานะ": r["tier"],
             # 🆕 (2026-10-07) ระดับแบบรายงาน ⑰ (เทรนด์ -> หมวดหลัก -> ช่วงราคาตลาด -> สินค้า)
-            "ระดับ (รายงาน)": LEVEL_NAMES.get(level) if level else None,
-            "ระดับมาจาก": ((grade_cat if grade_tier == "all" else f"{grade_cat} · {group_names(r.get('category_fit')).get(grade_tier, grade_tier)}")
+            "ระดับ (รายงาน)": NO_CLOSE_LEVEL if ag else (LEVEL_NAMES.get(level) if level else None),
+            "ระดับมาจาก": no_close_reason(ag) if ag else ((grade_cat if grade_tier == "all" else f"{grade_cat} · {group_names(r.get('category_fit')).get(grade_tier, grade_tier)}")
                            if grade_cat else ("— ไม่มีสินค้าในหมวดของเทรนด์" if level else None)),
-            # 🆕 (2026-10-19) เกรดรวมยอดขาย: เกรดถ้าดูแค่ความใกล้เทรนด์ (ชิ้นที่ใกล้เทรนด์ที่สุด) / ระดับยอดขายของชิ้นที่ให้เกรด / ยอดขายปรับเกรดไหม
-            "เกรดถ้าดูแค่ความใกล้เทรนด์": (LEVEL_NAMES[grading["level"](closest["rank_in_tier"], closest["n_tier"])] if closest
-                                           else (LEVEL_NAMES["below_average"] if level else None)),
-            "ระดับยอดขายของชิ้นที่ให้เกรด": SALES_NAMES.get(info["state"]) if info and info.get("state") else None,
-            "ยอดขายปรับเกรด": {"up": "▲ ขึ้น 1 ขั้น", "down": "▼ ลง 1 ขั้น", "cap": "▼ จำกัดที่ Good (Excellent ต้องขายดี)"}.get(info["move"]) if info else None,
             f"สินค้า {brand} ที่ใกล้เทรนด์สุด": r["brand_best_product"] or "— ไม่มี SKU ไหนใกล้เคียงเลย",
             f"ลิงก์สินค้า {brand}": brand_url(best) if r["brand_best_product"] else None,
             "คะแนนความใกล้เคียง": r["brand_best_score"],
@@ -156,7 +154,7 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
         })
     df_trends = pd.DataFrame(rows)
     df_products = pd.DataFrame(trend_product_rows(brand, coverage_report, n_market_skus, urls, l2, market_tops,
-                                                  trend_set=trend_set, grading=grading))
+                                                  trend_set=trend_set, grading=grading, no_close=no_close))
 
     summary = [("แบรนด์", brand),
                ("จำนวน SKU ของแบรนด์นี้", n_brand_skus),
@@ -165,6 +163,9 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
                (f"สินค้าที่แสดงต่อเทรนด์ (สูงสุด {BRAND_TOP_K} อันดับ)", len(df_top))]
     if not df_trends.empty:
         summary += [(f"เทรนด์ที่ '{tier}'", int(n)) for tier, n in df_trends["สถานะ"].value_counts().items()]
+    n_nc = sum(1 for r in by_score if (r.get("stream"), r.get("trend_name")) in (no_close or {}))
+    if n_nc:
+        summary.append(("เทรนด์ที่ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)", n_nc))
     df_summary = pd.DataFrame(summary, columns=["หัวข้อ", "ค่า"])
 
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -186,22 +187,20 @@ def save_coverage_excel(path, brand, n_brand_skus, n_market_skus, coverage_repor
 
 def fit_grading():
     """🆕 (2026-10-07) เกณฑ์เกรดชุดเดียวกับรายงาน ⑰/⑱ (config/brand_report.json ผ่าน brand_data - ไม่เขียนกติกาซ้ำ)
-    -> dict: top_pct, level(rank, n) -> "excellent"/.../"below_average"
-    🆕 (2026-10-19) + sales (เส้นตัดยอดขาย), grade_product(p, n_tier), best_in_category(category) - เกรดสินค้ารวมยอดขาย Konvy
-    (ความใกล้เทรนด์เป็นตัวตั้ง ปรับ +-1 ขั้นตามยอดขาย) ใช้ฟังก์ชันของ brand_data ตัวเดียวกับรายงาน ⑰"""
+    -> dict: top_pct, level(rank, n) -> "excellent"/.../"below_average", best_in_category(category), best_in_tier(tier)
+    🆕 (2026-10-27) เกรดตามความใกล้เทรนด์ล้วน (ตัดยอดขาย Konvy ออก) ใช้ฟังก์ชันของ brand_data ตัวเดียวกับรายงาน ⑰"""
     report_dir = Path(__file__).resolve().parents[1] / "phase6_pdf_report"
     if str(report_dir) not in sys.path:
         sys.path.insert(0, str(report_dir))
-    from brand_data import best_in_category, best_in_tier, fit_level, grade_product, load_config, rank_cuts, sales_view
+    from brand_data import best_in_category, best_in_tier, fit_level, grade_product, load_config, rank_cuts
 
     cfg = load_config(Path(__file__).resolve().parents[2] / "config" / "brand_report.json")
-    top_pct, scfg = cfg["fit_top_pct"], cfg["sales"]
-    return {"top_pct": top_pct, "sales": scfg,
+    top_pct = cfg["fit_top_pct"]
+    return {"top_pct": top_pct,
             "level": lambda rank, n: fit_level(rank, rank_cuts(n, top_pct)),
-            "grade_product": lambda p, n_tier: grade_product(p, n_tier, top_pct, scfg),
-            "best_in_category": lambda category: best_in_category(category, top_pct, scfg),
-            "best_in_tier": lambda tier: best_in_tier(tier, top_pct, scfg),
-            "sales_view": sales_view}
+            "grade_product": lambda p, n_tier: grade_product(p, n_tier, top_pct),
+            "best_in_category": lambda category: best_in_category(category, top_pct),
+            "best_in_tier": lambda tier: best_in_tier(tier, top_pct)}
 
 
 def l2_grading(brand, coverage_report):
@@ -219,27 +218,48 @@ def l2_grading(brand, coverage_report):
 
 
 def _grading_fns(grading):
-    """grading ที่มีแค่ top_pct + level (เช่นในเทสต์) -> เติมฟังก์ชันเกรดรวมยอดขายจาก brand_data ด้วยเส้นตัดตั้งต้น"""
-    if all(k in grading for k in ("best_in_tier", "best_in_category", "sales_view")):
+    """grading ที่มีแค่ top_pct + level (เช่นในเทสต์) -> เติมฟังก์ชันเกรดจาก brand_data ด้วยเส้นตัดเดียวกัน"""
+    if all(k in grading for k in ("best_in_tier", "best_in_category")):
         return grading
     report_dir = Path(__file__).resolve().parents[1] / "phase6_pdf_report"
     if str(report_dir) not in sys.path:
         sys.path.insert(0, str(report_dir))
-    from brand_data import DEFAULT_CONFIG, best_in_category, best_in_tier, sales_view
+    from brand_data import best_in_category, best_in_tier
 
-    top_pct, scfg = grading["top_pct"], grading.get("sales") or DEFAULT_CONFIG["sales"]
-    return {**grading, "sales": scfg, "best_in_tier": lambda t: best_in_tier(t, top_pct, scfg),
-            "best_in_category": lambda c: best_in_category(c, top_pct, scfg), "sales_view": sales_view}
+    top_pct = grading["top_pct"]
+    return {**grading, "best_in_tier": lambda t: best_in_tier(t, top_pct),
+            "best_in_category": lambda c: best_in_category(c, top_pct)}
 
 
 LEVEL_NAMES = {"excellent": "Excellent", "good": "Good", "average": "Average", "below_average": "Below average"}
 LEVEL_ORDER = list(LEVEL_NAMES)
-SALES_NAMES = {"strong": "Strong", "steady": "Steady", "slow": "Slow", "unknown": "ไม่ทราบ"}
+# 🆕 (2026-10-28) เทรนด์ที่ "ไม่มีสินค้าที่ใกล้พอ" (common/match_quality.py: สินค้า 5 ชิ้นที่ใกล้เทรนด์ที่สุดของทั้งร้านอยู่ในหมวดหลักน้อยกว่า 2 ชิ้น) ไม่ให้เกรด -
+# เกรดในหมวดหลักของเทรนด์ที่สินค้าใกล้สุดไม่ได้อยู่ในหมวดนั้นไม่สะท้อนเทรนด์ (เหมือนรายงาน ⑯/⑰) - ข้อมูลดิบใน JSON ไม่ถูกแตะ ธงมาจากผล ⑫ ของรอบเดียวกัน
+NO_CLOSE_LEVEL = "ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)"
+
+
+def no_close_reason(ag):
+    return f"— สินค้าที่ใกล้เทรนด์ที่สุดอยู่ในหมวด {ag['category']} แค่ {ag['in_main']} จาก {ag['top_n']} ชิ้น จึงไม่ให้เกรด"
+
+
+def load_no_close_of_run():
+    """{(สาย, เทรนด์): category_agreement} เฉพาะเทรนด์ที่ไม่มีสินค้าที่ใกล้พอ จาก ⑫ ของรอบนี้ (top_matches + main_category) - ไม่มีไฟล์ = {}"""
+    path = OUTPUTS / "phase3_scale_validation_nvidia_result.json"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        results = json.load(f).get("results") or {}
+    out = {}
+    for key, v in results.items():
+        ag = result_agreement(v)
+        if ag and not ag["ok"]:
+            out[(v.get("stream"), v.get("trend_name") or key.split("::")[-1])] = ag
+    return out
 
 
 def trend_grade_info(fit, grading):
-    """category_fit ของ 1 เทรนด์ -> สินค้าของแบรนด์ที่เกรดหลังปรับยอดขายดีที่สุดในหมวดหลักของเทรนด์ (กติกา ⑰):
-    {"level", "category", "tier" (label), "product" (ดิบจาก category_fit), "base" (ตามความใกล้เทรนด์ล้วน), "state", "move"}
+    """category_fit ของ 1 เทรนด์ -> สินค้าของแบรนด์ที่เกรดดีที่สุดในหมวดหลักของเทรนด์ (กติกา ⑰ - ตามความใกล้เทรนด์ล้วน):
+    {"level", "category", "tier" (label), "product" (ดิบจาก category_fit)}
     ไม่มีสินค้าในหมวดหลัก -> level "below_average" ที่เหลือเป็น None / ไม่มี category_fit -> None"""
     if not fit:
         return None
@@ -250,27 +270,17 @@ def trend_grade_info(fit, grading):
         if tb:
             raw = tb["raw"]
             cand = (LEVEL_ORDER.index(tb["level"]), raw["rank_in_tier"] / tier["n_total"], {
-                "level": tb["level"], "category": c["category"], "tier": tier["label"], "product": raw,
-                "base": tb["base"], "state": tb["state"], "move": tb["move"]})
+                "level": tb["level"], "category": c["category"], "tier": tier["label"], "product": raw})
             best = min(best, cand, key=lambda x: x[:2]) if best else cand
-    return best[2] if best else {"level": "below_average", "category": None, "tier": None, "product": None,
-                                 "base": None, "state": None, "move": None}
+    return best[2] if best else {"level": "below_average", "category": None, "tier": None, "product": None}
 
 
 def trend_grade(fit, grading):
     """category_fit ของ 1 เทรนด์ -> (ระดับ, หมวด, ช่วงราคา label) ของสินค้าที่ดีที่สุดของแบรนด์ในหมวดหลักของเทรนด์ ตามกติกา ⑰
-    (🆕 2026-10-19 รวมยอดขาย - ดู trend_grade_info) ไม่มีสินค้าในหมวดหลัก -> ("below_average", None, None) /
+    (ดู trend_grade_info) ไม่มีสินค้าในหมวดหลัก -> ("below_average", None, None) /
     ไม่มี category_fit -> (None, None, None)"""
     info = trend_grade_info(fit, grading)
     return (None, None, None) if info is None else (info["level"], info["category"], info["tier"])
-
-
-def sales_text(sv):
-    """sales_view -> ข้อความระดับยอดขายใน Excel เช่น "Strong" / "Strong (ของหมด · ใช้รีวิวแทน)" / "ไม่ทราบ" """
-    name = SALES_NAMES.get(sv["state"], sv["state"])
-    if sv.get("soldout"):
-        return f"{name} (ของหมด" + (" · ใช้รีวิวแทน)" if sv.get("basis") == "reviews" else ")")
-    return name
 
 
 PRODUCT_ROW_TYPE_MARKET = "Top 5 ตลาด"
@@ -322,13 +332,9 @@ def fit_product_rows(brand, r, trend, grading, market_col, product):
             tb = fns["best_in_tier"](tier)
             if tb:
                 bb, n = tb["raw"], tier.get("n_total") or 1
-                sv = fns["sales_view"](bb.get("sales"), tb["state"])
                 rows.append({**base, "ประเภท": best_type, k_rank: bb["rank_in_tier"],
                              k_pct: round(bb["rank_in_tier"] / n * 100, 1),
                              "ระดับ": LEVEL_NAMES[tb["level"]],
-                             # 🆕 (2026-10-19) เกรด = ความใกล้เทรนด์ (เกรดตั้งต้น) ปรับตามยอดขาย Konvy ไม่เกิน 1 ขั้น
-                             "เกรดตามความใกล้เทรนด์": LEVEL_NAMES[tb["base"]],
-                             "ระดับยอดขาย": sales_text(sv),
                              market_col: bb.get("rank_in_market"), **product(bb, brand)})
             else:
                 rows.append({**base, "ประเภท": best_type, "สินค้า": f"— ไม่มีสินค้า {brand} ในหมวดนี้" if l2 else f"— ไม่มีสินค้า {brand} ในกลุ่มนี้"})
@@ -336,7 +342,7 @@ def fit_product_rows(brand, r, trend, grading, market_col, product):
 
 
 def trend_product_rows(brand, coverage_report, n_market_skus=None, urls=None, l2=None, market_tops=None, top_n=5,
-                       trend_set=None, grading=None):
+                       trend_set=None, grading=None, no_close=None):
     """🆕 (2026-10-05) แถวของชีต "รายเทรนด์" เรียงตามอันดับเทรนด์ - จัดตามกลุ่มราคาแบบเดียวกับรายงาน ⑱ (ข้อมูล price_tiers ชุดเดียวกัน):
     ต่อเทรนด์ -> ต่อกลุ่มราคา (ระดับราคาของแบรนด์ในหมวดหลัก L2 ของเทรนด์) -> top 5 ของ "หมวด ∩ กลุ่มราคา" + สินค้าที่ดีที่สุดของแบรนด์
     ในกลุ่มนั้น พร้อมอันดับในกลุ่ม / ในหมวด / ทั้งตลาด, ราคา, ความคล้าย และลิงก์
@@ -350,20 +356,12 @@ def trend_product_rows(brand, coverage_report, n_market_skus=None, urls=None, l2
     market_col = f"อันดับทั้งตลาด (จาก {n_all:,} SKU)" if n_all else "อันดับทั้งตลาด"
     brand_type, best_type = f"สินค้า {brand}", f"ดีที่สุดของ {brand} ในกลุ่มนี้"
     grading = _grading_fns(grading or fit_grading())
-    from brand_data import sales_state   # fit_grading / _grading_fns เติม sys.path ของ phase6_pdf_report ให้แล้ว
 
     def product(m, b=None):
         b = b or m.get("brand")
         name = m.get("product_name")
         out = {"แบรนด์": b, "สินค้า": name, "ราคา (฿)": m.get("sale_price_thb"),
                "คะแนนความใกล้เคียง": m.get("similarity"), "ลิงก์สินค้า": m.get("product_url") or urls.get((b, name))}
-        sa = m.get("sales")
-        if sa and sa.get("sold") is not None:
-            # 🆕 (2026-10-19) ยอดขายสะสมบน Konvy (ชิ้น) / ของหมด (Konvy ซ่อนตัวนับ - ใช้จำนวนรีวิวแทน) / ระดับยอดขายของชิ้นนี้
-            out["ยอดขาย Konvy (ชิ้น)"] = "ของหมด" if sa.get("soldout") else sa["sold"]
-            out["รีวิว"] = sa.get("reviews")
-            st = sales_state(sa, grading["sales"])
-            out["ระดับยอดขาย (ชิ้นนี้)"] = SALES_NAMES.get(st, st)
         if m.get("unit_tier") is not None or m.get("unit_price") is not None or m.get("size") is not None:
             # 🆕 (2026-10-12) ช่วงราคาต่อปริมาณ: ขนาดรวม (คูณแพ็กแล้ว) + ฿ ต่อหน่วย + ธงขนาดทดลอง/ซอง
             unit_name = {"ml": "ml", "g": "g", "pcs": "ชิ้น"}.get(m.get("unit_label"), m.get("unit_label") or "")
@@ -383,6 +381,10 @@ def trend_product_rows(brand, coverage_report, n_market_skus=None, urls=None, l2
             continue
         pt = r.get("price_tiers")
         trend = {"อันดับเทรนด์": display_trend_rank(r), "เทรนด์": r["trend_name"], "หมวด (L2)": (pt or {}).get("category") or ""}
+        ag = (no_close or {}).get((r.get("stream"), r.get("trend_name")))
+        if ag:   # 🆕 (2026-10-28) ไม่มีสินค้าที่ใกล้พอ - แถวเดียวบอกเหตุผล ไม่แสดงสินค้า/เกรด
+            rows.append({**trend, "ประเภท": "ไม่ให้เกรด", "สินค้า": no_close_reason(ag)})
+            continue
         if r.get("category_fit"):   # 🆕 (2026-10-07) เทรนด์ -> หมวด -> ช่วงราคาตลาด -> สินค้า (แบบ ⑰/⑱)
             rows += fit_product_rows(brand, r, trend, grading or fit_grading(), market_col, product)
             continue
@@ -420,9 +422,9 @@ def trend_product_rows(brand, coverage_report, n_market_skus=None, urls=None, l2
             rows.append({**trend, "ประเภท": brand_type, "สินค้า": "— ไม่มี SKU ไหนใกล้เคียงเลย"})
     columns = ["อันดับเทรนด์", "เทรนด์", "หมวด (L2)", "กลุ่มราคา", "สินค้าในกลุ่ม",
                f"สินค้า {brand} ในกลุ่ม", "แบรนด์ในกลุ่ม", "กลุ่มเทียบ", "สินค้าในหมวด", f"สินค้า {brand} ในหมวด",
-               "ประเภท", "อันดับในกลุ่ม", "% แรกในกลุ่ม", "% แรกในหมวด", "ระดับ", "เกรดตามความใกล้เทรนด์", "ระดับยอดขาย",
+               "ประเภท", "อันดับในกลุ่ม", "% แรกในกลุ่ม", "% แรกในหมวด", "ระดับ",
                "อันดับในหมวด", market_col, "แบรนด์", "สินค้า", "ราคา (฿)", "ขนาด", "฿ ต่อหน่วย", "ขนาดทดลอง/ซอง",
-               "ยอดขาย Konvy (ชิ้น)", "รีวิว", "ระดับยอดขาย (ชิ้นนี้)", "คะแนนความใกล้เคียง", "ลิงก์สินค้า"]
+               "คะแนนความใกล้เคียง", "ลิงก์สินค้า"]
     used = [c for c in columns if any(row.get(c) not in (None, "") for row in rows)] or columns
     return [{c: row.get(c) for c in used} for row in rows]
 
@@ -522,7 +524,7 @@ def display_trend_rank(row):
     return top_rank if top_rank is not None else row.get("trend_overall_rank")
 
 
-def build_brand_section_markdown(brand, n_skus, n_market, coverage_report):
+def build_brand_section_markdown(brand, n_skus, n_market, coverage_report, no_close=None):
     """🆕 (2026-09-14) สร้างข้อความ markdown ของอันดับสินค้าแบรนด์ต่อเทรนด์ - แยกออกมาจาก __main__ ให้
     เทสได้ตรงๆ โดยไม่ต้องรัน embedding/similarity ใหม่ (ของแพง/ช้า) ทุกครั้งที่จะเทส
 
@@ -546,8 +548,9 @@ def build_brand_section_markdown(brand, n_skus, n_market, coverage_report):
         trend_rank = display_trend_rank(r)
         trend_rank_str = f"#{trend_rank}" if trend_rank is not None else "-"
         reason = (r.get("match_reason") or "-").replace("|", "&#124;")
+        status = "ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ)" if (no_close or {}).get((r.get("stream"), r.get("trend_name"))) else r["tier"]
         lines.append(f"| {r['trend_name']} | {trend_rank_str} | {r['stream']} | {product} | {rank} | "
-                      f"{pct} | {r['tier']} | {reason} |")
+                      f"{pct} | {status} | {reason} |")
 
     # 🆕 (2026-09-16) ตาราง top 5 สินค้าต่อเทรนด์ พร้อมเหตุผลรายชิ้น ตามที่เจ้าของงานขอ - ตารางแรกข้างบน
     # ยังเป็นภาพรวม 1 แถว/เทรนด์เหมือนเดิม (ใช้ดูสถานะรวมเร็วๆ) ตารางนี้คือรายละเอียดของแต่ละเทรนด์
@@ -574,7 +577,7 @@ def build_brand_section_markdown(brand, n_skus, n_market, coverage_report):
     return "\n".join(lines) + "\n"
 
 
-def append_brand_section_to_report(report_path, brand, n_skus, n_market, coverage_report):
+def append_brand_section_to_report(report_path, brand, n_skus, n_market, coverage_report, no_close=None):
     """🆕 (2026-09-14) เจ้าของงานขอ: อันดับสินค้าแบรนด์ต่อเทรนด์ต้องไปโผล่ใน Master Report ด้วย ไม่ใช่แค่
     อยู่ในไฟล์ ⑬ แยกที่ไม่มีใครอ่านต่อ - ⑬ รัน**หลัง** ⑭-⑮ (run_stepic_report.py) เสมอตามลำดับใน main.py
     จึงต่อท้าย (append) เข้าไฟล์รายงานที่มีอยู่แล้วแทนที่จะย้อนไปแก้ trend_final_v2.py (รายงานเขียนเสร็จ
@@ -584,7 +587,7 @@ def append_brand_section_to_report(report_path, brand, n_skus, n_market, coverag
     คืน True ถ้าต่อท้ายสำเร็จ, False ถ้าไม่เจอไฟล์รายงาน (ไม่ error - ไฟล์ ⑬ แยกยังเซฟไว้ปกติเสมอ)"""
     if not report_path.exists():
         return False
-    section = build_brand_section_markdown(brand, n_skus, n_market, coverage_report)
+    section = build_brand_section_markdown(brand, n_skus, n_market, coverage_report, no_close)
     with open(report_path, "a", encoding="utf-8") as f:
         f.write(section)
     return True
@@ -729,7 +732,7 @@ def attach_fit_reasons(fit, brand_top, brand_rows, profile, use_llm=True, known_
             known[best["product_name"]] = reason
             n_llm += 1
         best["match_reason"] = reason or ""
-        # 🆕 (2026-10-19) เกรดรวมยอดขาย: ชิ้นที่ให้เกรดอาจไม่ใช่ชิ้นที่ใกล้เทรนด์ที่สุด -> เขียนเหตุผลที่ตัวสินค้าในกลุ่มนั้นด้วย (⑰ อ่านจาก
+        # ชิ้นที่ให้เกรดอาจไม่ใช่ชิ้นที่ใกล้เทรนด์ที่สุด (เกรดดีที่สุดในหมวด) -> เขียนเหตุผลที่ตัวสินค้าในกลุ่มนั้นด้วย (⑰ อ่านจาก
         # match_reason ของชิ้นที่ให้เกรดก่อน ไม่มีค่อยใช้ของ brand_best เมื่อเป็นชิ้นเดียวกัน)
         grading = grading or fit_grading()
         tier, tb = grading["best_in_category"](c)
@@ -874,6 +877,7 @@ def run_excel_only(wanted_brands):
     catalog = load_catalog(beauty_only=False)
     urls, l2 = product_url_index(catalog), product_l2_index(catalog)
     market_tops = load_market_tops_of_run()
+    no_close = load_no_close_of_run()   # 🆕 (2026-10-28) เทรนด์ที่ไม่ให้เกรด
     top_rank = load_trend_top_rank()   # อันดับเทรนด์ปัจจุบันของ ⑪ (รายงานใช้เลขนี้) - แสดงใน Excel ให้ตรงกัน ไม่แก้ JSON
     for path in paths:
         with open(path, encoding="utf-8") as f:
@@ -884,7 +888,7 @@ def run_excel_only(wanted_brands):
         xlsx_path = path.with_suffix(".xlsx")
         n_market = market_size_of_run(xlsx_path)
         save_coverage_excel(xlsx_path, data["brand"], data.get("n_skus"), n_market, coverage, urls=urls, l2=l2,
-                            market_tops=market_tops, trend_set=set(top_rank) or None)
+                            market_tops=market_tops, trend_set=set(top_rank) or None, no_close=no_close)
         extra = [v["trend_name"] for v in data["coverage"].values() if (v.get("stream"), v.get("trend_name")) not in top_rank]
         if top_rank and extra:
             print(f"  ℹ️ {data['brand']}: {len(extra)} เทรนด์ในผล ⑬ ไม่อยู่ในชุดเทรนด์ของรอบนี้ (⑪) - ไม่ใส่ในชีต \"รายเทรนด์\" "
@@ -1093,11 +1097,14 @@ if __name__ == "__main__":
 
     # 🆕 (2026-09-16) ไฟล์ Excel คู่กับ JSON (ชื่อเดียวกัน คนละนามสกุล) - ข้อมูลชุดเดียวกัน ดู save_coverage_excel()
     xlsx_path = out_path.with_suffix(".xlsx")
+    no_close = load_no_close_of_run()   # 🆕 (2026-10-28) เทรนด์ที่ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ) - ดู common/match_quality.py
+    if no_close:
+        print(f"  ℹ️ เทรนด์ที่ไม่ให้เกรด (ไม่มีสินค้าที่ใกล้พอ): {', '.join(t for _, t in no_close)}")
     save_coverage_excel(xlsx_path, brand, len(brand_idx), len(all_idx), coverage_report, urls=product_url_index(df),
-                        l2=product_l2_index(df))
+                        l2=product_l2_index(df), no_close=no_close)
 
     report_path = OUTPUTS / "phase4_master_trend_report.md"
-    if append_brand_section_to_report(report_path, brand, len(brand_idx), len(all_idx), coverage_report):
+    if append_brand_section_to_report(report_path, brand, len(brand_idx), len(all_idx), coverage_report, no_close):
         print(f"✅ ต่อท้ายอันดับ {brand} เข้า {report_path.name} แล้ว")
     else:
         print(f"  ⏭️  ไม่เจอ {report_path.name} ในรอบนี้ - ข้ามการต่อท้ายรายงาน (ไฟล์ ⑬ แยกยังเซฟไว้ปกติ)")

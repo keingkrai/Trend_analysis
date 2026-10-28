@@ -129,6 +129,9 @@ b, strong { font-weight: 600; }
 .st-head { color: #ffffff; padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 /* ข้อความในช่องถูกย่อเหลือหัวข้อ ~6 คำ + 1 ประโยค ~20 คำ (enrich.condense_report_texts) จึงใช้ตัวใหญ่ได้ */
 .st-body { flex: 1; padding: 12px 14px; font-size: 14.5px; line-height: 1.42; min-height: 0; }
+.st-tile.nodata .st-head { opacity: .55; }
+.st-tile.nodata .st-body { color: #6b7280; }
+.st-tile.nodata .st-body .hl { font-weight: 500; }
 .st-body .hl { font-weight: 700; font-size: 1.2em; line-height: 1.25; margin-bottom: .45em; }
 .dim-society .st-head { background: #1c5cab; }
 .dim-technology .st-head { background: #b54a1c; }
@@ -382,7 +385,7 @@ b, strong { font-weight: 600; }
 /* 🆕 (2026-10-01) หมายเหตุใต้ช่องตัวเลข: ตัวเลข 12/6 เดือนล่าสุดสูงเกินจริงจากการกระโดดของข้อมูล Google Trends */
 .kpi-note { position: absolute; left: 24px; right: 24px; top: 152px; font-size: 8.5px; line-height: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.t-row { position: absolute; left: 24px; right: 24px; top: 166px; height: 238px; display: flex; gap: 12px; }
+.t-row { position: absolute; left: 24px; right: 24px; top: 166px; height: 318px; display: flex; gap: 12px; }   /* 🆕 (2026-10-28) 238 -> 318 แทนแถบคำถามเวิร์กช็อปที่เอาออก */
 .t-chart { width: 548px; flex: none; border: 1px solid var(--card); padding: 4px 5px; display: flex; flex-direction: column; gap: 2px; }
 .t-chart .cap { display: flex; align-items: center; gap: 10px; font-size: 9px; padding: 0 2px; white-space: nowrap; overflow: hidden; }
 .t-chart .cap b { font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; }
@@ -393,7 +396,7 @@ b, strong { font-weight: 600; }
 .t-chart .lg i.avg { border-top: 3px solid #1c5cab; }
 .t-chart .lg i.fc { border-top: 2px dashed #b54a1c; }
 .t-chart .lg i.band { border-top: 0; background: #fbe6d8; height: 8px; width: 12px; }
-.t-chart img { width: 536px; height: 188px; display: block; }
+.t-chart img { width: 536px; height: 268px; display: block; }
 .t-chart .kw { font-size: 9px; display: flex; align-items: center; gap: 3px; white-space: nowrap; overflow: hidden; padding: 0 2px; }
 .t-chart .kw .k { color: var(--ink-2); margin-right: 3px; }
 .t-chart .kw .chip { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -409,11 +412,6 @@ b, strong { font-weight: 600; }
 .t-text .rung.r-feeling .k { border-left-color: #b3b2ac; }
 .t-text .rung .v { font-size: 1.15em; line-height: 1.4; }
 
-/* คำถาม Workshop (เดิมอยู่หน้าเดี่ยว) */
-.ws { position: absolute; left: 24px; right: 24px; top: 414px; height: 72px; display: flex; background: var(--card); }
-.ws .k { width: 156px; flex: none; background: #000000; color: #ffffff; font-size: 11.5px; font-weight: 700; padding: 8px 12px; line-height: 1.3; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
-.ws .k span { font-weight: 400; font-size: 9px; opacity: .75; }
-.ws .q { flex: 1; padding: 8px 16px; font-size: 16px; font-weight: 300; line-height: 1.45; display: flex; align-items: center; }
 .t-facts { position: absolute; left: 60px; bottom: 9px; font-size: 7.5px; color: var(--ink-3); }
 
 /* ---------- Market Evidence ---------- */
@@ -521,11 +519,10 @@ b, strong { font-weight: 600; }
 .lang-th .prod .nm, .lang-th .cp .nm { line-height: 1.4; }
 .lang-th .t-sub { height: 26px; }
 
-/* 🆕 (2026-10-21) หน้าสินค้าของเทรนด์ = แผนที่ "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2 (l2_map.py): คอลัมน์ = ความใกล้เทรนด์ 4 ระดับ, แถว = ยอดขาย
-   4 แถว, ช่อง = จำนวนสินค้า + สินค้าที่ใกล้เทรนด์ที่สุดในช่อง; สีพื้น = เกรดหลังยอดขายปรับ (ชุดสีเดียวกับระดับของ ⑰) */
-.l2-map { position: absolute; left: 24px; right: 24px; top: 92px; display: grid; grid-template-columns: 92px repeat(4, 1fr);
-          grid-template-rows: 40px 98px 98px 98px; gap: 3px; }
-.l2-corner { font-size: 8.3px; color: var(--ink-2); padding: 4px 4px 0 0; line-height: 1.25; }
+/* 🆕 (2026-10-27) หน้าสินค้าของเทรนด์ = ความใกล้เทรนด์ระดับหมวด L2 แถวเดียว 4 ระดับ (l2_map.py): คอลัมน์ = ระดับ Excellent/Good/Average/Below average,
+   ช่อง = สินค้าที่ใกล้เทรนด์ที่สุดในระดับนั้น; สีพื้น = ชุดสีเดียวกับระดับของ ⑰ (ตัดแกนยอดขายออกแล้ว) */
+.l2-map { position: absolute; left: 24px; right: 24px; top: 92px; display: grid; grid-template-columns: repeat(4, 1fr);
+          grid-template-rows: 40px 262px; gap: 3px; }
 .l2-ch { position: relative; padding: 5px 6px 0; font-size: 11px; line-height: 1.2; min-width: 0; }
 .l2-ch i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
 .l2-ch span { display: block; font-size: 8.3px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -533,20 +530,95 @@ b, strong { font-weight: 600; }
 .lv-good { background: #3987e5; }
 .lv-average { background: #86b6ef; }
 .lv-below_average { background: #b4b2a9; }
-.l2-rh { display: flex; flex-direction: column; justify-content: center; font-size: 10.5px; line-height: 1.25; padding-right: 6px; }
-.l2-rh span { font-size: 8.5px; color: var(--ink-2); }
-.l2-cell { position: relative; padding: 6px 8px; display: flex; flex-direction: column; justify-content: center; min-width: 0; overflow: hidden; }
+.l2-cell { position: relative; padding: 8px 10px; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; overflow: hidden; }
 .l2-cell .empty { font-size: 9px; color: var(--ink-3); }
 .tint-excellent { background: rgba(28,92,171,.22); }
 .tint-good { background: rgba(57,135,229,.16); }
 .tint-average { background: rgba(134,182,239,.22); }
 .tint-below_average { background: #f1f0ed; }
-.l2-cell .card { display: grid; grid-template-columns: 62px 1fr; column-gap: 7px; align-items: center; flex: 1; min-height: 0; }
-.l2-cell .card .im { width: 62px; height: 62px; background: #ffffff; border: 1px solid #e3e2de; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.l2-cell .card { display: flex; flex-direction: column; gap: 7px; flex: 1; min-height: 0; }
+.l2-cell .card .im { width: 100%; height: 150px; background: #ffffff; border: 1px solid #e3e2de; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .l2-cell .card .im img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .l2-cell .card .im .ph { width: 100%; height: 100%; background: #efefec; }
 .l2-cell .card .tx { min-width: 0; }
-.l2-cell .card .nm { font-size: 9.2px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.l2-cell .card .mt { font-size: 8.2px; color: var(--ink-2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.l2-take { position: absolute; left: 24px; right: 24px; top: 446px; font-size: 11px; font-weight: 600; border-left: 3px solid var(--accent); padding: 3px 0 3px 8px; background: var(--card); line-height: 1.35; }
+.l2-cell .card .nm { font-size: 9.6px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 3px; }
+.l2-cell .card .mt { font-size: 8.6px; color: var(--ink-2); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.l2-take { position: absolute; left: 24px; right: 24px; top: 420px; font-size: 11px; font-weight: 600; border-left: 3px solid var(--accent); padding: 3px 0 3px 8px; background: var(--card); line-height: 1.35; }
 .lang-th .l2-cell .card .nm { line-height: 1.4; }
+
+/* ---------- 🆕 (2026-10-28) คนกำลังค้นหาอะไรมากขึ้น (search_talk.py) ---------- */
+.talk-chart { position: absolute; left: 24px; top: 96px; width: 548px; }
+.talk-chart .h { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+.talk-row { display: grid; grid-template-columns: 142px 1fr 34px; align-items: center; height: 14px; font-size: 9.5px; }
+.talk-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.talk-row .track { position: relative; height: 14px; }
+.talk-row .stack { position: absolute; left: 0; top: 1px; height: 8px; display: flex; }
+.talk-row .stack i { display: block; height: 100%; min-width: 0; }
+.talk-row .fed { position: absolute; left: 0; top: 10px; height: 4px; background: var(--accent); }
+.talk-row .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.i-th { background: #2a78d6; }
+.i-ww { background: #9ec3f0; }
+.i-both { background: #55606e; }
+.i-fed { background: var(--accent); }
+.talk-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 9.5px; color: var(--ink-2); margin-top: 8px; }
+.talk-leg span { display: inline-flex; align-items: center; gap: 5px; }
+.talk-leg i { display: inline-block; width: 10px; height: 8px; }
+.talk-leg .i-fed { height: 4px; }
+.talk-side { position: absolute; left: 604px; right: 24px; top: 96px; bottom: 40px; display: flex; flex-direction: column; gap: 10px; }
+.talk-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.talk-stat { background: var(--card); padding: 9px 12px; }
+.talk-stat.wide { grid-column: 1 / -1; border-left: 4px solid var(--accent); }
+.talk-stat .v { font-size: 24px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.talk-stat .l { font-size: 10px; color: var(--ink-2); margin-top: 2px; }
+.talk-txt { font-size: 11px; line-height: 1.5; }
+.talk-caveat { font-size: 9px; line-height: 1.4; color: var(--ink-2); margin-top: auto; }
+.talk-cards { position: absolute; left: 22px; right: 22px; top: 94px; bottom: 44px; display: grid; grid-template-columns: repeat(3, 1fr);
+              grid-template-rows: repeat(2, 1fr); gap: 8px; }
+.talk-card { background: var(--card); display: flex; flex-direction: column; min-height: 0; }
+.talk-card .p-head { background: #000000; color: #ffffff; padding: 7px 12px; font-size: 13px; font-weight: 300; }
+.talk-card .tc-body { flex: 1; padding: 8px 12px; font-size: 11px; line-height: 1.4; min-height: 0; }
+.tc-stat { font-weight: 600; margin-bottom: 6px; }
+.tc-k { font-size: .82em; font-weight: 700; color: var(--ink-2); margin: .5em 0 .2em; }
+.talk-card ul { list-style: none; }
+.talk-card li { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; border-bottom: 1px solid var(--line); }
+.talk-card li:last-child { border-bottom: 0; }
+.talk-card li em { font-style: normal; font-size: .75em; color: var(--ink-2); white-space: nowrap; align-self: center; }
+.tc-trends { display: flex; flex-wrap: wrap; gap: 3px 4px; }
+.tc-trends span { background: #ffffff; padding: 1px 6px; font-size: .9em; }
+
+/* ---------- 🆕 (2026-10-28) กล่อง "คนกำลังค้นหาอะไร" ในหน้าแรกของเทรนด์ (trend_talk.py) - หน่วย em เพื่อย่อตามกล่อง .fit ---------- */
+.t-text .tk { border-bottom: 1px solid var(--line); padding-bottom: .6em; }
+.t-text .tk-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .7em; margin-bottom: .4em; }
+.t-text .tk-h b { font-size: .95em; }
+.t-text .tk-h span { color: var(--ink-2); font-size: .8em; }
+.t-text .tk-p + .tk-p { margin-top: .5em; }
+.t-text .tk-t { font-size: .98em; line-height: 1.35; }
+.t-text .tk-s { display: flex; flex-wrap: wrap; gap: .25em .4em; margin-top: .25em; }
+.t-text .tk-s i { font-style: normal; background: #ffffff; padding: .05em .55em; font-size: .86em; color: var(--ink-2); }
+
+/* ---------- 🆕 (2026-10-28) หน้า Macro Forces รวม STEPIC + Trend Drivers + Signals (รอบสาย Search) ---------- */
+.mf-tiles { position: absolute; left: 24px; right: 24px; top: 92px; height: 148px; display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+.mf-tiles.n1 { grid-template-columns: 1fr; }
+.mf-tiles.n2 { grid-template-columns: repeat(2, 1fr); }
+.mf-tiles .st-body { font-size: 13.5px; padding: 9px 12px; }
+.mf-none { position: absolute; left: 24px; right: 24px; top: 246px; font-size: 10px; color: var(--ink-2); }
+.mf-hm { position: absolute; left: 24px; top: 266px; width: 590px; }
+.mf-hm .hm { position: static; width: 100%; }
+.mf-hm .hm col.w-nm { width: 262px; }
+.mf-hm .hm col.w-f { width: 100px; }
+.mf-hm .hm td { height: var(--rh, 22px); }
+.mf-hm .hm tfoot td { height: 20px; }
+.mf-hm .hm-legend { position: static; margin-top: 6px; }
+.mf-sig { position: absolute; left: 644px; right: 24px; top: 266px; height: 214px; display: flex; flex-direction: column; border-left: 1.5px solid var(--ink); padding-left: 14px; }
+.mf-sig-h { font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.mf-sig-list { flex: 1; min-height: 0; font-size: 12px; line-height: 1.42; }
+.mf-s + .mf-s { margin-top: .8em; border-top: 1px solid var(--line); padding-top: .6em; }
+.mf-s .dims { font-size: .82em; font-weight: 700; letter-spacing: .06em; margin-bottom: .15em; }
+.mf-s .imp { font-style: italic; color: var(--ink-2); margin-top: .25em; }
+.lang-th .mf-s .imp { font-style: normal; }
+.lang-th .mf-s .dims { letter-spacing: 0; }
+
+/* ---------- 🆕 (2026-10-28) ความต้องการความงามที่ AI อนุมาน - หน้าแรกของเทรนด์ (หน่วย em เพื่อย่อตามกล่อง .fit) ---------- */
+.t-text .bn { margin-top: .8em; padding-top: .5em; border-top: 1px solid var(--line); }
+.t-text .bn .k { display: block; font-size: .82em; font-weight: 700; color: var(--ink-2); }
+.t-text .bn .v { display: block; font-size: 1.02em; font-weight: 600; margin-top: .15em; }

@@ -83,8 +83,8 @@ def attach_product_images(trends, cache_dir, max_workers=8, log=print):
     from report_data import category_products   # 🆕 (2026-10-07) + สินค้าในช่วงราคา
 
     products += [p for t in trends for c in (t.get("categories") or {}).get("categories", []) for p in category_products(c)]
-    # 🆕 (2026-10-21) สินค้าตัวแทนในแต่ละช่องของหน้า "ความใกล้เทรนด์ x ยอดขาย" ระดับหมวด L2
-    products += [c["product"] for t in trends for c in ((t.get("l2") or {}).get("cells") or {}).values() if c.get("product")]
+    # 🆕 (2026-10-21) สินค้าตัวแทนในแต่ละช่องของหน้าความใกล้เทรนด์ระดับหมวด L2 (🆕 2026-10-27 แถวเดียว 4 ระดับ = l2["cols"])
+    products += [c["product"] for t in trends for c in (t.get("l2") or {}).get("cols") or [] if c.get("product")]
     urls = sorted({p["image_url"] for p in products if p.get("image_url")})
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         uris = dict(zip(urls, pool.map(lambda u: fetch_image(u, cache_dir), urls)))

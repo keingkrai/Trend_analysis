@@ -104,7 +104,7 @@ def numbers_ok(text, allowed):
     return all(any(abs(float(m) - a) < 0.051 for a in allowed) for m in _PERCENT.findall(text))
 
 
-def fallback_texts(facts):
+def fallback_texts(facts, with_durability=True):
     """ประโยคสำรองประกอบจากตัวเลข - ใช้เมื่อ LLM เขียนไม่ได้หรือข้อความไม่ผ่านการตรวจเลข"""
     g, vs = facts["expected_search_growth_pct_vs_last_12_months"], facts["growth_vs_market"]
     s_key, l_key, s_year, l_year = mo.SHORT_KEY, mo.LONG_KEY, mo.SHORT_YEAR, mo.LONG_YEAR       # 🆕 (2026-10-19) common/horizons.py
@@ -117,7 +117,7 @@ def fallback_texts(facts):
         s = facts["seasonality"]
         parts.append(f"Interest is seasonal, peaking around {' and '.join(s['peak_months'])} (swing {s['swing_pct']}%).")
     d = facts["durability"]
-    if d.get("longevity_score") is not None:
+    if with_durability and d.get("longevity_score") is not None:
         parts.append(f"Durability score {d['longevity_score']}/100" + (f" ({d['band']})." if d.get("band") else "."))
     return {
         "executive_summary": (f"Search interest in {facts['trend']} is expected to change {g[s_key]:+.0f}% by year {s_year} and "
@@ -145,4 +145,25 @@ def analysis_entry(facts, llm=None):
         "estimated_duration": facts["estimated_duration"], **texts,
         "expected_search_growth_pct": facts["expected_search_growth_pct_vs_last_12_months"],
         "text_source": "llm" if from_llm == len(TEXT_FIELDS) else "mixed" if from_llm else "numbers",
+    }
+
+
+def search_analysis_entry(facts, searches, intent=None):
+    """🆕 (2026-10-28) รอบสาย Search: ข้อความต่อเทรนด์ใช้เฉพาะสิ่งที่คำค้นยืนยัน - ประโยค consumer_intent_signal มาจากคำค้นจริงที่ LLM อ้างและโค้ดตรวจแล้วเท่านั้น
+    (intent = {"text", "evidence"} จาก stepic_evidence.write_intents; ไม่ผ่าน = "Rising searches include: ..." จากคำค้นจริง) ส่วนสรุป / คำอธิบายแรงขับ / ความเสี่ยงประกอบจากตัวเลข
+    ของโมเดลล้วน (ไม่ให้ LLM เขียน - เคยแต่งเหตุผลเช่น "เทศกาลยกเลิก" ที่ไม่มีในข้อมูล) และไม่ใส่คะแนนความทนทาน (รอบ Search ไม่แสดง)
+    ป้ายตามกฎ (trend_stage / primary_driver / estimated_duration) เหมือนเดิม - dict โครงเดียวกับ analysis_entry + intent_evidence"""
+    texts = fallback_texts(facts, with_durability=False)
+    shown = [x for x in (searches or []) if x][:3]
+    texts["consumer_intent_signal"] = f"Rising searches include: {', '.join(shown)}." if shown else "No data"
+    text = ((intent or {}).get("text") or "").strip()
+    if text:
+        texts["consumer_intent_signal"] = text
+    return {
+        "cluster_name": facts["trend"], "keywords": facts["keywords"],
+        "trend_stage": facts["trend_stage"], "primary_driver": facts["primary_driver"],
+        "estimated_duration": facts["estimated_duration"], **texts,
+        "expected_search_growth_pct": facts["expected_search_growth_pct_vs_last_12_months"],
+        "intent_evidence": list((intent or {}).get("evidence") or []) if text else [],
+        "text_source": "evidence" if text else "numbers",
     }

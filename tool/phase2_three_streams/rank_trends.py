@@ -391,22 +391,15 @@ if __name__ == "__main__":
     _sim = {  # ขนาดจำลอง fallback ถ้าไฟล์ผลไม่มีคอลัมน์ "Cluster Size" (ผลเก่าก่อนแก้ข้อ 30)
         "Paper": [42, 38, 25, 19, 11], "Social": [15, 12, 9, 7, 4], "News": [20, 15, 11, 8, 5],
     }
-    _files = {
-        "Paper": "phase1_paper_stream_result.json",
-        "Social": "phase2_social_stream_result.json",
-        "News": "phase2_news_stream_result.json",
-    }
+    # 🆕 (2026-10-27) รายชื่อสายที่เดียว (common/streams.py) - อ่านเฉพาะสายที่รอบนี้มีไฟล์ผล (รอบใหม่ = Search อย่างเดียว)
+    from common.streams import present_streams
     trends_by_stream, kw_by_stream, n_sim = {}, {}, 0
-    for name, fname in _files.items():
-        fp = OUTPUTS / fname
-        if not fp.exists():
-            print(f"  ⏭️  ข้าม {name} - ไม่มี {fname}")
-            continue
+    for name, fp in present_streams(OUTPUTS).items():
         with open(fp, encoding="utf-8") as f:
             data = json.load(f)
         dt = pd.DataFrame(data["trends"])
         if "Cluster Size" not in dt.columns or dt["Cluster Size"].isna().all():
-            dt["Cluster Size"] = _sim[name][: len(dt)]  # จำลอง
+            dt["Cluster Size"] = _sim.get(name, [10] * len(dt))[: len(dt)]  # จำลอง
             n_sim += 1
         trends_by_stream[name] = dt
         kw_by_stream[name] = pd.DataFrame(data["keywords"])

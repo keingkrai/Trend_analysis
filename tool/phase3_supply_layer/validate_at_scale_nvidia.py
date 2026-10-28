@@ -41,6 +41,7 @@ from unit_price_tiers import market_tiers
 from trend_category import main_categories
 from product.euromonitor_mapping import BEAUTY_L1, load_catalog
 from match_supply import build_trend_matchable_text, cosine_similarity
+from common.match_quality import match_basis, need_text
 from validate_at_scale import build_product_text
 
 load_dotenv(dotenv_path=ENV_FILE, override=True)
@@ -524,10 +525,16 @@ understands: say "goal" or "need", never "job-to-be-done", "point of difference"
 Return ONLY this JSON, under 25 words, no invented claims, no leading "+" on numbers:
 {"reason": "..."}"""
 
+    if match_basis(profile) == "need":   # 🆕 (2026-10-28) จับคู่ด้วยความต้องการที่ AI อนุมาน - มิติจากคำค้นอาจเป็น "ข้อมูลไม่พอ" จึงให้ความต้องการนั้นเป็นหลักของ TREND
+        searched = " / ".join(x for x in (profile.get("functional_consequence"), profile.get("job_to_be_done")) if x and x != "ข้อมูลไม่พอ")
+        trend_block = (f"Beauty need (inferred by an AI from what people searched): {need_text(profile)}\n"
+                       f"What the searches themselves show: {searched or '(not stated)'}")
+    else:
+        trend_block = (f"Functional Consequence: {profile.get('functional_consequence', '')}\n"
+                       f"Job To Be Done: {profile.get('job_to_be_done', '')}\n"
+                       f"Point of Difference: {profile.get('point_of_difference', '')}")
     user_prompt = f"""TREND
-Functional Consequence: {profile.get('functional_consequence', '')}
-Job To Be Done: {profile.get('job_to_be_done', '')}
-Point of Difference: {profile.get('point_of_difference', '')}
+{trend_block}
 
 REAL PRODUCT
 Name: {product_row.get('product_name', '')}

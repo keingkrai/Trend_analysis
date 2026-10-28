@@ -14,6 +14,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from dive_i18n import DIVE_STRINGS
 from i18n import STRINGS, date_long, source_doc_groups, source_rows
 from unit_i18n import with_unit_strings
 from common.horizons import LONG_YEAR, SHORT_YEAR   # i18n เพิ่ม tool/ เข้า sys.path ให้แล้ว
@@ -103,13 +104,6 @@ def make_env(lang="en"):
     # 🆕 (2026-10-19) ปีระยะสั้น/ระยะยาวของรอบที่ไม่มีผลการเติบโต (ctx.growth = None) - ค่าจาก common/horizons.py ที่เดียว
     env.globals.update(SHORT_YEAR=SHORT_YEAR, LONG_YEAR=LONG_YEAR)
 
-    def _fitmap_svg(m, strings):
-        """🆕 (2026-10-21) กราฟ "ความใกล้เทรนด์ x ยอดขาย" ของหมวด L2 ของเทรนด์ (⑰ หน้าที่ 3 ของเทรนด์) - strings = L ของเทมเพลต (มีชุดข้อความ fm_*)"""
-        from fit_sales_map import render_svg
-
-        return Markup(render_svg(m, strings)) if m else Markup("")
-
-    env.globals["fitmap_svg"] = _fitmap_svg
     return env
 
 
@@ -119,11 +113,18 @@ def render_html(ctx, brand, charts, report_title, run_date, text_sources, genera
     template = make_env(lang).get_template("report.html.j2")
     # 🆕 (2026-10-12) รอบที่แบ่งช่วงด้วยราคาต่อปริมาณ (⑫ tier_basis) -> ข้อความช่วงราคา/วิธีการเป็นชุด unit_i18n
     tier_basis = ((ctx or {}).get("meta") or {}).get("tier_basis")
+    L = with_unit_strings(STRINGS[lang], lang, tier_basis)
+    dv = (ctx or {}).get("dive")
+    if dv:   # 🆕 (2026-10-28) ส่วนที่ 2 เจาะรายหมวดของ Google (รอบสาย Search): หน้ารายหมวด + ชุดข้อความของส่วนนี้
+        from category_dive import paginate
+
+        dv["pages"] = paginate(dv)
+        L = {**L, **DIVE_STRINGS[lang]}
     return template.render(ctx=ctx, brand=brand, charts=charts, report_title=report_title, run_date=run_date,
                            text_sources=text_sources, generated_at=generated_at, year=generated_at.year,
                            source_rows=source_rows((ctx or {}).get("meta"), lang),   # 🆕 2026-10-14 กล่องแหล่งที่มาของข้อมูล
                            source_docs=source_doc_groups((ctx or {}).get("meta"), lang),   # 🆕 หน้ารายการแหล่งข้อมูล (หัวข้อ + URL)
-                           L=with_unit_strings(STRINGS[lang], lang, tier_basis), lang=lang)
+                           L=L, lang=lang)
 
 
 def render_brand_html(ctx, bctx, brand, charts, report_title, run_date, generated_at=None, lang="en", cat=None):
@@ -155,6 +156,18 @@ def render_brand_category_html(ctx, bctx, brand, charts, report_title, run_date,
     return template.render(ctx=ctx, b=bctx, brand=brand, charts=charts, report_title=report_title,
                            run_date=run_date, generated_at=generated_at, year=generated_at.year,
                            L=with_unit_strings(category_strings(lang), lang, (bctx or {}).get("tier_basis")), lang=lang)
+
+
+def render_dive_html(ctx, dv, brand, report_title, run_date, generated_at=None, lang="en"):
+    """🆕 (2026-10-28) เล่มเจาะรายหมวดของ Google - ctx = trend context (ใช้แค่ meta), dv = category_dive.for_lang(...) ของภาษานั้น"""
+    from category_dive import paginate
+    from dive_i18n import dive_strings
+
+    generated_at = generated_at or datetime.now()
+    dv["pages"] = paginate(dv)
+    template = make_env(lang).get_template("category_dive.html.j2")
+    return template.render(ctx=ctx, dv=dv, brand=brand, report_title=report_title, run_date=run_date,
+                           generated_at=generated_at, year=generated_at.year, L=dive_strings(lang), lang=lang)
 
 
 def html_to_pdf(html, pdf_path):

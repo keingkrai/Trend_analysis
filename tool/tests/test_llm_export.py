@@ -46,21 +46,19 @@ def make_ctx():
             "trends": [detail]}
 
 
-def make_brand(brand="Acme", level="good", base="excellent", has_product=True, soldout=True):
+def make_brand(brand="Acme", level="good", has_product=True):
     graded = {"brand": brand, "name": "Acme Serum", "name_full": "Acme Serum", "price_thb": 500.0, "similarity": 0.31234, "rank_in_tier": 3,
               "n_tier": 1000, "pct": 0.3, "size": 30.0, "unit_label": "ml", "unit_price": 16.66666, "is_mini": False, "category": "Skin Care",
-              "level": level, "base_level": base, "sales_state": "strong", "reason": "matches",
-              "sales": {"state": "strong", "soldout": soldout, "zero": False, "basis": "reviews" if soldout else "sales",
-                        "sold": 0 if soldout else 900, "reviews": 120, "top_pct": 5}}
+              "level": level, "reason": "matches"}
     row = {"rank": 1, "name": "Alpha Trend", "trend": "Alpha Trend", "display_name": "Alpha Plain", "checked": True, "level": level if has_product else "below_average",
-           "base_level": base if has_product else "below_average", "quadrant": "defend", "key_categories": ["Skin Care"], "no_key_product": not has_product,
+           "quadrant": "defend", "key_categories": ["Skin Care"], "no_key_product": not has_product,
            "graded": graded if has_product else None, "products": [graded] if has_product else [],
            "leader": {"brand": "Rival", "name": "Rival Gel", "price_thb": 400.0, "similarity": 0.4, "is_you": False} if has_product else None,
            "gap_to_leader": 0.0877 if has_product else None}
     counts = {lv: int(lv == row["level"]) for lv in ex.FIT_LEVELS}
     return {"brand": brand, "n_skus": 10, "portfolio": {"top_subcategories": [{"name": "Skin Care", "n": 8}], "price_min": 100.0, "price_median": 300.0, "price_max": 900.0},
-            "top_pct": {"excellent": 1, "good": 5, "average": 20}, "sales_cfg": {"strong_top_pct": 20, "slow_bottom_pct": 25}, "momentum_split": 0.6,
-            "rows": [row], "counts": counts, "sales_effect": {"up": 0, "down": 1}, "n_checked": 1,
+            "top_pct": {"excellent": 1, "good": 5, "average": 20}, "momentum_split": 0.6,
+            "rows": [row], "counts": counts, "n_checked": 1,
             "overall": {"level": row["level"], "n": 1, "k": 1, "at_or_better": {lv: 1 for lv in ex.FIT_LEVELS}, "next": None},
             "highlights": {"strongest": 1, "opportunity": None, "quick_win": None}, "opportunities": [], "missing_trends": [],
             "reasons_th": {"Alpha Trend": ["เหตุผลไทย"] if has_product else []}}
@@ -106,34 +104,26 @@ def test_trend_table_flags_and_forecast_columns(run):
 def test_customer_trend_row_matches_the_brand_context(run):
     out = ex.export(run)["out_dir"]
     row = read_csv(out / "customer_trends.csv")[0]
-    assert (row["customer"], row["trend_id"], row["fit_level"], row["fit_level_before_sales"]) == ("Acme", "alpha-trend", "good", "excellent")
-    assert row["sales_effect"] == "lowered" and row["quadrant"] == "defend" and row["has_product_in_category"] == "1"
+    assert (row["customer"], row["trend_id"], row["fit_level"]) == ("Acme", "alpha-trend", "good")
+    assert row["quadrant"] == "defend" and row["has_product_in_category"] == "1"
     assert row["own_similarity"] == "0.3123" and row["own_unit_price_thb"] == "16.67" and row["own_reason_th"] == "เหตุผลไทย"
     assert row["leader_product"] == "Rival Gel" and row["leader_is_customer"] == "0" and row["gap_to_leader"] == "0.0877"
     assert row["expected_pct_short"] == "30" and row["expected_pct_long"] == "50"       # ปี 3 / ปี 5 ของตารางเทรนด์
 
 
-def test_sold_out_product_has_no_units_sold(run):
-    """Konvy ซ่อนตัวนับเมื่อของหมด (sold = 0) - ห้ามส่งต่อเป็น "ขายได้ 0 ชิ้น" """
-    (run / "phase6_brand_context_Acme.json").write_text(json.dumps(make_brand(soldout=True)), encoding="utf-8")
-    row = read_csv(ex.export(run)["out_dir"] / "customer_trends.csv")[0]
-    assert row["own_sold_out"] == "1" and row["own_units_sold"] == "" and row["own_reviews"] == "120"
-    (run / "phase6_brand_context_Acme.json").write_text(json.dumps(make_brand(soldout=False)), encoding="utf-8")
-    row = read_csv(ex.export(run)["out_dir"] / "customer_trends.csv")[0]
-    assert row["own_sold_out"] == "0" and row["own_units_sold"] == "900"
-
-
-@pytest.mark.parametrize("base,level,checked,expected", [
-    ("average", "good", True, "raised"), ("good", "average", True, "lowered"), ("good", "good", True, "none"), ("good", "good", False, None),
-])
-def test_sales_effect(base, level, checked, expected):
-    assert ex._sales_effect({"base_level": base, "level": level, "checked": checked}) == expected
+def test_no_sales_columns_in_any_table_or_brief(run):
+    """🆕 (2026-10-27) เกรดไม่ใช้ยอดขายแล้ว - ไม่มีคอลัมน์/ช่องยอดขายใน CSV, glossary และ brief"""
+    out = ex.export(run)["out_dir"]
+    for _name, (_fname, columns, _d) in ex.TABLES.items():
+        assert not [c for c, _t, _x in columns if "sales" in c or "sold" in c or "units" in c]
+    text = (out / "briefs" / "Acme.json").read_text(encoding="utf-8") + (out / "meta.json").read_text(encoding="utf-8")
+    assert "sales_states" not in text and "sales_raised" not in text and "units_sold" not in text
 
 
 def test_customer_row_translates_highlights_and_counts(run):
     out = ex.export(run)["out_dir"]
     c = read_csv(out / "customers.csv")[0]
-    assert (c["customer"], c["overall_level"], c["n_good"], c["n_excellent"], c["sales_lowered_trends"]) == ("Acme", "good", "1", "0", "1")
+    assert (c["customer"], c["overall_level"], c["n_good"], c["n_excellent"]) == ("Acme", "good", "1", "0")
     assert c["strongest_trend_id"] == "alpha-trend" and c["opportunity_trend_id"] == "" and c["portfolio_categories"] == "Skin Care:8"
 
 
@@ -154,7 +144,7 @@ def test_brief_is_self_contained_and_has_no_empty_values(run):
     t = brief["trends"][0]
     assert t["trend"] == "Alpha Plain" and t["best_product"]["name"] == "Acme Serum" and t["market_leader"]["product"] == "Rival Gel"
     assert t["forecast"]["search_change_pct_vs_last_12m"] == {ex.SY: 30, ex.LY: 50}
-    assert "units_sold" not in t["best_product"]["sales"] and t["best_product"]["sales"]["sold_out"] is True
+    assert "sales" not in t["best_product"] and set(t["fit"]) == {"level", "action_group", "category", "has_product_in_category"}
     assert "closest_market_products" not in t
     assert brief["market_median_search_change_pct"]["year_5"] == 40
 

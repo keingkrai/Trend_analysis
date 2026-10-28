@@ -122,6 +122,8 @@ def enrich(ctx, run_dir, bs, langs, use_llm, refresh):
     from enrich import (condense_means_end, condense_report_texts, enrich_trends, plain_report_texts_en,
                         translate_report_texts)
     from trend_links import link_trends
+    from dive_text import describe_dive
+    from trend_talk import describe_trends
 
     # cache ภาษาอังกฤษโหลดเสมอ - ผลย่อหน้า STEPIC/Signals (ภาษาอังกฤษ) เก็บในไฟล์นี้ และฉบับไทยแปลจากฉบับย่อนั้น
     # (Means-End 3 บรรทัดและ heatmap แรงขับ/persona ก็เก็บที่ไฟล์นี้ - ได้ผลทั้ง 2 ภาษาจากการเรียกครั้งเดียว)
@@ -138,7 +140,15 @@ def enrich(ctx, run_dir, bs, langs, use_llm, refresh):
         print(f"  Means-End 3 บรรทัด: {_fmt_counts(ladder) or '-'}")
         # หลังย่อ STEPIC แล้ว - จับคู่กับหัวข้อ/สรุปฉบับเดียวกับที่แสดงในรายงาน
         links = link_trends(ctx, caches["en"], llm_call=llm_call, parse=parse, refresh=refresh)
-        print(f"  heatmap แรงขับ / persona: {_fmt_counts(links) or '-'}")
+        print(f"  heatmap แรงขับ{' / persona' if ctx.get('personas') else ''}: {_fmt_counts(links) or '-'}")
+        # 🆕 (2026-10-28) กล่อง "คนกำลังค้นหาอะไร" ของหน้าเทรนด์ (รอบสาย Search) - คำค้นจริง + หัวข้อ 2 ภาษาที่โค้ดตรวจแล้ว
+        talk = describe_trends(ctx, caches["en"], llm_call=llm_call, parse=parse, refresh=refresh)
+        if talk or any(t.get("talk_searches") for t in ctx["trends"]):
+            print(f"  คนกำลังค้นหาอะไร (ต่อเทรนด์): {_fmt_counts(talk) or '-'}")
+        # 🆕 (2026-10-28) ส่วนที่ 2 เจาะรายหมวดของ Google (รอบสาย Search): ประโยคอธิบายหัวข้อ 2 ภาษา - คำค้นจริงล้วน โค้ดตรวจทุกประโยค (dive_text.py)
+        if ctx.get("dive"):
+            dive_counts = describe_dive(ctx["dive"], caches["en"], llm_call=llm_call, parse=parse, refresh=refresh)
+            print(f"  เจาะรายหมวด (ประโยคอธิบายหัวข้อ): {_fmt_counts(dive_counts) or '-'}")
         for lang in langs:
             _, counts = enrich_trends(ctx["trends"], caches[lang], llm_call=llm_call, parse=parse,
                                       refresh=refresh, lang=lang)
@@ -158,7 +168,7 @@ def enrich(ctx, run_dir, bs, langs, use_llm, refresh):
             print(f"  ⚠️ ใช้ LLM ไม่ได้ ({str(e)[:150]}) - ใช้ cache/ข้อความสำรองแทน")
             run(None, json.loads)
     for lang, cache in caches.items():
-        if any(cache.get(k) for k in ("items", "report", "condensed", "ladder", "links")):
+        if any(cache.get(k) for k in ("items", "report", "condensed", "ladder", "links", "talk", "dive")):
             with open(run_dir / ENRICH_FILES[lang], "w", encoding="utf-8") as f:
                 json.dump(cache, f, ensure_ascii=False, indent=2)
     return sources
@@ -194,6 +204,8 @@ def main():
     # 🆕 (2026-10-08) ชื่อที่แสดงในรายงาน (build_display_names.py) - หลังเติมข้อความ LLM เพื่อแทนชื่อเดิมในเนื้อความด้วย
     from display_names import DISPLAY_FILE, apply_display_names, load_display_names
     n_display = apply_display_names(ctx, load_display_names(run_dir))
+    from category_dive import retag_dive
+    retag_dive(ctx.get("dive"), ctx["trends"])   # ป้าย "ในรายงานหลัก: #n ชื่อ" ใช้ชื่อที่แสดงของเทรนด์
     if n_display:
         print(f"  ชื่อที่แสดง: {n_display} เทรนด์ ({DISPLAY_FILE})")
 
