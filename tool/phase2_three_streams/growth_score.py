@@ -14,6 +14,8 @@ momentum กับโมเดลพยากรณ์การเติบโ�
 2. โมเดล RandomForest ตัวเดียวต่อปี (ปีที่ 1-5) เรียนจากทุกคีย์เวิร์ดร่วมกัน ใช้เฉพาะตัวอย่างที่ผลจริงอยู่ในช่วงข้อมูล
    ที่เชื่อได้ (LAST_TRUSTED_MONTH) - ตั้งค่าเดียวกับ backtest ทุกอย่าง
    🆕 (2026-10-02) + ฟีเจอร์เทียบเดือนเดียวกันปีก่อน/ความเร่ง - การปรับสเกล ณ เดือนนั้น (pit_scale) มีไว้แต่ยังปิด (PIT_SCALING)
+   🆕 (2026-10-29) โมเดลถูกฝึกครั้งเดียวจากชุดคีย์เวิร์ดกลาง ~500 คำ (growth_pool.py, GROWTH_MODEL = "pool") แล้วใช้ทายทุกรอบ -
+   เดิมฝึกใหม่จากคีย์เวิร์ดของรอบนั้น รอบสาย Search มี ~44 คำ ทำให้ % ที่คาดเพี้ยนและอันดับไม่นิ่ง ("per-run" ยังใช้ได้เพื่อสร้างรอบเก่าซ้ำ)
 3. ทายการเติบโตของทุกคีย์เวิร์ด ณ เดือนล่าสุดของข้อมูล
 4. คะแนนคีย์เวิร์ด = percentile ของ (percentile ของ momentum + percentile ของค่าที่โมเดลทาย) / 2 เทียบคีย์เวิร์ดทั้งหมด
    ในรอบ - 0.5 = ค่ากลางของตลาด (ตรงกับที่ backtest ใช้ "ผสมอันดับ") - 🆕 (2026-09-30) ตอนนี้ใช้ percentile ของค่าที่
@@ -27,6 +29,7 @@ momentum กับโมเดลพยากรณ์การเติบโ�
 - คีย์เวิร์ดในการทดสอบถูกเลือกในปี 2026 (survivorship) ตัวเลขความต่อเนื่องจึงน่าจะสูงกว่าความจริง
 """
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -81,7 +84,12 @@ HISTORY_MONTHS = 60                 # กราฟหน้าเทรนด์
 # 15 เทรนด์ต่อรอบ, จุดตัด 13/13/13/11/9) เปอร์เซ็นไทล์ 10-90 ของ (ผลจริง ÷ ที่ทาย) ระดับดัชนีเทรนด์ - ค่ากลางความคลาดเคลื่อน
 # 5.5 / 8.6 / 12.3 / 16.2 / 19.5% (ทายว่าไม่เปลี่ยน 9.7 / 20.0 / 31.0 / 41.9 / 55.3%) ปีที่ 5 ผลจริงสูงกว่าที่ทาย 62% ของกรณี
 # (ปีที่ 1-2 ราวครึ่งต่อครึ่ง) - ค่าเดิม (โมเดล 3 ปีรอบเดียว) = (-0.10, 0.12) / (-0.14, 0.20) / (-0.15, 0.24)
-FORECAST_BAND_80 = {1: (-0.10, 0.12), 2: (-0.15, 0.19), 3: (-0.21, 0.26), 4: (-0.25, 0.35), 5: (-0.27, 0.48)}
+FORECAST_BAND_80 = {1: (-0.10, 0.12), 2: (-0.15, 0.19), 3: (-0.21, 0.26), 4: (-0.25, 0.35), 5: (-0.27, 0.48)}   # โมเดลรายรอบ
+# 🆕(2026-10-29, เจ้าของงานสั่ง) โมเดลที่ใช้ทาย: "pool" = โมเดลล็อกฝึกจากชุดกลาง (growth_pool.py) / "per-run" = ฝึกจากคีย์เวิร์ดของรอบ
+# (วิธีเดิม - ใช้สร้างรอบเก่าซ้ำให้ได้ตัวเลขเดิม) ; ตั้งต่อครั้งด้วย env GROWTH_MODEL ได้ ; แถบ 80% ของโหมด pool อยู่ใน
+# growth_pool/pool_manifest.json (FORECAST_BAND_80 ข้างบนใช้กับโหมด per-run เท่านั้น)
+GROWTH_MODEL = "pool"
+MIN_RUN_KEYWORDS = 300   # โหมด per-run: ต่ำกว่านี้อันดับไม่นิ่ง (ทดลอง 2026-10-29: ฝึกจาก 150 คำ Spearman ข้ามชุดฝึก 0.6, 300 คำ 0.7-0.87)
 
 
 def log_growth(new_mean, old_mean):
@@ -238,7 +246,7 @@ def _pct_change(new_mean, old_mean):
     return round(float(np.expm1(log_growth(new_mean, old_mean))) * 100, 1)
 
 
-def aggregate_clusters(kw, mapping):
+def aggregate_clusters(kw, mapping, band=None):
     """คีย์เวิร์ด -> เทรนด์ - mapping มีคอลัมน์ Keyword, cluster_name
     - คะแนนแต่ละปี = มัธยฐานของคะแนนคีย์เวิร์ดที่ข้อมูลพอ
     - การโต 12 เดือนที่ผ่านมา และ 6 เดือนล่าสุดเทียบปีก่อน (ข้อมูลจริง) = เทียบค่าเฉลี่ยของดัชนีเทรนด์ (ค่าเฉลี่ยคีย์เวิร์ดที่
@@ -251,7 +259,7 @@ def aggregate_clusters(kw, mapping):
     for name, g in merged.groupby("cluster_name", sort=True):
         ok = g[~g["thin"].astype(bool)]
         rec = {"trend": name, "n_keywords": int(len(g)), "n_scored": int(len(ok))}
-        forecast = expected_levels(ok)
+        forecast = expected_levels(ok, band)
         for h in HORIZONS:
             if not BLEND_MOMENTUM and forecast and len(market.get(h, [])):
                 # 🆕 (2026-09-30) โหมดโมเดลอย่างเดียว: คะแนน = percentile ของการเติบโตที่คาดของดัชนีเทรนด์ (ตัวเลข "คาด +X%"
@@ -277,10 +285,11 @@ def aggregate_clusters(kw, mapping):
     return out
 
 
-def expected_levels(ok):
+def expected_levels(ok, band=None):
     """ระดับที่คาดของดัชนีเทรนด์ (ค่าเฉลี่ยคีย์เวิร์ด) ในแต่ละปีของ HORIZONS จากค่าที่โมเดลทายต่อคีย์เวิร์ด:
     ระดับคีย์เวิร์ด = (ค่าเฉลี่ย 12 เดือนล่าสุด + 1) x exp(ค่าที่ทาย) - 1 แล้วเฉลี่ยทุกคำ (แบบเดียวกับดัชนีในกราฟ)
-    คืน {"base", "levels", "change_pct", "low", "high"} (low/high = แถบ 80% จาก FORECAST_BAND_80) หรือ None"""
+    คืน {"base", "levels", "change_pct", "low", "high"} (low/high = แถบ 80% ของโมเดลที่ใช้ - ไม่ระบุใช้ FORECAST_BAND_80) หรือ None"""
+    band = band or FORECAST_BAND_80
     cols = ["last12_mean"] + [f"pred_y{h}" for h in HORIZONS]
     if not len(ok) or any(c not in ok for c in cols) or ok[cols].isna().any(axis=None):
         return None
@@ -288,8 +297,8 @@ def expected_levels(ok):
     levels = [float(((ok["last12_mean"] + 1) * np.exp(ok[f"pred_y{h}"]) - 1).mean()) for h in HORIZONS]
     return {"base": round(base, 2), "levels": [round(v, 2) for v in levels],
             "change_pct": [_pct_change(v, base) for v in levels],
-            "low": [round((v + 1) * (1 + FORECAST_BAND_80[h][0]) - 1, 2) for h, v in zip(HORIZONS, levels)],
-            "high": [round((v + 1) * (1 + FORECAST_BAND_80[h][1]) - 1, 2) for h, v in zip(HORIZONS, levels)]}
+            "low": [round((v + 1) * (1 + band[h][0]) - 1, 2) for h, v in zip(HORIZONS, levels)],
+            "high": [round((v + 1) * (1 + band[h][1]) - 1, 2) for h, v in zip(HORIZONS, levels)]}
 
 
 SEASONAL_YEARS = 4   # จำนวนปีเต็มที่ใช้หาจังหวะตามฤดูกาลของเทรนด์
@@ -352,18 +361,38 @@ def load_monthly(forecast_dir):
     return series, mapping
 
 
-def compute_growth_scores(forecast_dir, last_trusted=LAST_TRUSTED_MONTH):
-    """ฟังก์ชันหลัก: อ่านผล ⑦ -> ฝึกโมเดล -> คะแนนการเติบโตต่อคีย์เวิร์ดและต่อเทรนด์ (dict ที่ serialize เป็น JSON ได้)"""
+def compute_growth_scores(forecast_dir, last_trusted=LAST_TRUSTED_MONTH, model=None, pool_dir=None, cache_dir=None):
+    """ฟังก์ชันหลัก: อ่านผล ⑦ -> โหลดโมเดล -> คะแนนการเติบโตต่อคีย์เวิร์ดและต่อเทรนด์ (dict ที่ serialize เป็น JSON ได้)
+    model: "pool" = โมเดลล็อกจากชุดกลาง (growth_pool.py) / "per-run" = ฝึกจากคีย์เวิร์ดของรอบนี้ (วิธีเดิม)
+    ไม่ระบุ = env GROWTH_MODEL แล้วค่าคงที่ GROWTH_MODEL ; pool_dir / cache_dir ใช้ในเทสต์"""
+    mode = (model or os.environ.get("GROWTH_MODEL") or GROWTH_MODEL).strip().lower()
+    if mode not in ("pool", "per-run"):
+        raise ValueError(f"GROWTH_MODEL ต้องเป็น pool หรือ per-run (ได้ {mode!r})")
     series, mapping = load_monthly(forecast_dir)
-    samples = build_samples(series)
-    models, n_train = train_models(samples, last_trusted)
+    if mode == "pool":
+        import growth_pool  # เรียกตอนใช้ - growth_pool import โมดูลนี้ จึงไม่ import วนที่ระดับบนสุด
+        opts = {k: v for k, v in (("pool_dir", pool_dir), ("cache_dir", cache_dir)) if v is not None}
+        frozen = growth_pool.frozen_model(last_trusted, **opts)
+        models, n_train, n_samples, band = frozen["models"], frozen["n_train"], frozen["n_samples"], frozen["band"]
+        model_info = {**frozen["info"], "run_keywords": len(series),
+                      "run_keywords_in_pool": sum(1 for k in series if k in frozen["pool_keywords"])}
+    else:
+        samples = build_samples(series)
+        models, n_train = train_models(samples, last_trusted)
+        n_samples, band = len(samples), FORECAST_BAND_80
+        model_info = {"mode": "per-run", "run_keywords": len(series), "trained_keywords": int(samples["keyword"].nunique())}
+        if model_info["trained_keywords"] < MIN_RUN_KEYWORDS:
+            model_info["warning"] = (f"ฝึกจากคีย์เวิร์ดของรอบนี้ {model_info['trained_keywords']} คำ (< {MIN_RUN_KEYWORDS}) "
+                                     "- ตัวเลข % และอันดับไม่นิ่ง ควรใช้ GROWTH_MODEL=pool")
+    if model_info.get("warning"):
+        print(f"  ⚠️ {model_info['warning']}")
     kw = blend_scores(predict_keywords(series, models))
     as_of = max(s.index[-1] for s in series.values())
     if not BLEND_MOMENTUM and as_of >= MOMENTUM_CLEAN_FROM:
         print(f"  ℹ️ ข้อมูลถึง {as_of:%Y-%m} พ้นช่วงกระโดดของ cat=0 แล้ว - พิจารณาตั้ง growth_score.BLEND_MOMENTUM = True "
               "(แบบผสม momentum + โมเดล จัดอันดับได้ดีกว่าใน backtest)")
     history = cluster_history(series, kw, mapping)
-    clusters = [{**c, "history": history.get(c["trend"])} for c in aggregate_clusters(kw, mapping)]
+    clusters = [{**c, "history": history.get(c["trend"])} for c in aggregate_clusters(kw, mapping, band)]
     for c in clusters:  # ค่ารายเดือนที่คาด (เส้นคลื่นในกราฟหน้าเทรนด์) = ระดับรายปี x จังหวะฤดูกาลก่อนช่วงข้อมูลกระโดด
         if c["forecast"] and c["history"]:
             c["forecast"]["monthly"] = monthly_path(c["forecast"], c["history"].get("seasonal"), as_of)
@@ -378,10 +407,11 @@ def compute_growth_scores(forecast_dir, last_trusted=LAST_TRUSTED_MONTH):
             "horizons_months": {str(h): list(v) for h, v in HORIZONS.items()},
             "features": {str(h): v for h, v in MODEL_FEATURES.items()},
             "n_train": {str(h): n for h, n in n_train.items()},
-            "n_samples": int(len(samples)),
+            "n_samples": int(n_samples),
+            "model": model_info,    # 🆕 (2026-10-29) โหมดโมเดล (pool / per-run) + ขนาดชุดฝึก + คำของรอบนี้ที่อยู่ในชุดกลาง
             "line": GROWTH_LINE, "grade_floors": list(GRADE_FLOORS),
             # 🆕 (2026-10-02) ช่วงคลาดเคลื่อน 80% ต่อปี (ผลจริง ÷ ที่ทาย - 1) - รายงาน ⑯ อ่านไปเขียนหมายเหตุ ไม่ต้องพิมพ์ตัวเลขซ้ำ
-            "forecast_band_80": {str(h): list(FORECAST_BAND_80[h]) for h in HORIZONS},
+            "forecast_band_80": {str(h): list(band[h]) for h in HORIZONS},
             "recent_months": RECENT_MONTHS, "decline_threshold_pct": round(float(np.expm1(DECLINE_THRESHOLD)) * 100, 1),
         },
         "clusters": clusters,

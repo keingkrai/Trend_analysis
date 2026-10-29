@@ -424,8 +424,13 @@ if __name__ == "__main__":
         by_name = {c["trend"]: c for c in growth["clusters"] if c.get(f"score_y{RANK_YEAR}") is not None}
         growth_lookup = {(stream, name): by_name[name]
                          for stream, dt in trends_by_stream.items() for name in dt["Trend Name"] if name in by_name}
-        print(f"✅ คะแนนการเติบโต ณ {growth['as_of']} (ฝึกด้วยข้อมูลถึง {growth['method']['last_trusted_month']}, "
-              f"ตัวอย่างฝึก {growth['method']['n_train']}) - ได้ {len(growth_lookup)}/{n_total} เทรนด์ (โหมด final)")
+        _m = growth["method"].get("model") or {}
+        print(f"✅ คะแนนการเติบโต ณ {growth['as_of']} (โมเดล {_m.get('mode', '?')}, ฝึกด้วยข้อมูลถึง "
+              f"{growth['method']['last_trusted_month']}, ตัวอย่างฝึก {growth['method']['n_train']}) - "
+              f"ได้ {len(growth_lookup)}/{n_total} เทรนด์ (โหมด final)")
+        if _m.get("mode") == "pool":
+            print(f"   ชุดกลาง {_m['pool_keywords']} คำ (สร้าง {_m['pool_built']}) · คำของรอบนี้ที่อยู่ในชุดกลาง "
+                  f"{_m['run_keywords_in_pool']}/{_m['run_keywords']} · แถบ 80%: {_m['band_source']}")
         print(f"💾 บันทึกคะแนนการเติบโต: {growth_path}")
     else:
         print(f"  ⏭️  ไม่มี {FORECAST_DIR_NAME}/{MONTHLY_FILE} (ยังไม่ได้รัน ⑦) - รันแบบ preliminary ทั้งหมด (cluster size)")

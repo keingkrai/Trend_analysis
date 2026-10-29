@@ -39,8 +39,11 @@ OUT_FILES = {"en": "phase6_growth_method.pdf", "th": "phase6_growth_method_TH.pd
 # 🆕 (2026-10-19) ระยะสั้นเปลี่ยนเป็นปีที่ 3 - แสดงปี 1 / 3 / 5: Spearman ระดับคีย์เวิร์ดปีที่ 3 = เฉลี่ย 2 รอบของผล backtest 2026-10-02
 # (082438 0.461, 111455 0.434 -> 0.45), ระดับเทรนด์ปีที่ 3 = 0.33 (082438) / 0.37 (111455), ระดับดัชนีคลาดมัธยฐานปีที่ 3 ~12% (จาก
 # calibration ของเครื่องยนต์รุ่นเดียวกันเมื่อ 2026-09-30: 12.3%) - ตัวเลขนี้อ้างจากบันทึกผล ไม่ได้คำนวณใหม่ตอนเปลี่ยนปี
-BACKTEST = {"level_err": "6% / 12% / 20%", "rank_kw": "0.52", "rank_kw_short": "0.45", "rank_kw5": "0.40",
-            "rank_trend": "0.33 - 0.37", "rounds": 13, "span": "2016 - 2022"}
+# 🆕 (2026-10-29) โมเดลล็อกจากชุดกลาง: ตัวเลขจาก growth_pool.py --calibrate (กันคีย์เวิร์ดของรอบที่ทดสอบออกจากชุดฝึก; manifest
+# growth_pool/pool_manifest.json): ระดับดัชนีเทรนด์คลาดมัธยฐาน 5.5 / 11.4 / 16.7% (ปี 1 / 3 / 5), Spearman คีย์เวิร์ด 0.52 / 0.47 / 0.40,
+# เทรนด์ปีที่ 3 0.41
+BACKTEST = {"level_err": "6% / 11% / 17%", "rank_kw": "0.52", "rank_kw_short": "0.47", "rank_kw5": "0.40",
+            "rank_trend": "0.41", "rounds": 13, "span": "2016 - 2022"}
 
 TEXT = {
     "en": {
@@ -199,7 +202,9 @@ def build_html(lang, brand, run, growth, trend, row, ex, svg_uri, shown=None):
     month = month_year(ex["month"].strftime("%b %Y"), lang).replace(" ", "\u00a0")
     esc = html.escape
     vals = {
-        "n_kw": len(kw), "n_scored": len(ok), "n_train": method["n_train"]["1"],
+        # 🆕 (2026-10-29) โมเดลล็อกฝึกจากชุดกลาง - ขั้น 1 พูดถึงจำนวนคีย์เวิร์ดที่ใช้ฝึกจริง ไม่ใช่เฉพาะคำของรอบนี้
+        "n_kw": (method.get("model") or {}).get("pool_keywords_trained") or len(kw), "n_scored": len(ok),
+        "n_train": method["n_train"]["1"],
         "last_trusted": month_year(pd.Timestamp(method["last_trusted_month"] + "-01").strftime("%b %Y"), lang),
         "as_of": month_year(pd.Timestamp(growth["as_of"] + "-01").strftime("%b %Y"), lang),
         "kw": esc(row["keyword"]), "month": month, **{k: ex[k] for k in ("g12", "g6", "peak", "y1")},

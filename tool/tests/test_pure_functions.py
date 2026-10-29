@@ -418,10 +418,13 @@ def test_train_models_only_uses_outcomes_before_last_trusted_month(tmp_path):
 
 
 def test_compute_growth_scores_end_to_end(tmp_path):
-    result = gs.compute_growth_scores(_synthetic_run(tmp_path))
+    result = gs.compute_growth_scores(_synthetic_run(tmp_path), model="per-run")
     assert result["as_of"] == "2026-08" and result["method"]["last_trusted_month"] == "2025-06"
     assert result["method"]["forecast_band_80"]["5"] == list(gs.FORECAST_BAND_80[5])
     assert result["method"]["score_method"] == "model only"
+    # 🆕 (2026-10-29) โหมดรายรอบบอกจำนวนคำที่ฝึก และเตือนเมื่อน้อยกว่า MIN_RUN_KEYWORDS (อันดับไม่นิ่ง)
+    info = result["method"]["model"]
+    assert info["mode"] == "per-run" and info["trained_keywords"] == 24 and "300" in info["warning"]
     clusters = {c["trend"]: c for c in result["clusters"]}
     assert sorted(clusters) == ["Trend 0", "Trend 1", "Trend 2"]
     for c in clusters.values():
