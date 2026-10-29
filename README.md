@@ -136,6 +136,7 @@ flowchart LR
     หมวดของสินค้าแต่ละชิ้นจัดโดย LLM ล่วงหน้า ดู `product/classify_products_llm.py` · รอบที่รันก่อนมีการแยกหมวด เติมได้ด้วย `validate_at_scale_nvidia.py --categories-only`
     (NVIDIA เทรนด์ละ 1 ครั้ง ไม่แตะผลเดิม)
 - **⑬ ค้นหาแบรนด์** — ดูว่าสินค้าของแบรนด์ที่ระบุอยู่ตรงไหนของแต่ละเทรนด์ (ใช้ข้อความจับคู่ชุดเดียวกับ ⑫ จึงต้องรันใหม่เมื่อเปลี่ยนฐานจับคู่)
+- **Excel รายเทรนด์ x หมวดสินค้า** (🆕 2026-10-29) — `python tool/phase3_supply_layer/export_trend_categories.py --run <รอบ>` สร้าง `<รอบ>/phase3_trend_categories.xlsx` จากผลที่มีอยู่แล้ว (ไม่เรียก API): สรุปรายเทรนด์ (หมวดหลัก L2 + เหตุผล + % ที่คาด + ความต้องการที่ AI อนุมาน) / ชนิดสินค้าในหมวดหลัก (L4 ในกลุ่มเทียบ 1%) / สินค้าใกล้เทรนด์สุด 15 ชิ้นต่อเทรนด์ / หมวดของ Google ต้นทาง / คำอธิบาย
 
 ### รายงาน (⑭-⑮)
 
@@ -696,7 +697,7 @@ $env:TREND_RUN_ID="beauty_and_personal_care_20260916_082438"; $env:TREND_TOPIC="
 - **รันเทสต์ก่อน commit**
 
 ```powershell
-python -m pytest tool/tests -q                                          # ~1-1.5 นาที (685 ข้อ ข้าม 1) ไม่เรียก API
+python -m pytest tool/tests -q                                          # ~1-1.5 นาที (691 ข้อ ข้าม 1) ไม่เรียก API
 $env:TREND_SUBSET_FULL="1"; python -m pytest tool/tests/test_trend_final_subset.py   # + เทียบพยากรณ์เต็ม ~15 นาที
 ```
 
